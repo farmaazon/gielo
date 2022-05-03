@@ -1,0 +1,10 @@
+[package]
+name = "gielo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = "0.2.1"
+
+[dev-dependencies]
+slint-build = "0.2.1"
