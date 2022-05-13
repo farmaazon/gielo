@@ -1,0 +1,21 @@
+
+
+export struct StoneModel := {
+    x: float,
+    y: float,
+    v_x: float,
+    v_y: float,
+    color: color,
+}
+
+export struct SheetParameters := {
+    friction: float,
+    curl_factor: float,
+    stone_radius: float,
+    width: float,
+}
+
+export global SheetModel := {
+    property <SheetParameters> parameters;
+    property <[StoneModel]> stones;
+}

@@ -1,0 +1,20 @@
+export struct Team := {
+    name: string,
+    color: color,
+}
+
+export struct Shot := {
+    weight_sec: float,
+    mark_x: float,
+    mark_y: float,
+}
+
+export global GameModel := {
+    property <[Team]> teams;
+    property <[[int]]> score;
+    property <int> end;
+    property <int> delivered_stone;
+    property <bool> delivering;
+
+    callback deliver(Shot) -> Shot;
+}
