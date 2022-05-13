@@ -1,6 +1,6 @@
 use crate::game::{sheet, Sheet, Team};
 use crate::unit;
-use crate::unit::Time;
+use crate::unit::{seconds, Time};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
 use roots::{find_roots_linear, find_roots_quadratic, Roots};
@@ -9,6 +9,9 @@ use uom::si::length::foot;
 use uom::si::time::second;
 use uom::si::velocity::foot_per_second;
 use uom::ConstZero;
+
+pub mod state;
+pub use state::State;
 
 pub type Id = usize;
 pub type Velocity = Vector2<unit::Velocity>;
@@ -20,96 +23,6 @@ pub enum Curl {
     None,
     Clockwise,
     CounterClockwise,
-}
-
-pub mod state {
-    use super::*;
-
-    #[derive(Clone, Debug)]
-    pub struct BeingDelivered {
-        pub release_time: Time,
-        pub starting_point: Position,
-        pub delivering_off: Vector2<unit::Length>,
-        pub curl: Curl,
-    }
-
-    impl BeingDelivered {
-        pub fn position(&self, t: Time) -> Position {
-            self.starting_point + self.delivering_off * t / self.release_time
-        }
-
-        pub fn velocity(&self) -> Velocity {
-            self.delivering_off / self.release_time
-        }
-
-        pub fn release_point(&self) -> Position {
-            self.starting_point + self.delivering_off
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    pub struct Moving {
-        pub t0: Time,
-        pub t0_pos: Position,
-        pub t0_v: Velocity,
-        pub acc: Acceleration,
-        pub curl: Curl,
-    }
-
-    impl Moving {
-        pub fn position(&self, t: Time) -> Position {
-            let t = t - self.t0;
-            self.t0_pos + self.t0_v * t + self.acc * t * t / 2.0
-        }
-
-        pub fn velocity(&self, t: Time) -> Velocity {
-            let t = t - self.t0;
-            self.t0_v + self.acc * t
-        }
-
-        pub fn when_stop(&self, friction: unit::Acceleration) -> Time {
-            let v = self.t0_v.norm();
-            v / friction
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    pub struct Stationary {
-        pos: Position,
-        dirty: bool,
-    }
-
-    impl Stationary {
-        pub fn new(pos: Position) -> Self {
-            Self { pos, dirty: true }
-        }
-
-        pub fn position(&self) -> Position {
-            self.pos
-        }
-
-        pub fn read_position(&mut self) -> Option<Position> {
-            if self.dirty {
-                self.dirty = false;
-                Some(self.pos)
-            } else {
-                None
-            }
-        }
-    }
-}
-#[derive(Clone, Debug)]
-pub enum State {
-    BeingDelivered(state::BeingDelivered),
-    Moving(state::Moving),
-    Stationary(state::Stationary),
-    Out,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Stationary(state::Stationary::new(Position::default()))
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -253,5 +166,5 @@ fn min_plausible_time_candidate(roots: Roots<f32>) -> Option<Time> {
         .filter(|&&t| t >= 0.0)
         .copied()
         .next()
-        .map(Time::new::<second>)
+        .map(seconds)
 }

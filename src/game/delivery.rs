@@ -1,15 +1,15 @@
 use crate::game::sheet::{Hack, Sheet};
 use crate::game::stone::Curl;
 use crate::game::{sheet, stone, Stone, Team};
-use crate::unit::{Angle, Time};
+use crate::unit::{milliseconds, Angle, Time};
 use crate::vector::Vector2;
 use decorum::NotNan;
 use lazy_static::lazy_static;
 use std::iter::once;
-use uom::si::time::{millisecond, second};
+use uom::si::time::second;
 
 lazy_static! {
-    static ref TIME_QUANTUM_DURATION: Time = Time::new::<millisecond>(200.0);
+    static ref TIME_QUANTUM_DURATION: Time = milliseconds(200.0);
 }
 
 pub struct Params {

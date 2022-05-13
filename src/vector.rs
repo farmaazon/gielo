@@ -1,9 +1,19 @@
+use float_cmp::ApproxEq;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct Vector2<T> {
     pub x: T,
     pub y: T,
+}
+
+impl<T> Vector2<T> {
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Vector2<U> {
+        Vector2 {
+            x: f(self.x),
+            y: f(self.y),
+        }
+    }
 }
 
 impl<T> Neg for Vector2<T>
@@ -117,6 +127,23 @@ where
     fn div_assign(&mut self, rhs: U) {
         self.x /= rhs;
         self.y /= rhs;
+    }
+}
+
+impl<T> ApproxEq for Vector2<T>
+where
+    T: ApproxEq,
+{
+    type Margin = T::Margin;
+
+    fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+        let margin = margin.into();
+        self.x.approx_eq(other.x, margin) && self.y.approx_eq(other.y, margin)
+    }
+
+    fn approx_ne<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+        let margin = margin.into();
+        self.x.approx_ne(other.x, margin) || self.y.approx_ne(other.y, margin)
     }
 }
 

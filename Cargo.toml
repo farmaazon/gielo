@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 decorum = "0.3.1"
+float-cmp = "0.9.0"
 lazy_static = "1.4.0"
 local_vec = "0.5.0"
 roots = "0.0.7"

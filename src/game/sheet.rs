@@ -1,11 +1,9 @@
 use crate::game::Stone;
-use crate::unit::{Acceleration, Length};
+use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
 use crate::vector::Vector2;
 use lazy_static::lazy_static;
 use local_vec::LocalVec;
 use std::f32::consts::PI;
-use uom::si::acceleration::foot_per_second_squared;
-use uom::si::length::{foot, inch};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -16,20 +14,20 @@ pub enum Hack {
 pub const STONE_COUNT: usize = 16;
 
 lazy_static! {
-    pub static ref LENGTH: Length = Length::new::<foot>(150.0);
-    pub static ref CENTER_LINE_X: Length = Length::new::<foot>(0.0);
-    pub static ref HACK_X_OFFSET: Length = Length::new::<inch>(6.0);
+    pub static ref LENGTH: Length = feet(150.0);
+    pub static ref CENTER_LINE_X: Length = feet(0.0);
+    pub static ref HACK_X_OFFSET: Length = inches(6.0);
 }
 
 pub mod delivery_end {
     use super::*;
 
     lazy_static! {
-        pub static ref BOARD_LINE_Y: Length = Length::new::<foot>(0.0);
-        pub static ref HACK_LINE_Y: Length = Length::new::<foot>(6.0);
-        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y + Length::new::<foot>(6.0);
-        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y + Length::new::<foot>(6.0);
-        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y + Length::new::<foot>(21.0);
+        pub static ref BOARD_LINE_Y: Length = feet(0.0);
+        pub static ref HACK_LINE_Y: Length = feet(6.0);
+        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y + feet(6.0);
+        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y + feet(6.0);
+        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y + feet(21.0);
     }
 }
 
@@ -38,10 +36,10 @@ pub mod playing_end {
 
     lazy_static! {
         pub static ref BOARD_LINE_Y: Length = *LENGTH;
-        pub static ref HACK_LINE_Y: Length = *LENGTH - Length::new::<foot>(6.0);
-        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y - Length::new::<foot>(6.0);
-        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y - Length::new::<foot>(6.0);
-        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y - Length::new::<foot>(21.0);
+        pub static ref HACK_LINE_Y: Length = *LENGTH - feet(6.0);
+        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y - feet(6.0);
+        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y - feet(6.0);
+        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y - feet(21.0);
     }
 }
 
@@ -56,10 +54,10 @@ pub struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Self {
-            friction: Acceleration::new::<foot_per_second_squared>(49.0 / 93.0 / 2.0),
-            curl_factor: Acceleration::new::<foot_per_second_squared>(245.0 / 8649.0),
-            stone_radius: Length::new::<inch>(18.0 / PI),
-            width: Length::new::<foot>(15.0) + Length::new::<inch>(7.0),
+            friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
+            curl_factor: feet_per_second_squared(245.0 / 8649.0),
+            stone_radius: inches(18.0 / PI),
+            width: feet(15.0) + inches(7.0),
         }
     }
 }
