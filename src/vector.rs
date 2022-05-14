@@ -9,10 +9,7 @@ pub struct Vector2<T> {
 
 impl<T> Vector2<T> {
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Vector2<U> {
-        Vector2 {
-            x: f(self.x),
-            y: f(self.y),
-        }
+        Vector2 { x: f(self.x), y: f(self.y) }
     }
 }
 
@@ -23,10 +20,7 @@ where
     type Output = Vector2<T::Output>;
 
     fn neg(self) -> Self::Output {
-        Vector2 {
-            x: -self.x,
-            y: -self.y,
-        }
+        Vector2 { x: -self.x, y: -self.y }
     }
 }
 
@@ -37,10 +31,7 @@ where
     type Output = Vector2<T::Output>;
 
     fn add(self, rhs: Vector2<U>) -> Self::Output {
-        Vector2 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
+        Vector2 { x: self.x + rhs.x, y: self.y + rhs.y }
     }
 }
 
@@ -61,10 +52,7 @@ where
     type Output = Vector2<T::Output>;
 
     fn sub(self, rhs: Vector2<U>) -> Self::Output {
-        Vector2 {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
+        Vector2 { x: self.x - rhs.x, y: self.y - rhs.y }
     }
 }
 
@@ -86,10 +74,7 @@ where
     type Output = Vector2<T::Output>;
 
     fn mul(self, rhs: U) -> Self::Output {
-        Vector2 {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
+        Vector2 { x: self.x * rhs, y: self.y * rhs }
     }
 }
 
@@ -112,10 +97,7 @@ where
     type Output = Vector2<T::Output>;
 
     fn div(self, rhs: U) -> Self::Output {
-        Vector2 {
-            x: self.x / rhs,
-            y: self.y / rhs,
-        }
+        Vector2 { x: self.x / rhs, y: self.y / rhs }
     }
 }
 
@@ -158,5 +140,38 @@ impl EuclideanNorm for crate::game::stone::Velocity {
 
     fn norm(self) -> Self::Output {
         (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::unit::{assert_approx_eq, feet_per_second};
+
+    #[test]
+    fn operations() {
+        let mut lhs = Vector2 { x: 3.0, y: 4.0 };
+        let rhs = Vector2 { x: 2.0, y: 8.0 };
+        assert_eq!(lhs + rhs, Vector2 { x: 5.0, y: 12.0 });
+        assert_eq!(lhs - rhs, Vector2 { x: 1.0, y: -4.0 });
+        assert_eq!(lhs * 3.0, Vector2 { x: 9.0, y: 12.0 });
+        assert_eq!(lhs / 2.0, Vector2 { x: 1.5, y: 2.0 });
+        lhs += rhs;
+        assert_eq!(lhs, Vector2 { x: 5.0, y: 12.0 });
+        lhs -= rhs;
+        assert_eq!(lhs, Vector2 { x: 3.0, y: 4.0 });
+        lhs *= 3.0;
+        assert_eq!(lhs, Vector2 { x: 9.0, y: 12.0 });
+        lhs /= 2.0;
+        assert_eq!(lhs, Vector2 { x: 4.5, y: 6.0 });
+    }
+
+    #[test]
+    fn calculating_norm() {
+        let cases = [(3.0, 4.0, 5.0), (1.0, 30.0, 901.0_f32.sqrt())];
+        for (x, y, expected) in cases {
+            let v = Vector2 { x: feet_per_second(x), y: feet_per_second(y) };
+            assert_approx_eq!(v.norm(), feet_per_second(expected));
+        }
     }
 }

@@ -34,11 +34,13 @@ pub fn feet_per_second_squared(value: BaseType) -> Acceleration {
 //     }
 // }
 
+#[cfg(test)]
 macro_rules! assert_approx_eq {
-    ($rhs:expr, $lhs:expr$(, $argv:tt)*) => {
-        float_cmp::assert_approx_eq!($crate::unit::BaseType, $rhs.value, $lhs.value$(, $argv)*)
+    ($rhs:expr, $lhs:expr$(, $($argv:tt)*)?) => {
+        float_cmp::assert_approx_eq!($crate::unit::BaseType, $rhs.value, $lhs.value$(, $($argv)*)?)
     }
 }
 
 // pub(crate) use approx_eq;
+#[cfg(test)]
 pub(crate) use assert_approx_eq;

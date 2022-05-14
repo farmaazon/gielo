@@ -1,7 +1,7 @@
 use crate::game::stone::{Acceleration, Curl, Position, Velocity};
-use crate::unit;
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
+use crate::{motion, unit};
 
 #[derive(Clone, Debug)]
 pub struct BeingDelivered {
@@ -18,6 +18,14 @@ impl BeingDelivered {
 
     pub fn velocity(&self) -> Velocity {
         self.delivering_off / self.release_time
+    }
+
+    pub fn motion_x(&self) -> motion::Uniform {
+        motion::Uniform { s0: self.starting_point.x, v: self.velocity().x }
+    }
+
+    pub fn motion_y(&self) -> motion::Uniform {
+        motion::Uniform { s0: self.starting_point.y, v: self.velocity().y }
     }
 
     pub fn release_point(&self) -> Position {
@@ -48,6 +56,14 @@ impl Moving {
     pub fn when_stop(&self, friction: unit::Acceleration) -> Time {
         let v = self.t0_v.norm();
         self.t0 + (v / friction)
+    }
+
+    pub fn motion_x(&self) -> motion::UniformlyAccelerated {
+        motion::UniformlyAccelerated { s0: self.t0_pos.x, v0: self.t0_v.x, a: self.acc.x }
+    }
+
+    pub fn motion_y(&self) -> motion::UniformlyAccelerated {
+        motion::UniformlyAccelerated { s0: self.t0_pos.y, v0: self.t0_v.y, a: self.acc.y }
     }
 }
 
@@ -101,14 +117,8 @@ mod tests {
     fn delivered_stone_properties() {
         let state = BeingDelivered {
             release_time: seconds(3.0),
-            starting_point: Vector2 {
-                x: inches(6.0),
-                y: feet(1.0),
-            },
-            delivering_off: Vector2 {
-                x: -feet(3.0),
-                y: feet(12.0),
-            },
+            starting_point: Vector2 { x: inches(6.0), y: feet(1.0) },
+            delivering_off: Vector2 { x: -feet(3.0), y: feet(12.0) },
             curl: Curl::None,
         };
         let position = state.position(seconds(1.0));
@@ -132,18 +142,9 @@ mod tests {
     fn moving_stone_properties() {
         let state = Moving {
             t0: seconds(1.5),
-            t0_pos: Vector2 {
-                x: feet(-1.0),
-                y: feet(30.0),
-            },
-            t0_v: Vector2 {
-                x: feet_per_second(-0.01),
-                y: feet_per_second(3.0),
-            },
-            acc: Vector2 {
-                x: feet_per_second_squared(0.003),
-                y: feet_per_second_squared(-0.05),
-            },
+            t0_pos: Vector2 { x: feet(-1.0), y: feet(30.0) },
+            t0_v: Vector2 { x: feet_per_second(-0.01), y: feet_per_second(3.0) },
+            acc: Vector2 { x: feet_per_second_squared(0.003), y: feet_per_second_squared(-0.05) },
             curl: Curl::CounterClockwise,
         };
 
@@ -169,10 +170,7 @@ mod tests {
 
     #[test]
     fn reading_stationary_position() {
-        let mut state = Stationary::new(Vector2 {
-            x: feet(0.0),
-            y: feet(100.0),
-        });
+        let mut state = Stationary::new(Vector2 { x: feet(0.0), y: feet(100.0) });
         assert!(state.read_position().is_some());
         assert!(state.read_position().is_none());
     }

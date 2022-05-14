@@ -43,6 +43,16 @@ pub mod playing_end {
     }
 }
 
+pub fn hack_pos(hack: Hack) -> Vector2<Length> {
+    Vector2 {
+        x: match hack {
+            Hack::Left => *CENTER_LINE_X + *HACK_X_OFFSET,
+            Hack::Right => *CENTER_LINE_X - *HACK_X_OFFSET,
+        },
+        y: *delivery_end::HACK_LINE_Y,
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     pub friction: Acceleration,
@@ -62,6 +72,16 @@ impl Default for Parameters {
     }
 }
 
+impl Parameters {
+    pub fn left_bound(&self) -> Length {
+        *CENTER_LINE_X - self.width / 2.0
+    }
+
+    pub fn right_bound(&self) -> Length {
+        *CENTER_LINE_X + self.width / 2.0
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Sheet {
     pub stones: LocalVec<Stone, STONE_COUNT>,
@@ -74,33 +94,5 @@ impl Sheet {
             stones: LocalVec::new(),
             parameters,
         }
-    }
-
-    pub fn left_bound(&self) -> Length {
-        *CENTER_LINE_X - self.parameters.width / 2.0
-    }
-
-    pub fn right_bound(&self) -> Length {
-        *CENTER_LINE_X + self.parameters.width / 2.0
-    }
-
-    pub fn hack_pos(&self, hack: Hack) -> Vector2<Length> {
-        Vector2 {
-            x: match hack {
-                Hack::Left => *CENTER_LINE_X - *HACK_X_OFFSET,
-                Hack::Right => *CENTER_LINE_X + *HACK_X_OFFSET,
-            },
-            y: *delivery_end::HACK_LINE_Y,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn positions() {
-        let _params = Parameters::default();
     }
 }

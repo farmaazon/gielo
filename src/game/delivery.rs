@@ -12,7 +12,7 @@ lazy_static! {
     static ref TIME_QUANTUM_DURATION: Time = milliseconds(200.0);
 }
 
-pub struct Params {
+pub struct Parameters {
     pub angle: Angle,
     pub weight: Time,
     pub team: Team,
@@ -64,13 +64,13 @@ pub struct Delivery {
 impl Delivery {
     pub fn start(
         sheet: &mut Sheet,
-        Params {
+        Parameters {
             angle,
             weight,
             team,
             hack,
             curl,
-        }: Params,
+        }: Parameters,
     ) -> Self {
         let delivering_dist = *sheet::delivery_end::HOG_LINE_Y - *sheet::delivery_end::HACK_LINE_Y;
         let measure_dist = *sheet::delivery_end::HOG_LINE_Y - *sheet::delivery_end::TEE_LINE_Y;
@@ -83,7 +83,7 @@ impl Delivery {
             team,
             state: stone::State::BeingDelivered(stone::state::BeingDelivered {
                 release_time,
-                starting_point: sheet.hack_pos(hack),
+                starting_point: sheet::hack_pos(hack),
                 delivering_off,
                 curl,
             }),
@@ -104,7 +104,7 @@ impl Delivery {
             .stones
             .iter()
             .enumerate()
-            .flat_map(|stone| self.stone_events(sheet, stone));
+            .flat_map(|stone| self.stone_events(&sheet.parameters, stone));
         let all_events = next_quantum.chain(stone_events);
         all_events
             .filter(|event| event.in_time_bounds(self.current_time, until))
@@ -113,14 +113,20 @@ impl Delivery {
 
     fn stone_events(
         &self,
-        sheet: &Sheet,
+        sheet_params: &sheet::Parameters,
         (id, stone): (stone::Id, &Stone),
     ) -> impl Iterator<Item = Event> {
-        let outside_x = Event::from_times(event::Kind::StoneOut(id), stone.when_outside_x(sheet));
-        let outside_y = Event::from_times(event::Kind::StoneOut(id), stone.when_outside_y(sheet));
+        let outside_x = Event::from_times(
+            event::Kind::StoneOut(id),
+            stone.when_outside_x(sheet_params),
+        );
+        let outside_y = Event::from_times(
+            event::Kind::StoneOut(id),
+            stone.when_outside_y(sheet_params),
+        );
         let next_stage = Event::from_times(
             event::Kind::StoneNextStage(id),
-            stone.when_next_stage(&sheet.parameters),
+            stone.when_next_stage(sheet_params),
         );
         outside_x.chain(outside_y).chain(next_stage)
     }
@@ -149,3 +155,6 @@ impl Delivery {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}
