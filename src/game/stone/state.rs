@@ -1,4 +1,4 @@
-use crate::game::stone::{Acceleration, Curl, Position, Velocity};
+use crate::game::stone::{Acceleration, Position, Rotation, Velocity};
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
 use crate::{motion, unit};
@@ -8,7 +8,7 @@ pub struct BeingDelivered {
     pub release_time: Time,
     pub starting_point: Position,
     pub delivering_off: Vector2<unit::Length>,
-    pub curl: Curl,
+    pub rotation: Rotation,
 }
 
 impl BeingDelivered {
@@ -39,7 +39,7 @@ pub struct Moving {
     pub t0_pos: Position,
     pub t0_v: Velocity,
     pub acc: Acceleration,
-    pub curl: Curl,
+    pub rotation: Rotation,
 }
 
 impl Moving {
@@ -108,10 +108,11 @@ impl Default for State {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::unit::{
         assert_approx_eq, feet, feet_per_second, feet_per_second_squared, inches, seconds,
     };
+
+    use super::*;
 
     #[test]
     fn delivered_stone_properties() {
@@ -119,7 +120,7 @@ mod tests {
             release_time: seconds(3.0),
             starting_point: Vector2 { x: inches(6.0), y: feet(1.0) },
             delivering_off: Vector2 { x: -feet(3.0), y: feet(12.0) },
-            curl: Curl::None,
+            rotation: Rotation::None,
         };
         let position = state.position(seconds(1.0));
         assert_approx_eq!(position.x, inches(6.0) - feet(1.0));
@@ -145,7 +146,7 @@ mod tests {
             t0_pos: Vector2 { x: feet(-1.0), y: feet(30.0) },
             t0_v: Vector2 { x: feet_per_second(-0.01), y: feet_per_second(3.0) },
             acc: Vector2 { x: feet_per_second_squared(0.003), y: feet_per_second_squared(-0.05) },
-            curl: Curl::CounterClockwise,
+            rotation: Rotation::CounterClockwise,
         };
 
         let t = seconds(2.0);
@@ -165,7 +166,7 @@ mod tests {
         assert_approx_eq!(position.y, feet(35.9));
 
         let when_stop = state.when_stop(feet_per_second_squared(0.05));
-        assert_approx_eq!(when_stop, seconds(61.50033333240741255140));
+        assert_approx_eq!(when_stop, seconds(61.50033));
     }
 
     #[test]

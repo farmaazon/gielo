@@ -1,13 +1,15 @@
-use crate::game::{sheet, Team};
-use crate::unit;
-use crate::unit::Time;
-use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
 use uom::si::time::second;
 use uom::ConstZero;
 
-pub mod state;
 pub use state::State;
+
+use crate::game::{sheet, Team};
+use crate::unit;
+use crate::unit::Time;
+use crate::vector::{EuclideanNorm, Vector2};
+
+pub mod state;
 
 pub type Id = usize;
 pub type Velocity = Vector2<unit::Velocity>;
@@ -15,7 +17,7 @@ pub type Acceleration = Vector2<unit::Acceleration>;
 pub type Position = Vector2<unit::Length>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Curl {
+pub enum Rotation {
     None,
     Clockwise,
     CounterClockwise,
@@ -79,8 +81,8 @@ impl Stone {
                     t0: state.release_time,
                     t0_pos: state.release_point(),
                     t0_v,
-                    acc: compute_acc(sheet, t0_v, state.curl),
-                    curl: state.curl,
+                    acc: compute_acc(sheet, t0_v, state.rotation),
+                    rotation: state.rotation,
                 })
             }
             State::Moving(state) => {
@@ -98,33 +100,34 @@ impl Stone {
                 t0: next_time_quantum,
                 t0_pos: state.position(next_time_quantum),
                 t0_v: new_t0_v,
-                acc: compute_acc(sheet, new_t0_v, state.curl),
-                curl: state.curl,
+                acc: compute_acc(sheet, new_t0_v, state.rotation),
+                rotation: state.rotation,
             };
             *state = new_state
         }
     }
 }
 
-fn compute_acc(sheet: &sheet::Parameters, t0_v: Velocity, curl: Curl) -> Acceleration {
+fn compute_acc(sheet: &sheet::Parameters, t0_v: Velocity, rotation: Rotation) -> Acceleration {
     let v = t0_v.norm();
     let a_friction = -t0_v / v * sheet.friction;
-    let a_curl = match curl {
-        Curl::None => Vector2 { x: unit::Velocity::ZERO, y: unit::Velocity::ZERO },
-        Curl::Clockwise => Vector2 { x: -t0_v.y, y: t0_v.x },
-        Curl::CounterClockwise => Vector2 { x: t0_v.y, y: -t0_v.x },
-    } * sheet.curl_factor
+    let a_rotation = match rotation {
+        Rotation::None => Vector2 { x: unit::Velocity::ZERO, y: unit::Velocity::ZERO },
+        Rotation::Clockwise => Vector2 { x: -t0_v.y, y: t0_v.x },
+        Rotation::CounterClockwise => Vector2 { x: t0_v.y, y: -t0_v.x },
+    } * sheet.rotation_acc
         / v;
-    a_friction + a_curl
+    a_friction + a_rotation
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::game::sheet::Hack;
     use crate::unit::{
         assert_approx_eq, feet, feet_per_second, feet_per_second_squared, inches, seconds,
     };
+
+    use super::*;
 
     #[test]
     fn delivered_stone_out_x() {
@@ -136,15 +139,16 @@ mod tests {
                 x: sheet.right_bound() - *sheet::HACK_X_OFFSET - sheet.stone_radius,
                 y: feet(6.0),
             } * 2.0,
-            curl: Curl::Clockwise,
+            rotation: Rotation::Clockwise,
         };
         let stone = Stone { team: Team::First, state: State::BeingDelivered(state.clone()) };
         assert_approx_eq!(stone.when_outside_x(&sheet).unwrap(), seconds(1.5));
         let stone = Stone {
             team: Team::Second,
             state: State::BeingDelivered(state::BeingDelivered {
+                starting_point: sheet::hack_pos(Hack::Right),
                 delivering_off: Vector2 {
-                    x: sheet.left_bound() - *sheet::HACK_X_OFFSET + sheet.stone_radius,
+                    x: sheet.left_bound() + *sheet::HACK_X_OFFSET + sheet.stone_radius,
                     y: feet(6.0),
                 } * 3.0,
                 ..state
@@ -164,7 +168,7 @@ mod tests {
             },
             t0_v: Vector2 { x: feet_per_second(1.0), y: feet_per_second(3.0) },
             acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
-            curl: Curl::CounterClockwise,
+            rotation: Rotation::CounterClockwise,
         };
         let stone = Stone { team: Team::First, state: State::Moving(state) };
         assert_approx_eq!(stone.when_outside_x(&sheet).unwrap(), seconds(11.0), epsilon = 0.1);
@@ -181,7 +185,7 @@ mod tests {
             },
             t0_v: Vector2 { x: feet_per_second(-0.1), y: feet_per_second(1.0) },
             acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
-            curl: Curl::CounterClockwise,
+            rotation: Rotation::CounterClockwise,
         };
         let stone = Stone { team: Team::First, state: State::Moving(state) };
         assert_approx_eq!(stone.when_outside_y(&sheet).unwrap(), seconds(21.0), epsilon = 0.1);
@@ -191,7 +195,7 @@ mod tests {
     fn releasing() {
         let sheet = sheet::Parameters {
             friction: feet_per_second_squared(0.2),
-            curl_factor: feet_per_second_squared(0.03),
+            rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
             width: feet(15.0),
         };
@@ -200,7 +204,7 @@ mod tests {
             release_time: seconds(3.0),
             starting_point: Vector2 { x: inches(6.0), y: feet(6.0) },
             delivering_off: Vector2 { x: feet(-1.0), y: feet(30.0) },
-            curl: Curl::CounterClockwise,
+            rotation: Rotation::CounterClockwise,
         };
         let mut stone = Stone { team: Team::First, state: State::BeingDelivered(state.clone()) };
         stone.next_stage(&sheet);
@@ -216,10 +220,10 @@ mod tests {
         assert_approx_eq!(new_state.t0_v.y, feet_per_second(10.0));
         assert_approx_eq!(new_state.acc.x, feet_per_second_squared(1.1 / 901.0_f32.sqrt()));
         assert_approx_eq!(new_state.acc.y, feet_per_second_squared(-5.97 / 901.0_f32.sqrt()));
-        assert_eq!(new_state.curl, Curl::CounterClockwise);
+        assert_eq!(new_state.rotation, Rotation::CounterClockwise);
 
         // Clockwise
-        state.curl = Curl::Clockwise;
+        state.rotation = Rotation::Clockwise;
         let mut stone = Stone { team: Team::First, state: State::BeingDelivered(state) };
         stone.next_stage(&sheet);
         let new_state_cw = if let State::Moving(state) = stone.state.clone() {
@@ -234,14 +238,14 @@ mod tests {
         assert_approx_eq!(new_state_cw.t0_v.y, new_state.t0_v.y);
         assert_approx_eq!(new_state_cw.acc.x, feet_per_second_squared(-0.7 / 901.0_f32.sqrt()));
         assert_approx_eq!(new_state_cw.acc.y, feet_per_second_squared(-6.03 / 901.0_f32.sqrt()));
-        assert_eq!(new_state_cw.curl, Curl::Clockwise);
+        assert_eq!(new_state_cw.rotation, Rotation::Clockwise);
     }
 
     #[test]
     fn moving_stone_next_quantum() {
         let sheet = sheet::Parameters {
             friction: feet_per_second_squared(0.2),
-            curl_factor: feet_per_second_squared(0.03),
+            rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
             width: feet(15.0),
         };
@@ -250,7 +254,7 @@ mod tests {
             t0_pos: Vector2 { x: feet(3.0), y: feet(100.0) },
             t0_v: Vector2 { x: feet_per_second(-3.0), y: feet_per_second(4.0) },
             acc: Vector2 { x: feet_per_second_squared(0.096), y: feet_per_second_squared(-0.178) },
-            curl: Curl::Clockwise,
+            rotation: Rotation::Clockwise,
         };
         let mut stone = Stone { team: Team::First, state: State::Moving(state) };
         stone.next_time_quantum(seconds(4.0), &sheet);
@@ -267,14 +271,14 @@ mod tests {
         let v = new_state.t0_v.norm().value;
         assert_approx_eq!(new_state.acc.x, feet_per_second_squared(0.45228 / v));
         assert_approx_eq!(new_state.acc.y, feet_per_second_squared(-0.81304 / v));
-        assert_eq!(new_state.curl, Curl::Clockwise)
+        assert_eq!(new_state.rotation, Rotation::Clockwise)
     }
 
     #[test]
     fn stopping_stone() {
         let sheet = sheet::Parameters {
             friction: feet_per_second_squared(1.0),
-            curl_factor: feet_per_second_squared(0.1),
+            rotation_acc: feet_per_second_squared(0.1),
             ..sheet::Parameters::default()
         };
         let state = state::Moving {
@@ -282,7 +286,7 @@ mod tests {
             t0_pos: Vector2 { x: feet(3.0), y: feet(100.0) },
             t0_v: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
             acc: Vector2 { x: feet_per_second_squared(0.52), y: feet_per_second_squared(-0.86) },
-            curl: Curl::Clockwise,
+            rotation: Rotation::Clockwise,
         };
         let mut stone = Stone { team: Team::First, state: State::Moving(state) };
         stone.next_stage(&sheet);

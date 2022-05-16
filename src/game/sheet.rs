@@ -1,9 +1,11 @@
+use std::f32::consts::PI;
+
+use lazy_static::lazy_static;
+use local_vec::LocalVec;
+
 use crate::game::Stone;
 use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
 use crate::vector::Vector2;
-use lazy_static::lazy_static;
-use local_vec::LocalVec;
-use std::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -56,7 +58,7 @@ pub fn hack_pos(hack: Hack) -> Vector2<Length> {
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     pub friction: Acceleration,
-    pub curl_factor: Acceleration,
+    pub rotation_acc: Acceleration,
     pub stone_radius: Length,
     pub width: Length,
 }
@@ -65,7 +67,7 @@ impl Default for Parameters {
     fn default() -> Self {
         Self {
             friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
-            curl_factor: feet_per_second_squared(245.0 / 8649.0),
+            rotation_acc: feet_per_second_squared(245.0 / 8649.0),
             stone_radius: inches(18.0 / PI),
             width: feet(15.0) + inches(7.0),
         }
@@ -90,9 +92,6 @@ pub struct Sheet {
 
 impl Sheet {
     pub fn new(parameters: Parameters) -> Self {
-        Self {
-            stones: LocalVec::new(),
-            parameters,
-        }
+        Self { stones: LocalVec::new(), parameters }
     }
 }
