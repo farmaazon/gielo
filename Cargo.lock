@@ -59,6 +59,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "000444226fcff248f2bc4c7625be32c63caccfecc2723a2b9f78a7487a49c407"
 
 [[package]]
+name = "anyhow"
+version = "1.0.57"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
+
+[[package]]
 name = "approx"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1316,8 +1322,11 @@ dependencies = [
 name = "gielo"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "decorum",
+ "derive_more",
  "float-cmp 0.9.0",
+ "itertools",
  "lazy_static",
  "local_vec",
  "roots",

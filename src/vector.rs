@@ -1,3 +1,4 @@
+use crate::unit::Length;
 use float_cmp::ApproxEq;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -137,6 +138,14 @@ pub trait EuclideanNorm {
 
 impl EuclideanNorm for crate::game::stone::Velocity {
     type Output = crate::unit::Velocity;
+
+    fn norm(self) -> Self::Output {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+impl EuclideanNorm for Vector2<Length> {
+    type Output = Length;
 
     fn norm(self) -> Self::Output {
         (self.x * self.x + self.y * self.y).sqrt()

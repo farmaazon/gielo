@@ -1,5 +1,6 @@
 use decorum::NotNan;
 use lazy_static::lazy_static;
+use std::time;
 use uom::si::time::second;
 
 use event::Event;
@@ -7,13 +8,14 @@ use event::Event;
 use crate::game::sheet::{Hack, Sheet};
 use crate::game::stone::Rotation;
 use crate::game::{sheet, stone, Stone, Team};
-use crate::unit::{milliseconds, Angle, Time};
+use crate::unit::{milliseconds, seconds, Angle, Time};
 use crate::vector::Vector2;
 
 lazy_static! {
     static ref TIME_QUANTUM_DURATION: Time = milliseconds(250.0);
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     pub angle: Angle,
     pub weight: Time,
@@ -49,13 +51,15 @@ mod event {
     }
 }
 
+#[derive(Debug)]
 pub struct Delivery {
     pub current_time: Time,
     pub next_time_quantum: Time,
+    next_event_cached: Option<Event>,
 }
 
 impl Delivery {
-    pub fn start(
+    pub fn new(
         sheet: &mut Sheet,
         Parameters { angle, weight, team, hack, rotation }: Parameters,
     ) -> Self {
@@ -74,25 +78,44 @@ impl Delivery {
             }),
         };
         sheet.stones.push(delivered_stone);
-        Self { current_time: Time::default(), next_time_quantum: *TIME_QUANTUM_DURATION }
+        Self {
+            current_time: Time::default(),
+            next_time_quantum: *TIME_QUANTUM_DURATION,
+            next_event_cached: None,
+        }
     }
 
-    pub fn next_event(&self, sheet: &Sheet, until: Option<Time>) -> Option<Event> {
+    pub fn next_event(&mut self, sheet: &Sheet, until: Option<Time>) -> Option<Event> {
+        if let Some(event) = self.next_event_cached.take() {
+            Some(event)
+        } else {
+            let next_event = self.compute_next_event(sheet);
+            let to_cache =
+                next_event.as_ref().zip(until).map_or(false, |(event, until)| event.time > until);
+            if to_cache {
+                self.next_event_cached = next_event;
+                None
+            } else {
+                next_event
+            }
+        }
+    }
+
+    fn compute_next_event(&self, sheet: &Sheet) -> Option<Event> {
         let key = |event: &Event| NotNan::from(event.time.get::<second>());
         let stone_events = sheet
             .stones
             .iter()
             .enumerate()
             .flat_map(|stone| self.stone_events(&sheet.parameters, stone));
-        let next_base_event =
+        let base_event =
             stone_events.filter(|event| event.time >= self.current_time).min_by_key(key);
         // Consider next quantum only if there are other potential events. Otherwise we will run infinitely.
-        let next_event = next_base_event.and_then(|event| {
+        base_event.and_then(|event| {
             let next_quantum =
                 Event { kind: event::Kind::NextTimeQuantum, time: self.next_time_quantum };
             [next_quantum, event].into_iter().min_by_key(key)
-        });
-        next_event.filter(|event| until.map_or(true, |until| event.time <= until))
+        })
     }
 
     fn stone_events(
@@ -127,10 +150,30 @@ impl Delivery {
         }
     }
 
-    pub fn run(&mut self, sheet: &mut Sheet, until: Option<Time>) {
+    /// Returns true when finished.
+    pub fn run(&mut self, sheet: &mut Sheet, until: Option<Time>) -> bool {
         while let Some(event) = self.next_event(sheet, until) {
             self.apply_event(sheet, event);
         }
+        self.next_event_cached.is_none()
+    }
+}
+
+#[derive(Debug)]
+pub struct LiveDelivery {
+    started_at: time::Instant,
+    delivery: Delivery,
+}
+
+impl LiveDelivery {
+    pub fn start(sheet: &mut Sheet, params: Parameters) -> Self {
+        Self { started_at: time::Instant::now(), delivery: Delivery::new(sheet, params) }
+    }
+
+    pub fn update(&mut self, sheet: &mut Sheet, speed_factor: f32) -> bool {
+        let real_time = time::Instant::now() - self.started_at;
+        let game_time = seconds(real_time.as_secs_f32()) * speed_factor;
+        self.delivery.run(sheet, Some(game_time))
     }
 }
 
@@ -146,16 +189,16 @@ mod tests {
         let params = Parameters {
             angle: radians(6.0 / 132.0),
             weight: seconds(3.0),
-            team: Team::First,
+            team: Team::A,
             hack: Hack::Left,
             rotation: Rotation::Clockwise,
         };
-        let mut delivery = Delivery::start(&mut sheet, params);
-        delivery.run(&mut sheet, Some(seconds(2.0)));
+        let mut delivery = Delivery::new(&mut sheet, params);
+        assert!(!delivery.run(&mut sheet, Some(seconds(2.0))));
         assert!(matches!(sheet.stones[0].state, stone::State::BeingDelivered { .. }));
 
         let mut check_moving_stage = |time: Time, exp_t0: Time, exp_pos: stone::Position| {
-            delivery.run(&mut sheet, Some(time));
+            assert!(!delivery.run(&mut sheet, Some(time)));
             assert!(
                 matches!(sheet.stones[0].state, stone::State::Moving (stone::state::Moving {t0, ..}) if approx_eq!(t0, exp_t0))
             );
@@ -169,7 +212,7 @@ mod tests {
         check_moving_stage(seconds(20.0), seconds(20.0), Vector2 { x: feet(3.0), y: feet(115.0) });
         check_moving_stage(seconds(30.2), seconds(30.0), Vector2 { x: feet(1.0), y: feet(130.0) });
 
-        delivery.run(&mut sheet, None);
+        assert!(delivery.run(&mut sheet, None));
         assert!(matches!(sheet.stones[0].state, stone::State::Stationary(_)));
         let position = sheet.stones[0].position(seconds(0.0)).unwrap();
         assert_approx_eq!(position.x, feet(0.0), epsilon = 2.0);
@@ -182,12 +225,12 @@ mod tests {
         let params = Parameters {
             angle: radians(6.0 / 132.0),
             weight: seconds(2.8),
-            team: Team::First,
+            team: Team::A,
             hack: Hack::Left,
             rotation: Rotation::Clockwise,
         };
-        let mut delivery = Delivery::start(&mut sheet, params);
-        delivery.run(&mut sheet, None);
+        let mut delivery = Delivery::new(&mut sheet, params);
+        assert!(delivery.run(&mut sheet, Some(seconds(60.0))));
         assert!(matches!(sheet.stones[0].state, stone::State::Out));
         assert_eq!(sheet.stones[0].position(seconds(0.0)), None);
     }

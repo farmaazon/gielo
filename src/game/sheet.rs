@@ -1,11 +1,14 @@
-use std::f32::consts::PI;
-
+use crate::game::team::{teams, PerTeam, Team};
+use crate::game::Stone;
+use crate::unit::approx_eq;
+use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
+use crate::vector::{EuclideanNorm, Vector2};
+use decorum::NotNan;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use local_vec::LocalVec;
-
-use crate::game::Stone;
-use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
-use crate::vector::Vector2;
+use std::f32::consts::PI;
+use uom::si::length::foot;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -19,6 +22,9 @@ lazy_static! {
     pub static ref LENGTH: Length = feet(150.0);
     pub static ref CENTER_LINE_X: Length = feet(0.0);
     pub static ref HACK_X_OFFSET: Length = inches(6.0);
+    pub static ref TEE: Vector2<Length> =
+        Vector2 { x: *CENTER_LINE_X, y: *playing_end::TEE_LINE_Y };
+    pub static ref HOUSE_RADIUS: Length = feet(6.0);
 }
 
 pub mod delivery_end {
@@ -93,5 +99,116 @@ pub struct Sheet {
 impl Sheet {
     pub fn new(parameters: Parameters) -> Self {
         Self { stones: LocalVec::new(), parameters }
+    }
+
+    pub fn count_score(&self) -> PerTeam<u8> {
+        let out_of_house = *HOUSE_RADIUS + self.parameters.stone_radius;
+        let mut score = PerTeam::<u8>::default();
+        let stones_distances = teams().map(|team| {
+            self.stones
+                .iter()
+                .filter(|s| s.team == team)
+                .filter_map(|s| s.position(seconds(0.0)))
+                .map(|pos| (pos - *TEE).norm())
+                .filter(|&dist| dist < out_of_house || approx_eq!(dist, out_of_house))
+                .sorted_by_key(|dist| NotNan::from_inner(dist.get::<foot>()))
+                .collect_vec()
+        });
+        let nearest_stone = stones_distances.as_ref().map(|s| s.first().cloned());
+        let winner = match nearest_stone {
+            PerTeam { a: Some(a), b: Some(b) } if approx_eq!(a, b) => None,
+            PerTeam { a: Some(a), b: Some(b) } if a < b => Some(Team::A),
+            PerTeam { a: Some(a), b: Some(b) } if b < a => Some(Team::B),
+            PerTeam { a: Some(_), b: None } => Some(Team::A),
+            PerTeam { a: None, b: Some(_) } => Some(Team::B),
+            _ => None,
+        };
+
+        if let Some(winner) = winner {
+            let not_scoring_dist =
+                stones_distances[winner.opponent()].first().cloned().unwrap_or(out_of_house);
+            score[winner] = stones_distances[winner]
+                .iter()
+                .take_while(|&&d| d < not_scoring_dist && !approx_eq!(d, not_scoring_dist))
+                .count() as u8;
+        }
+        score
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::stone;
+    use crate::game::team::Team::{A, B};
+
+    #[test]
+    fn counting_score() {
+        #[derive(Debug)]
+        struct Case {
+            stones: Vec<(Team, stone::Position)>,
+            score: PerTeam<u8>,
+        }
+
+        impl Case {
+            fn new<const M: usize>(
+                stones: [(Team, f32, f32); M],
+                (score_a, score_b): (u8, u8),
+            ) -> Self {
+                Self {
+                    stones: stones
+                        .into_iter()
+                        .map(|(team, x, y)| (team, *TEE + Vector2 { x: feet(x), y: feet(y) }))
+                        .collect(),
+                    score: PerTeam { a: score_a, b: score_b },
+                }
+            }
+
+            fn run(self) {
+                let mut stones = LocalVec::new();
+                for (team, position) in self.stones.clone() {
+                    stones.push(Stone {
+                        team,
+                        state: stone::State::Stationary(stone::state::Stationary::new(position)),
+                    });
+                }
+                let sheet = Sheet {
+                    stones,
+                    parameters: Parameters { stone_radius: feet(0.5), ..Parameters::default() },
+                };
+                let score = sheet.count_score();
+                assert_eq!(score, self.score, "Error in {:?}", self);
+            }
+        }
+
+        let cases = [
+            Case::new([], (0, 0)),
+            Case::new([(A, 6.5, 0.0), (B, 6.0, 6.0)], (0, 0)),
+            Case::new([(A, -1.0, 0.0), (B, 1.0 + f32::EPSILON, 0.0)], (0, 0)),
+            Case::new([(A, 0.0, 0.0)], (1, 0)),
+            Case::new([(B, 5.0, 0.0)], (0, 1)),
+            Case::new([(B, 0.0, 0.0), (A, -1.0, 0.0), (B, 1.0 + f32::EPSILON, 0.0)], (0, 1)),
+            Case::new(
+                [(B, 0.0, 0.0), (A, -1.0, 0.0), (B, 1.0 - f32::EPSILON, 0.0), (B, 2.0, 2.0)],
+                (0, 1),
+            ),
+            Case::new([(A, 0.0, 0.0), (A, 1.0, 1.0), (B, -2.0, 0.0), (A, 3.0, 3.0)], (2, 0)),
+            Case::new(
+                [
+                    (B, 0.0, 0.0),
+                    (B, 1.0, 1.0),
+                    (B, -1.0, -1.0),
+                    (A, -2.0, 0.0),
+                    (B, 3.0, 3.0),
+                    (A, -4.0, 0.0),
+                    (A, 0.0, -4.0),
+                ],
+                (0, 3),
+            ),
+        ];
+
+        for case in cases {
+            case.run()
+        }
     }
 }

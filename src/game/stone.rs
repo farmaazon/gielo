@@ -141,10 +141,10 @@ mod tests {
             } * 2.0,
             rotation: Rotation::Clockwise,
         };
-        let stone = Stone { team: Team::First, state: State::BeingDelivered(state.clone()) };
+        let stone = Stone { team: Team::A, state: State::BeingDelivered(state.clone()) };
         assert_approx_eq!(stone.when_outside_x(&sheet).unwrap(), seconds(1.5));
         let stone = Stone {
-            team: Team::Second,
+            team: Team::B,
             state: State::BeingDelivered(state::BeingDelivered {
                 starting_point: sheet::hack_pos(Hack::Right),
                 delivering_off: Vector2 {
@@ -170,7 +170,7 @@ mod tests {
             acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
             rotation: Rotation::CounterClockwise,
         };
-        let stone = Stone { team: Team::First, state: State::Moving(state) };
+        let stone = Stone { team: Team::A, state: State::Moving(state) };
         assert_approx_eq!(stone.when_outside_x(&sheet).unwrap(), seconds(11.0), epsilon = 0.1);
     }
 
@@ -187,7 +187,7 @@ mod tests {
             acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
             rotation: Rotation::CounterClockwise,
         };
-        let stone = Stone { team: Team::First, state: State::Moving(state) };
+        let stone = Stone { team: Team::A, state: State::Moving(state) };
         assert_approx_eq!(stone.when_outside_y(&sheet).unwrap(), seconds(21.0), epsilon = 0.1);
     }
 
@@ -206,7 +206,7 @@ mod tests {
             delivering_off: Vector2 { x: feet(-1.0), y: feet(30.0) },
             rotation: Rotation::CounterClockwise,
         };
-        let mut stone = Stone { team: Team::First, state: State::BeingDelivered(state.clone()) };
+        let mut stone = Stone { team: Team::A, state: State::BeingDelivered(state.clone()) };
         stone.next_stage(&sheet);
         let new_state = if let State::Moving(state) = stone.state.clone() {
             state
@@ -224,7 +224,7 @@ mod tests {
 
         // Clockwise
         state.rotation = Rotation::Clockwise;
-        let mut stone = Stone { team: Team::First, state: State::BeingDelivered(state) };
+        let mut stone = Stone { team: Team::A, state: State::BeingDelivered(state) };
         stone.next_stage(&sheet);
         let new_state_cw = if let State::Moving(state) = stone.state.clone() {
             state
@@ -256,7 +256,7 @@ mod tests {
             acc: Vector2 { x: feet_per_second_squared(0.096), y: feet_per_second_squared(-0.178) },
             rotation: Rotation::Clockwise,
         };
-        let mut stone = Stone { team: Team::First, state: State::Moving(state) };
+        let mut stone = Stone { team: Team::A, state: State::Moving(state) };
         stone.next_time_quantum(seconds(4.0), &sheet);
         let new_state = if let State::Moving(state) = stone.state {
             state
@@ -288,7 +288,7 @@ mod tests {
             acc: Vector2 { x: feet_per_second_squared(0.52), y: feet_per_second_squared(-0.86) },
             rotation: Rotation::Clockwise,
         };
-        let mut stone = Stone { team: Team::First, state: State::Moving(state) };
+        let mut stone = Stone { team: Team::A, state: State::Moving(state) };
         stone.next_stage(&sheet);
         let new_state = if let State::Stationary(state) = stone.state {
             state
