@@ -16,3 +16,25 @@ impl Call {
         (offset.x / offset.y).atan()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::sheet::Hack;
+    use crate::unit::{assert_approx_eq, degrees, feet};
+
+    #[test]
+    fn compute_angle() {
+        fn test_case((x, y): (f32, f32), expected: Angle) {
+            for hack in [Hack::Left, Hack::Right] {
+                let mark = sheet::hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
+                let call = Call { mark, weight: Time::default(), rotation: Rotation::Clockwise };
+                assert_approx_eq!(call.angle(hack), expected);
+            }
+        }
+
+        test_case((-6.0, 6.0), degrees(-45.0));
+        test_case((0.0, 6.0), degrees(0.0));
+        test_case((6.0, 6.0), degrees(45.0));
+    }
+}

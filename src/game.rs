@@ -27,7 +27,7 @@ pub struct Parameters {
     ends: u8,
 }
 
-#[derive(Clone, Debug, Default, AsRef, Deref, DerefMut)]
+#[derive(Clone, Debug, Default, AsRef, Deref, DerefMut, Eq, PartialEq)]
 pub struct FullScore(pub LocalVec<PerTeam<u8>, MAX_ENDS>);
 
 impl FullScore {
@@ -77,6 +77,13 @@ impl Game {
 
     pub fn first_hammer(&self) -> Team {
         self.first_hammer
+    }
+
+    pub fn delivered_stone(&self) -> Option<&Stone> {
+        match &self.stage {
+            Stage::Delivering { end, .. } => Some(&self.sheet.stones[end.stone]),
+            _ => None,
+        }
     }
 
     pub fn update(&mut self, now: time::Instant) {
@@ -149,5 +156,139 @@ impl Game {
             stage => bail!("Going to next end at wrong stage {:?}", stage),
         };
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::stone::Rotation;
+    use crate::unit::feet;
+    use crate::vector::Vector2;
+    use slint::Color;
+    use std::time::{Duration, Instant};
+
+    struct Fixture {
+        teams: PerTeam<team::Info>,
+        params: Parameters,
+        sheet_params: sheet::Parameters,
+    }
+
+    fn tee_draw() -> shot::Call {
+        shot::Call {
+            weight: seconds(3.0),
+            mark: *sheet::TEE + Vector2 { x: feet(5.0), y: feet(0.0) },
+            rotation: Rotation::Clockwise,
+        }
+    }
+
+    impl Fixture {
+        fn make_empty_sheet(&self, played_stones: usize, starting_team: Team) -> Sheet {
+            let mut stones = LocalVec::new();
+            for i in 0..played_stones {
+                stones.push(Stone {
+                    team: if i % 2 == 0 { starting_team } else { starting_team.opponent() },
+                    state: stone::State::Out,
+                });
+            }
+            Sheet { stones, parameters: self.sheet_params }
+        }
+
+        fn make_game_at_thinking_stage(&self, end: stage::End, full_score: FullScore) -> Game {
+            Game {
+                params: self.params,
+                teams: self.teams.clone(),
+                first_hammer: Team::B,
+                full_score,
+                sheet: self.make_empty_sheet(end.stone, end.hammer.opponent()),
+                stage: Stage::Thinking(end),
+            }
+        }
+    }
+
+    impl Default for Fixture {
+        fn default() -> Self {
+            Self {
+                teams: PerTeam {
+                    a: team::Info { name: "A".into(), color: Color::from_rgb_u8(255, 0, 0) },
+                    b: team::Info { name: "B".into(), color: Color::from_rgb_u8(255, 255, 0) },
+                },
+                params: Parameters { speed_factor: 2.0, ends: 8 },
+                sheet_params: sheet::Parameters::default(),
+            }
+        }
+    }
+
+    #[test]
+    fn first_stone() {
+        let Fixture { teams, params, sheet_params } = Fixture::default();
+        let mut game = Game::new(teams, params, sheet_params, Team::B);
+        assert!(matches!(
+            game.stage,
+            Stage::Thinking(stage::End { no: 1, hammer: Team::B, stone: 0, playing_team: Team::A })
+        ));
+
+        let delivery_time = Instant::now();
+        game.start_delivery(delivery_time, tee_draw()).expect("Error while starting delivery");
+        assert!(matches!(
+            &game.stage,
+            Stage::Delivering {
+                end: stage::End { no: 1, hammer: Team::B, stone: 0, playing_team: Team::A },
+                started_at,
+                delivery
+            } if *started_at == delivery_time && delivery.current_time == seconds(0.0)
+        ));
+        let stone = game.delivered_stone().expect("No stone is delivered during delivery");
+        assert!(matches!(&stone.state, stone::State::BeingDelivered(_)));
+
+        let in_the_middle_time = delivery_time + Duration::from_secs_f32(6.0);
+        game.update(in_the_middle_time);
+        assert!(matches!(
+            &game.stage,
+            Stage::Delivering {
+                end: stage::End { no: 1, hammer: Team::B, stone: 0, playing_team: Team::A },
+                started_at,
+                delivery
+            } if *started_at == delivery_time && delivery.current_time == seconds(12.0)
+        ));
+        let stone = game.delivered_stone().expect("No stone is delivered during delivery");
+        assert!(matches!(&stone.state, stone::State::Moving(_)));
+
+        let when_stopped = delivery_time + Duration::from_secs_f32(20.0);
+        game.update(when_stopped);
+        assert!(matches!(
+            game.stage,
+            Stage::Thinking(stage::End { no: 1, hammer: Team::B, stone: 1, playing_team: Team::B })
+        ));
+        let stone = game.sheet.stones.last().expect("No stones after finished delivery");
+        assert!(matches!(&stone.state, stone::State::Stationary(_)));
+    }
+
+    #[test]
+    fn last_stone_of_the_end() {
+        let test = Fixture::default();
+        let end = stage::End {
+            no: 1,
+            hammer: Team::B,
+            stone: sheet::STONE_COUNT - 1,
+            playing_team: Team::B,
+        };
+        let mut game = test.make_game_at_thinking_stage(end, FullScore::default());
+
+        let delivery_time = Instant::now();
+        game.start_delivery(delivery_time, tee_draw()).expect("Error while starting delivery");
+        game.update(delivery_time + Duration::from_secs_f32(20.0));
+        assert!(matches!(
+            game.stage,
+            Stage::EndConcluded(finished_end, score) if finished_end == end && score == (0, 1).into()
+        ));
+
+        game.finish_end().expect("Error while finishing end");
+        let next_end = end.next_end((0, 1).into());
+        assert!(matches!(
+            game.stage,
+            Stage::Thinking(end) if end == next_end
+        ));
+        assert_eq!(game.full_score(), &FullScore(LocalVec::from_array([(0, 1).into()])));
     }
 }

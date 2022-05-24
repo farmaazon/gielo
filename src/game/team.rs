@@ -59,6 +59,12 @@ impl<T> IndexMut<Team> for PerTeam<T> {
     }
 }
 
+impl<T> From<(T, T)> for PerTeam<T> {
+    fn from((a, b): (T, T)) -> Self {
+        Self { a, b }
+    }
+}
+
 pub fn teams() -> PerTeam<Team> {
     PerTeam { a: Team::A, b: Team::B }
 }

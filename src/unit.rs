@@ -29,6 +29,9 @@ pub fn feet_per_second_squared(value: BaseType) -> Acceleration {
 pub fn radians(value: BaseType) -> Angle {
     Angle::new::<uom::si::angle::radian>(value)
 }
+pub fn degrees(value: BaseType) -> Angle {
+    Angle::new::<uom::si::angle::degree>(value)
+}
 
 #[allow(unused_macros)]
 macro_rules! approx_eq {
