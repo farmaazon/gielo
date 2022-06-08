@@ -1,0 +1,99 @@
+import { SheetModel, SheetEndGeometryPx } from "./SheetModel.slint";
+
+House := Rectangle {
+    border-radius: SheetModel.geometry-px.house-radius;
+    width:  border-radius * 2.0;
+    height: border-radius * 2.0;
+    background: red;
+
+    eight-foot := Rectangle {
+        x: (root.width - self.width) / 2.0;
+        y: (root.height - self.height) / 2.0;
+        border-radius: root.border_radius * 2.0 / 3.0;
+        width: border-radius * 2.0;
+        height: border-radius * 2.0;
+        background: white;
+    }
+
+    four-foot := Rectangle {
+        x: (root.width - self.width) / 2.0;
+        y: (root.height - self.height) / 2.0;
+        border-radius: root.border_radius / 3.0;
+        width: border-radius * 2.0;
+        height: border-radius * 2.0;
+        background: blue;
+    }
+
+    button := Rectangle {
+        x: (root.width - self.width) / 2.0;
+        y: (root.height - self.height) / 2.0;
+        border-radius: root.border_radius / 12.0;
+        width: border-radius * 2.0;
+        height: border-radius * 2.0;
+        background: white;
+    }
+}
+
+CenterLine := Rectangle {
+    x: SheetModel.geometry-px.tee-x - width / 2.0;
+    y: 0px;
+    width: 0.5px;
+    height: SheetModel.geometry-px.height;
+    background: black;
+}
+
+TransverseLine := Rectangle {
+    x: 0px;
+    width: SheetModel.geometry-px.width;
+    height: 0.5px;
+    background: black;
+}
+
+HogLine := TransverseLine {
+    height: 4px;
+    background: red;
+}
+
+SheetEnd := Rectangle {
+    property <SheetEndGeometryPx> positions;
+    property <bool> is-playing-end;
+    property <bool> is-delivery-end: !is-playing-end;
+
+    house := House {
+        x: SheetModel.geometry-px.tee-x - self.width / 2.0;
+        y: positions.tee-y - self.height / 2.0;
+    }
+
+    back-line := TransverseLine {
+        y: positions.back-y - (is-delivery-end ? self.height : 0.0);
+    }
+
+    tee-line := TransverseLine {
+        y: positions.tee-y - self.height / 2.0;
+    }
+
+    hog-line := HogLine {
+        y: positions.hog-y - (is-playing-end ? self.height : 0.0);
+    }
+}
+
+
+export Ice := Rectangle {
+    background: white;
+    width: SheetModel.geometry-px.width;
+    height: SheetModel.geometry-px.height;
+
+    delivery-end := SheetEnd {
+        positions: SheetModel.geometry-px.delivery-end;
+        is-playing-end: false;
+    }
+
+    playing-end := SheetEnd {
+        positions: SheetModel.geometry-px.playing-end;
+        is-playing-end: true;
+    }
+
+    center-line := CenterLine {}
+
+
+}

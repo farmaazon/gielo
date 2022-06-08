@@ -35,7 +35,28 @@ impl Stone {
             State::BeingDelivered(state) => Some(state.position(t)),
             State::Moving(state) => Some(state.position(t)),
             State::Stationary(state) => Some(state.position()),
-            State::Out => None,
+            State::Out { .. } => None,
+        }
+    }
+
+    pub fn is_position_dirty(&self) -> bool {
+        match &self.state {
+            State::BeingDelivered(_) => true,
+            State::Moving(_) => true,
+            State::Stationary(state) => state.is_dirty(),
+            State::Out { dirty } => *dirty,
+        }
+    }
+
+    pub fn read_position(&mut self, t: Time) -> (bool, Option<Position>) {
+        match &mut self.state {
+            State::BeingDelivered(state) => (true, Some(state.position(t))),
+            State::Moving(state) => (true, Some(state.position(t))),
+            State::Stationary(state) => {
+                let (was_dirty, pos) = state.read_position();
+                (was_dirty, Some(pos))
+            }
+            State::Out { dirty } => (std::mem::take(dirty), None),
         }
     }
 

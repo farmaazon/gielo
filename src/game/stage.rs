@@ -1,5 +1,5 @@
-use crate::game::team::Team;
-use crate::game::{stone, Delivery, Score};
+use crate::game::team::{Team, TEAMS_COUNT};
+use crate::game::{sheet, stone, Delivery, Score};
 use std::time;
 
 pub type EndNo = u8;
@@ -26,6 +26,16 @@ impl End {
             self.hammer
         };
         End { no: self.no + 1, hammer, stone: 0, playing_team: hammer.opponent() }
+    }
+
+    pub fn stones_left(&self, team: Team) -> usize {
+        let hammer_team_stones_delivered = self.stone / TEAMS_COUNT;
+        let stones_delivered = if team == self.hammer || self.stone % 2 == 0 {
+            hammer_team_stones_delivered
+        } else {
+            hammer_team_stones_delivered + 1
+        };
+        sheet::STONES_PER_TEAM - stones_delivered
     }
 }
 

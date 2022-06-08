@@ -3,19 +3,64 @@
 export struct StoneModel := {
     x: float,
     y: float,
-    v_x: float,
-    v_y: float,
     color: color,
 }
 
-export struct SheetParameters := {
-    friction: float,
-    rotation_acc: float,
-    stone_radius: float,
-    width: float,
+export struct SheetEndGeometry := {
+    back-y: float,
+    tee-y: float,
+    hog-y: float,
+}
+
+export struct SheetGeometry := {
+    width : float,
+    height : float,
+    house-radius : float,
+    hack-offset : float,
+    tee-x : float,
+    delivery-end : SheetEndGeometry,
+    playing-end : SheetEndGeometry,
+}
+
+export struct SheetEndGeometryPx := {
+    back-y: length,
+    tee-y: length,
+    hog-y: length,
+}
+
+export struct SheetGeometryPx := {
+    width : length,
+    height : length,
+    house-radius : length,
+    hack-offset : length,
+    tee-x : length,
+    delivery-end : SheetEndGeometryPx,
+    playing-end : SheetEndGeometryPx,
 }
 
 export global SheetModel := {
-    property <SheetParameters> parameters;
+    property <SheetGeometry> geometry;
+    property <float> friction;
+    property <float> rotation-acc;
+    property <float> stone-radius;
     property <[StoneModel]> stones;
+    property <length> pixels_per_foot: 24px;
+
+    property <SheetGeometryPx> geometry-px: {
+        width: geometry.width * pixels_per_foot,
+        height: geometry.height * pixels_per_foot,
+        house-radius: geometry.house-radius * pixels_per_foot,
+        hack-offset: geometry.hack-offset * pixels_per_foot,
+        tee-x: geometry.tee-x * pixels_per_foot,
+        delivery-end : {
+            back-y: geometry.delivery-end.back-y * pixels_per_foot,
+            tee-y: geometry.delivery-end.tee-y * pixels_per_foot,
+            hog-y: geometry.delivery-end.hog-y * pixels_per_foot,
+        },
+        playing-end : {
+            back-y: geometry.playing-end.back-y * pixels_per_foot,
+            tee-y: geometry.playing-end.tee-y * pixels_per_foot,
+            hog-y: geometry.playing-end.hog-y * pixels_per_foot,
+        },
+    };
 }

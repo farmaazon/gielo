@@ -1,0 +1,122 @@
+import { GameModel, Team } from "GameModel.slint";
+import { Sheet } from "Sheet.slint";
+import { Button, Slider } from "std-widgets.slint";
+
+StoneWaiting := Rectangle {
+    property <Team> team;
+
+    height: width;
+    background: team.color;
+    border-width: 2px;
+    border-color: black;
+    border-radius: width / 2.0;
+}
+
+TeamStonesWaiting := Rectangle {
+    property <Team> team;
+    property <int> stones;
+
+    height: 20px;
+
+    HorizontalLayout {
+        for i in stones: StoneWaiting {
+             team: root.team;
+             width: root.height;
+        }
+    }
+}
+
+LeftPane := Rectangle {
+    property <bool> blinking-stone-visible;
+    property <float> delivery-weight-sec: strength.value;
+
+    callback deliver <=> play-button.clicked;
+
+    background: #519ee8;
+
+    VerticalLayout {
+        Text {
+            text: "End " + GameModel.end;
+            vertical-stretch: 0;
+        }
+
+        for team[index] in GameModel.teams: TeamStonesWaiting {
+
+            property <bool> delivering: GameModel.current-team == index && GameModel.delivering;
+
+            team: team;
+            stones: team.stones-left - (delivering && !blinking-stone-visible ? 1 : 0);
+            vertical-stretch: 0;
+        }
+
+        Text {
+            text: "Strength: " + strength.value;
+            vertical-stretch: 0;
+        }
+
+        strength := Slider {
+            minimum: 2.0;
+            maximum: 3.6;
+            height: 30px;
+            vertical-stretch: 0;
+            value: 3.0;
+        }
+
+        play-button := Button {
+            text: "Play";
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        for team[index] in GameModel.teams: HorizontalLayout {
+            vertical-stretch: 0;
+
+            Rectangle {
+                border-width: 1px;
+                border-color: team.color;
+            }
+
+            for score in team.end-score: Rectangle {
+                border-width: 1px;
+                border-color: team.color;
+
+                Text {
+                    text: score;
+                }
+            }
+
+            Rectangle {
+                border-width: 1px;
+                border-color: team.color;
+
+                Text {
+                    text: team.score;
+                }
+            }
+        }
+    }
+}
+
+export Game := Rectangle {
+    property <bool> blinking-stone-visible;
+
+    HorizontalLayout {
+        LeftPane {
+            blinking-stone-visible: root.blinking-stone-visible;
+
+            deliver => {
+                GameModel.deliver({
+                    weight-sec: delivery-weight-sec,
+                    mark-x: sheet.marked-x,
+                    mark-y: sheet.marked-y,
+                })
+            }
+        }
+
+        sheet := Sheet {
+            horizontal-stretch: 0;
+        }
+    }
+}

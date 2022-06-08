@@ -82,13 +82,13 @@ impl Stationary {
         self.pos
     }
 
-    pub fn read_position(&mut self) -> Option<Position> {
-        if self.dirty {
-            self.dirty = false;
-            Some(self.pos)
-        } else {
-            None
-        }
+    pub fn read_position(&mut self) -> (bool, Position) {
+        let was_dirty = std::mem::take(&mut self.dirty);
+        (was_dirty, self.pos)
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
     }
 }
 
@@ -97,7 +97,7 @@ pub enum State {
     BeingDelivered(BeingDelivered),
     Moving(Moving),
     Stationary(Stationary),
-    Out,
+    Out { dirty: bool },
 }
 
 impl Default for State {
@@ -171,8 +171,9 @@ mod tests {
 
     #[test]
     fn reading_stationary_position() {
-        let mut state = Stationary::new(Vector2 { x: feet(0.0), y: feet(100.0) });
-        assert!(state.read_position().is_some());
-        assert!(state.read_position().is_none());
+        let pos = Vector2 { x: feet(0.0), y: feet(100.0) };
+        let mut state = Stationary::new(pos);
+        assert_eq!(state.read_position(), (true, pos));
+        assert_eq!(state.read_position(), (false, pos));
     }
 }

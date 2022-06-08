@@ -1,0 +1,61 @@
+import { SheetModel } from "./SheetModel.slint";
+import { Ice } from "./Ice.slint";
+import { ScrollView } from "std-widgets.slint";
+
+Mark := Rectangle {
+    property <float> marked-x;
+    property <float> marked-y;
+
+    x: marked-x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - width / 2.0;
+    y: marked-y * SheetModel.pixels-per-foot;
+    width: 18px;
+    height: 1.8 * width;
+    background: orange;
+    border-radius: width / 2.0;
+    border-color: black;
+    border-width: 2px;
+
+    Rectangle {
+        x: (parent.width - width) / 2.0;
+        y: parent.height;
+        width: 8px;
+        height: 80px;
+        background: black;
+    }
+}
+
+export Sheet := ScrollView {
+    property <float> marked-x;
+    property <float> marked-y;
+
+    width: ice.width + 20px;
+    viewport-width: ice.width;
+    viewport-height: ice.height;
+
+    ice := Ice {}
+
+    for stone in SheetModel.stones: Rectangle {
+        x: stone.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x;
+        y: stone.y * SheetModel.pixels-per-foot;
+        border-radius: SheetModel.stone-radius * SheetModel.pixels-per-foot;
+        width: border-radius * 2.0;
+        height: border-radius * 2.0;
+        background: stone.color;
+        border-width: 2px;
+        border-color: black;
+    }
+
+    Mark {
+        marked-x: parent.marked-x;
+        marked-y: parent.marked-y;
+    }
+
+    TouchArea {
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.marked-x = (pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
+                root.marked-y = pressed-y / SheetModel.pixels-per-foot;
+            }
+        }
+    }
+}

@@ -86,7 +86,14 @@ impl Delivery {
     }
 
     pub fn next_event(&mut self, sheet: &Sheet, until: Option<Time>) -> Option<Event> {
-        if let Some(event) = self.next_event_cached.take() {
+        let not_yet_cached_event = self
+            .next_event_cached
+            .as_ref()
+            .zip(until)
+            .map_or(false, |(event, until)| event.time > until);
+        if not_yet_cached_event {
+            None
+        } else if let Some(event) = self.next_event_cached.take() {
             Some(event)
         } else {
             let next_event = self.compute_next_event(sheet);
@@ -136,7 +143,7 @@ impl Delivery {
         self.current_time = time;
         match kind {
             event::Kind::StoneOut(stone) => {
-                sheet.stones[stone].state = stone::State::Out;
+                sheet.stones[stone].state = stone::State::Out { dirty: true };
             }
             event::Kind::StoneNextStage(stone) => {
                 sheet.stones[stone].next_stage(&sheet.parameters);
@@ -156,24 +163,6 @@ impl Delivery {
             self.apply_event(sheet, event);
         }
         self.next_event_cached.is_none()
-    }
-}
-
-#[derive(Debug)]
-pub struct LiveDelivery {
-    started_at: time::Instant,
-    delivery: Delivery,
-}
-
-impl LiveDelivery {
-    pub fn start(sheet: &mut Sheet, params: Parameters) -> Self {
-        Self { started_at: time::Instant::now(), delivery: Delivery::new(sheet, params) }
-    }
-
-    pub fn update(&mut self, sheet: &mut Sheet, speed_factor: f32) -> bool {
-        let real_time = time::Instant::now() - self.started_at;
-        let game_time = seconds(real_time.as_secs_f32()) * speed_factor;
-        self.delivery.run(sheet, Some(game_time))
     }
 }
 
@@ -231,7 +220,7 @@ mod tests {
         };
         let mut delivery = Delivery::new(&mut sheet, params);
         assert!(delivery.run(&mut sheet, Some(seconds(60.0))));
-        assert!(matches!(sheet.stones[0].state, stone::State::Out));
+        assert!(matches!(sheet.stones[0].state, stone::State::Out { .. }));
         assert_eq!(sheet.stones[0].position(seconds(0.0)), None);
     }
 }

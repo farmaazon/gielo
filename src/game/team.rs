@@ -1,7 +1,9 @@
 use derive_more::*;
 use slint::{Color, SharedString};
+use std::array;
 use std::ops::{Index, IndexMut};
 
+pub const TEAMS_COUNT: usize = 2;
 pub const TEAMS: PerTeam<Team> = PerTeam { a: Team::A, b: Team::B };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -19,7 +21,7 @@ impl Team {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Add, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq)]
 pub struct PerTeam<T> {
     pub a: T,
     pub b: T,
@@ -59,9 +61,24 @@ impl<T> IndexMut<Team> for PerTeam<T> {
     }
 }
 
+impl<T> IntoIterator for PerTeam<T> {
+    type Item = T;
+    type IntoIter = array::IntoIter<T, TEAMS_COUNT>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.a, self.b].into_iter()
+    }
+}
+
 impl<T> From<(T, T)> for PerTeam<T> {
     fn from((a, b): (T, T)) -> Self {
         Self { a, b }
+    }
+}
+
+impl<T, E> From<PerTeam<Result<T, E>>> for Result<PerTeam<T>, E> {
+    fn from(from: PerTeam<Result<T, E>>) -> Self {
+        Ok(PerTeam { a: from.a?, b: from.b? })
     }
 }
 

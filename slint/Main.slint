@@ -1,7 +1,17 @@
-import { SheetModel, SheetParameters, StoneModel } from "./SheetModel.slint";
+import { Game } from "./Game.slint";
+import { Team, GameModel } from "./GameModel.slint";
+import { Ice } from "./Ice.slint";
+import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
 
-export { SheetModel, SheetParameters, StoneModel }
+export { GameModel, SheetModel, SheetEndGeometry, SheetGeometry, StoneModel }
 
 export Main := Window {
+    property <bool> blinking-stone-visible;
 
+    preferred-width: 800px;
+    preferred-height: 600px;
+
+    Game {
+        blinking-stone-visible: root.blinking-stone-visible;
+    }
 }

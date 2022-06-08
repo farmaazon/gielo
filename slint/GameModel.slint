@@ -1,20 +1,27 @@
 export struct Team := {
     name: string,
     color: color,
+    stones-left: int,
+    end-score: [int],
+    score: int,
 }
 
 export struct Shot := {
-    weight_sec: float,
-    mark_x: float,
-    mark_y: float,
+    weight-sec: float,
+    mark-x: float,
+    mark-y: float,
+    clockwise: bool,
 }
 
 export global GameModel := {
     property <[Team]> teams;
-    property <[[int]]> score;
     property <int> end;
-    property <int> delivered_stone;
+    property <int> current-team;
     property <bool> delivering;
+    property <bool> end-finished;
+    property <bool> game-finished;
 
+    callback start-new-game();
     callback deliver(Shot) -> Shot;
+    callback finish-end();
 }
