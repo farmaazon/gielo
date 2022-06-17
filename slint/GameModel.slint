@@ -1,3 +1,5 @@
+import { SheetModel } from "./SheetModel.slint";
+
 export struct Team := {
     name: string,
     color: color,
@@ -6,11 +8,11 @@ export struct Team := {
     score: int,
 }
 
-export struct Shot := {
-    weight-sec: float,
-    mark-x: float,
-    mark-y: float,
-    clockwise: bool,
+export global Shot := {
+    property <float> weight-sec: 3.0;
+    property <float> mark-x: 0.0;
+    property <float> mark-y: SheetModel.geometry.playing-end.tee-y;
+    property <bool> clockwise: true;
 }
 
 export global GameModel := {
@@ -20,8 +22,9 @@ export global GameModel := {
     property <bool> delivering;
     property <bool> end-finished;
     property <bool> game-finished;
+    property <bool> thinking: !delivering && !end-finished && !game-finished;
 
     callback start-new-game();
-    callback deliver(Shot) -> Shot;
+    callback deliver();
     callback finish-end();
 }

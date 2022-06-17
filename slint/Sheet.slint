@@ -1,13 +1,12 @@
+import { Functions } from "./Functions.slint";
+import { Shot } from "./GameModel.slint";
 import { SheetModel } from "./SheetModel.slint";
 import { Ice } from "./Ice.slint";
-import { ScrollView } from "std-widgets.slint";
+import { ScrollView, Slider } from "std-widgets.slint";
 
 Mark := Rectangle {
-    property <float> marked-x;
-    property <float> marked-y;
-
-    x: marked-x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - width / 2.0;
-    y: marked-y * SheetModel.pixels-per-foot;
+    x: Shot.mark-x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - width / 2.0;
+    y: Shot.mark-y * SheetModel.pixels-per-foot;
     width: 18px;
     height: 1.8 * width;
     background: orange;
@@ -21,22 +20,40 @@ Mark := Rectangle {
         width: 8px;
         height: 80px;
         background: black;
+
+        Rectangle {
+            x: (Shot.clockwise ? 10px : -width - 10px) + parent.width / 2.0;
+            y: parent.height - height;
+            width: 40px;
+            height: 8px;
+            border-radius: height / 2.0;
+            background: gray;
+
+            Rectangle {
+                x: (Shot.clockwise ? parent.width : 0.0) - width / 2.0;
+                y: (parent.height - height) / 2.0;
+                width: 18px;
+                height: width;
+                background: white;
+                border-radius: width / 2.0;
+                border-color: gray;
+                border-width: 2px;
+            }
+        }
     }
 }
 
 export Sheet := ScrollView {
-    property <float> marked-x;
-    property <float> marked-y;
-
     width: ice.width + 20px;
     viewport-width: ice.width;
     viewport-height: ice.height;
+    viewport-y: height - SheetModel.geometry-px.playing-end.back-y - 60.px;
 
     ice := Ice {}
 
     for stone in SheetModel.stones: Rectangle {
-        x: stone.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x;
-        y: stone.y * SheetModel.pixels-per-foot;
+        x: stone.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - border-radius;
+        y: stone.y * SheetModel.pixels-per-foot - border-radius;
         border-radius: SheetModel.stone-radius * SheetModel.pixels-per-foot;
         width: border-radius * 2.0;
         height: border-radius * 2.0;
@@ -45,16 +62,15 @@ export Sheet := ScrollView {
         border-color: black;
     }
 
-    Mark {
-        marked-x: parent.marked-x;
-        marked-y: parent.marked-y;
-    }
+    Mark {}
 
     TouchArea {
         pointer-event(event) => {
-            if (event.kind == PointerEventKind.down) {
-                root.marked-x = (pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
-                root.marked-y = pressed-y / SheetModel.pixels-per-foot;
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                Shot.mark-x = (pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
+                Shot.mark-y = pressed-y / SheetModel.pixels-per-foot;
+            } else if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
+                Shot.clockwise = !Shot.clockwise;
             }
         }
     }

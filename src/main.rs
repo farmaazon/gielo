@@ -20,6 +20,7 @@ fn main() {
             ui.set_blinking_stone_visible(!ui.get_blinking_stone_visible());
         }
     });
+    ui.global::<ui::Functions>().initialize();
     let handler = Handler::initialize(ui.clone_strong());
     handler.on_game_start().unwrap();
     ui.run();

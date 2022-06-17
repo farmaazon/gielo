@@ -1,9 +1,10 @@
+import { Functions } from "./Functions.slint";
 import { Game } from "./Game.slint";
-import { Team, GameModel } from "./GameModel.slint";
+import { Team, Shot, GameModel } from "./GameModel.slint";
 import { Ice } from "./Ice.slint";
 import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
 
-export { GameModel, SheetModel, SheetEndGeometry, SheetGeometry, StoneModel }
+export { Functions, GameModel, SheetModel, SheetEndGeometry, SheetGeometry, Shot, StoneModel }
 
 export Main := Window {
     property <bool> blinking-stone-visible;

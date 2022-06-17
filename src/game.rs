@@ -27,7 +27,7 @@ pub struct Parameters {
 
 impl Default for Parameters {
     fn default() -> Self {
-        Self { speed_factor: 1.0, ends: 8 }
+        Self { speed_factor: 10.0, ends: 8 }
     }
 }
 
@@ -143,6 +143,7 @@ impl Game {
                 let score = self.score.full();
                 let tied = score.a == score.b;
                 if tied || end.no < self.params.ends {
+                    self.sheet.stones.clear();
                     Stage::Thinking(end.next_end(*end_score))
                 } else {
                     Stage::GameConcluded(score)

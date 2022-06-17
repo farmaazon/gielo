@@ -1,6 +1,5 @@
 use decorum::NotNan;
 use lazy_static::lazy_static;
-use std::time;
 use uom::si::time::second;
 
 use event::Event;
@@ -8,7 +7,7 @@ use event::Event;
 use crate::game::sheet::{Hack, Sheet};
 use crate::game::stone::Rotation;
 use crate::game::{sheet, stone, Stone, Team};
-use crate::unit::{milliseconds, seconds, Angle, Time};
+use crate::unit::{milliseconds, Angle, Time};
 use crate::vector::Vector2;
 
 lazy_static! {
@@ -161,6 +160,9 @@ impl Delivery {
     pub fn run(&mut self, sheet: &mut Sheet, until: Option<Time>) -> bool {
         while let Some(event) = self.next_event(sheet, until) {
             self.apply_event(sheet, event);
+        }
+        if let Some(current_time) = until {
+            self.current_time = current_time;
         }
         self.next_event_cached.is_none()
     }

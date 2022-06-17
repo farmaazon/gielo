@@ -104,7 +104,7 @@ impl Stones {
         if count_change > 0 {
             self.notify.row_added(known_count, count_change as usize);
         } else if count_change < 0 {
-            self.notify.row_removed(known_count, (-count_change) as usize);
+            self.notify.row_removed(count, (-count_change) as usize);
         }
         for (index, stone) in sheet.stones.iter_mut().take(known_count).enumerate() {
             let (changed, _) = stone.read_position(time);
@@ -115,7 +115,7 @@ impl Stones {
     }
 }
 
-impl slint::Model for Stones {
+impl Model for Stones {
     type Data = StoneModel;
 
     fn row_count(&self) -> usize {
