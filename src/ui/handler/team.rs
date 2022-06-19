@@ -53,7 +53,7 @@ impl Handler {
             color: info.color,
             stones_left: game
                 .current_end_stage()
-                .map_or(game::sheet::STONES_PER_TEAM, |e| e.stones_left(team))
+                .map_or(game::stones::PER_TEAM, |e| e.stones_left(team))
                 as i32,
             end_score: score.into(),
             score: game.score.full()[team] as i32,

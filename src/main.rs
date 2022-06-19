@@ -1,5 +1,4 @@
 pub mod game;
-pub mod motion;
 pub mod ui;
 pub mod unit;
 pub mod vector;
@@ -8,6 +7,12 @@ pub use crate::game::Game;
 use crate::ui::handler::Handler;
 use slint::ComponentHandle;
 use std::time::Duration;
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+pub struct Tracked<T, Change> {
+    value: T,
+    change: Change,
+}
 
 fn main() {
     simple_logger::SimpleLogger::new().init().unwrap();

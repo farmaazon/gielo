@@ -22,6 +22,12 @@ impl<T> Vector2<T> {
     }
 }
 
+impl<T> From<(T, T)> for Vector2<T> {
+    fn from((x, y): (T, T)) -> Self {
+        Self { x, y }
+    }
+}
+
 impl<T> Neg for Vector2<T>
 where
     T: Neg,

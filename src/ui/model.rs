@@ -99,12 +99,12 @@ impl Stones {
     pub fn synchronize(&self, game: &mut RefMut<Game>) {
         let time = game.delivery_time();
         let sheet = &mut game.sheet;
-        let (count_change, count) = sheet.stones.read_len();
-        let known_count = (count as isize - count_change) as usize;
-        if count_change > 0 {
-            self.notify.row_added(known_count, count_change as usize);
-        } else if count_change < 0 {
-            self.notify.row_removed(count, (-count_change) as usize);
+        let count = sheet.stones.read_len();
+        let known_count = (count.value as isize - count.change) as usize;
+        if count.change > 0 {
+            self.notify.row_added(known_count, count.change as usize);
+        } else if count.change < 0 {
+            self.notify.row_removed(count.value, (-count.change) as usize);
         }
         for (index, stone) in sheet.stones.iter_mut().take(known_count).enumerate() {
             let (changed, _) = stone.read_position(time);
@@ -119,7 +119,7 @@ impl Model for Stones {
     type Data = StoneModel;
 
     fn row_count(&self) -> usize {
-        self.game.borrow_mut().sheet.stones.read_len().1
+        self.game.borrow_mut().sheet.stones.read_len().value
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {

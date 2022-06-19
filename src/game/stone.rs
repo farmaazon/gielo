@@ -5,10 +5,11 @@ use uom::ConstZero;
 pub use state::State;
 
 use crate::game::{sheet, Team};
+use crate::unit;
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
-use crate::{motion, unit};
 
+pub mod motion;
 pub mod state;
 
 pub type Id = usize;
@@ -83,10 +84,8 @@ impl Stone {
             .filter_map(|(bound, x_sign)| {
                 let out_x = bound - x_sign * sheet.stone_radius;
                 match &self.state {
-                    State::BeingDelivered(state) => state.motion_x().when_at_position(out_x),
-                    State::Moving(state) => {
-                        state.motion_x().when_at_position(out_x).map(|t| t + state.t0)
-                    }
+                    State::BeingDelivered(state) => state.motion().when_at_x(out_x),
+                    State::Moving(state) => state.motion.when_at_x(out_x).map(|t| t + state.t0),
                     _ => None,
                 }
             })
@@ -97,7 +96,7 @@ impl Stone {
         match &self.state {
             State::Moving(state) => {
                 let out_y = *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius;
-                state.motion_y().when_at_position(out_y).map(|t| t + state.t0)
+                state.motion.when_at_y(out_y).map(|t| t + state.t0)
             }
             _ => None,
         }
@@ -108,14 +107,13 @@ impl Stone {
             (State::Moving(lhs), State::Moving(rhs)) => {
                 let t0 = lhs.t0.max(rhs.t0);
                 let motion = lhs.motion_at_t(t0) - rhs.motion_at_t(t0);
-                motion::when_cross_circle(motion, sheet.stone_radius * 2.0).map(|t| t + t0)
+                motion.when_enters_circle(sheet.stone_radius * 2.0).map(|t| t + t0)
             }
             (State::Moving(moving), State::Stationary(stationary))
             | (State::Stationary(stationary), State::Moving(moving)) => {
-                let mut motion = moving.motion();
-                motion.x.s0 -= stationary.position().x;
-                motion.y.s0 -= stationary.position().y;
-                motion::when_cross_circle(motion, sheet.stone_radius * 2.0).map(|t| t + moving.t0)
+                let mut motion = moving.motion;
+                motion.s0 -= stationary.position();
+                motion.when_enters_circle(sheet.stone_radius * 2.0).map(|t| t + moving.t0)
             }
             _ => None,
         }
@@ -124,12 +122,14 @@ impl Stone {
     pub fn next_stage(&mut self, sheet: &sheet::Parameters) {
         self.state = match std::mem::take(&mut self.state) {
             State::BeingDelivered(state) => {
-                let t0_v = state.velocity();
+                let v0 = state.velocity();
                 State::Moving(state::Moving {
                     t0: state.release_time,
-                    t0_pos: state.release_point(),
-                    t0_v,
-                    acc: compute_acc(sheet, t0_v, state.rotation),
+                    motion: motion::UniformlyAccelerated {
+                        s0: state.release_point(),
+                        v0,
+                        a: compute_acc(sheet, v0, state.rotation),
+                    },
                     rotation: state.rotation,
                 })
             }
@@ -143,12 +143,14 @@ impl Stone {
 
     pub fn next_time_quantum(&mut self, next_time_quantum: Time, sheet: &sheet::Parameters) {
         if let State::Moving(state) = &mut self.state {
-            let new_t0_v = state.velocity(next_time_quantum);
+            let new_v0 = state.velocity(next_time_quantum);
             let new_state = state::Moving {
                 t0: next_time_quantum,
-                t0_pos: state.position(next_time_quantum),
-                t0_v: new_t0_v,
-                acc: compute_acc(sheet, new_t0_v, state.rotation),
+                motion: motion::UniformlyAccelerated {
+                    s0: state.position(next_time_quantum),
+                    v0: new_v0,
+                    a: compute_acc(sheet, new_v0, state.rotation),
+                },
                 rotation: state.rotation,
             };
             *state = new_state
@@ -165,37 +167,30 @@ impl Stone {
         let rhs_pos = rhs.position(t)?;
         let lhs_v = self.velocity(t).unwrap_or_default();
         let rhs_v = rhs.velocity(t).unwrap_or_default();
-        let offset = dbg!(rhs_pos - lhs_pos);
-        let hit_dir = dbg!(offset / offset.norm());
-        let lhs_given_v = dbg!(hit_dir * lhs_v.dot(hit_dir));
-        let rhs_given_v = dbg!(-hit_dir * rhs_v.dot(-hit_dir));
-        let lhs_new_v = dbg!(lhs_v + rhs_given_v - lhs_given_v);
-        let rhs_new_v = dbg!(rhs_v + lhs_given_v - rhs_given_v);
-        let lhs_state = State::Moving(state::Moving {
-            t0: t,
-            t0_pos: lhs_pos,
-            t0_v: lhs_new_v,
-            acc: compute_acc(sheet, lhs_new_v, Rotation::None),
-            rotation: Rotation::None,
-        });
-        let rhs_state = State::Moving(state::Moving {
-            t0: t,
-            t0_pos: rhs_pos,
-            t0_v: rhs_new_v,
-            acc: compute_acc(sheet, rhs_new_v, Rotation::None),
-            rotation: Rotation::None,
-        });
-        Some((lhs_state, rhs_state))
+        let (new_lhs_v, new_rhs_v) =
+            motion::velocity_after_collision(lhs_pos, lhs_v, rhs_pos, rhs_v);
+        let make_state = |pos: Position, new_v: Velocity| {
+            State::Moving(state::Moving {
+                t0: t,
+                motion: motion::UniformlyAccelerated {
+                    s0: pos,
+                    v0: new_v,
+                    a: compute_acc(sheet, new_v, Rotation::None),
+                },
+                rotation: Rotation::None,
+            })
+        };
+        Some((make_state(lhs_pos, new_lhs_v), make_state(rhs_pos, new_rhs_v)))
     }
 }
 
-fn compute_acc(sheet: &sheet::Parameters, t0_v: Velocity, rotation: Rotation) -> Acceleration {
-    let v = t0_v.norm();
-    let a_friction = -t0_v / v * sheet.friction;
+fn compute_acc(sheet: &sheet::Parameters, v0: Velocity, rotation: Rotation) -> Acceleration {
+    let v = v0.norm();
+    let a_friction = -v0 / v * sheet.friction;
     let a_rotation = match rotation {
         Rotation::None => Vector2 { x: unit::Velocity::ZERO, y: unit::Velocity::ZERO },
-        Rotation::Clockwise => Vector2 { x: -t0_v.y, y: t0_v.x },
-        Rotation::CounterClockwise => Vector2 { x: t0_v.y, y: -t0_v.x },
+        Rotation::Clockwise => Vector2 { x: -v0.y, y: v0.x },
+        Rotation::CounterClockwise => Vector2 { x: v0.y, y: -v0.x },
     } * sheet.rotation_acc
         / v;
     a_friction + a_rotation
@@ -243,12 +238,14 @@ mod tests {
         let sheet = sheet::Parameters::default();
         let state = state::Moving {
             t0: seconds(10.0),
-            t0_pos: Vector2 {
-                x: sheet.right_bound() - sheet.stone_radius - feet(1.0),
-                y: feet(100.0),
+            motion: motion::UniformlyAccelerated {
+                s0: Vector2 {
+                    x: sheet.right_bound() - sheet.stone_radius - feet(1.0),
+                    y: feet(100.0),
+                },
+                v0: Vector2 { x: feet_per_second(1.0), y: feet_per_second(3.0) },
+                a: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
             },
-            t0_v: Vector2 { x: feet_per_second(1.0), y: feet_per_second(3.0) },
-            acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
             rotation: Rotation::CounterClockwise,
         };
         let stone = Stone { team: Team::A, state: State::Moving(state) };
@@ -260,12 +257,15 @@ mod tests {
         let sheet = sheet::Parameters::default();
         let state = state::Moving {
             t0: seconds(20.0),
-            t0_pos: Vector2 {
-                x: feet(3.0),
-                y: *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius - feet(1.0),
+            motion: motion::UniformlyAccelerated {
+                s0: Vector2 {
+                    x: feet(3.0),
+                    y: *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius - feet(1.0),
+                },
+                v0: Vector2 { x: feet_per_second(-0.1), y: feet_per_second(1.0) },
+                a: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
             },
-            t0_v: Vector2 { x: feet_per_second(-0.1), y: feet_per_second(1.0) },
-            acc: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
+
             rotation: Rotation::CounterClockwise,
         };
         let stone = Stone { team: Team::A, state: State::Moving(state) };
@@ -295,12 +295,12 @@ mod tests {
             panic!("Wrong state after release");
         };
         assert_approx_eq!(new_state.t0, seconds(3.0));
-        assert_approx_eq!(new_state.t0_pos.x, feet(-1.0) + inches(6.0));
-        assert_approx_eq!(new_state.t0_pos.y, feet(36.0));
-        assert_approx_eq!(new_state.t0_v.x, feet_per_second(-1.0 / 3.0));
-        assert_approx_eq!(new_state.t0_v.y, feet_per_second(10.0));
-        assert_approx_eq!(new_state.acc.x, feet_per_second_squared(1.1 / 901.0_f32.sqrt()));
-        assert_approx_eq!(new_state.acc.y, feet_per_second_squared(-5.97 / 901.0_f32.sqrt()));
+        assert_approx_eq!(new_state.motion.s0.x, feet(-1.0) + inches(6.0));
+        assert_approx_eq!(new_state.motion.s0.y, feet(36.0));
+        assert_approx_eq!(new_state.motion.v0.x, feet_per_second(-1.0 / 3.0));
+        assert_approx_eq!(new_state.motion.v0.y, feet_per_second(10.0));
+        assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(1.1 / 901.0_f32.sqrt()));
+        assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-5.97 / 901.0_f32.sqrt()));
         assert_eq!(new_state.rotation, Rotation::CounterClockwise);
 
         // Clockwise
@@ -313,12 +313,18 @@ mod tests {
             panic!("Wrong state after release");
         };
         assert_approx_eq!(new_state_cw.t0, new_state.t0);
-        assert_approx_eq!(new_state_cw.t0_pos.x, new_state.t0_pos.x);
-        assert_approx_eq!(new_state_cw.t0_pos.y, new_state.t0_pos.y);
-        assert_approx_eq!(new_state_cw.t0_v.x, new_state.t0_v.x);
-        assert_approx_eq!(new_state_cw.t0_v.y, new_state.t0_v.y);
-        assert_approx_eq!(new_state_cw.acc.x, feet_per_second_squared(-0.7 / 901.0_f32.sqrt()));
-        assert_approx_eq!(new_state_cw.acc.y, feet_per_second_squared(-6.03 / 901.0_f32.sqrt()));
+        assert_approx_eq!(new_state_cw.motion.s0.x, new_state.motion.s0.x);
+        assert_approx_eq!(new_state_cw.motion.s0.y, new_state.motion.s0.y);
+        assert_approx_eq!(new_state_cw.motion.v0.x, new_state.motion.v0.x);
+        assert_approx_eq!(new_state_cw.motion.v0.y, new_state.motion.v0.y);
+        assert_approx_eq!(
+            new_state_cw.motion.a.x,
+            feet_per_second_squared(-0.7 / 901.0_f32.sqrt())
+        );
+        assert_approx_eq!(
+            new_state_cw.motion.a.y,
+            feet_per_second_squared(-6.03 / 901.0_f32.sqrt())
+        );
         assert_eq!(new_state_cw.rotation, Rotation::Clockwise);
     }
 
@@ -332,9 +338,14 @@ mod tests {
         };
         let state = state::Moving {
             t0: seconds(2.0),
-            t0_pos: Vector2 { x: feet(3.0), y: feet(100.0) },
-            t0_v: Vector2 { x: feet_per_second(-3.0), y: feet_per_second(4.0) },
-            acc: Vector2 { x: feet_per_second_squared(0.096), y: feet_per_second_squared(-0.178) },
+            motion: motion::UniformlyAccelerated {
+                s0: Vector2 { x: feet(3.0), y: feet(100.0) },
+                v0: Vector2 { x: feet_per_second(-3.0), y: feet_per_second(4.0) },
+                a: Vector2 {
+                    x: feet_per_second_squared(0.096),
+                    y: feet_per_second_squared(-0.178),
+                },
+            },
             rotation: Rotation::Clockwise,
         };
         let mut stone = Stone { team: Team::A, state: State::Moving(state) };
@@ -345,13 +356,13 @@ mod tests {
             panic!("Wrong state after next time quantum")
         };
         assert_approx_eq!(new_state.t0, seconds(4.0));
-        assert_approx_eq!(new_state.t0_pos.x, feet(-2.808));
-        assert_approx_eq!(new_state.t0_pos.y, feet(107.644));
-        assert_approx_eq!(new_state.t0_v.x, feet_per_second(-2.808));
-        assert_approx_eq!(new_state.t0_v.y, feet_per_second(3.644));
-        let v = new_state.t0_v.norm().value;
-        assert_approx_eq!(new_state.acc.x, feet_per_second_squared(0.45228 / v));
-        assert_approx_eq!(new_state.acc.y, feet_per_second_squared(-0.81304 / v));
+        assert_approx_eq!(new_state.motion.s0.x, feet(-2.808));
+        assert_approx_eq!(new_state.motion.s0.y, feet(107.644));
+        assert_approx_eq!(new_state.motion.v0.x, feet_per_second(-2.808));
+        assert_approx_eq!(new_state.motion.v0.y, feet_per_second(3.644));
+        let v = new_state.motion.v0.norm().value;
+        assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(0.45228 / v));
+        assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-0.81304 / v));
         assert_eq!(new_state.rotation, Rotation::Clockwise)
     }
 
@@ -364,9 +375,11 @@ mod tests {
         };
         let state = state::Moving {
             t0: seconds(2.0),
-            t0_pos: Vector2 { x: feet(3.0), y: feet(100.0) },
-            t0_v: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
-            acc: Vector2 { x: feet_per_second_squared(0.52), y: feet_per_second_squared(-0.86) },
+            motion: motion::UniformlyAccelerated {
+                s0: Vector2 { x: feet(3.0), y: feet(100.0) },
+                v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
+                a: Vector2 { x: feet_per_second_squared(0.52), y: feet_per_second_squared(-0.86) },
+            },
             rotation: Rotation::Clockwise,
         };
         let mut stone = Stone { team: Team::A, state: State::Moving(state) };
@@ -379,4 +392,22 @@ mod tests {
         assert_approx_eq!(new_state.position().x, feet(2.915));
         assert_approx_eq!(new_state.position().y, feet(100.0925));
     }
+
+    // #[test]
+    // fn collision_with_stationary() {
+    //     let sheet = sheet::Parameters {
+    //         stone_radius: feet(2.0),
+    //         ..sheet::Parameters::default()
+    //     };
+    //     let state = state::Moving {
+    //         t0: seconds(2.0),
+    //         motion: motion::UniformlyAccelerated {
+    //             s0: Vector2 { x: feet(3.0), y: feet(100.0) },
+    //             v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
+    //             a: Vector2 { x: feet_per_second_squared(0.0), y: feet_per_second_squared(-0.0) },
+    //         },
+    //         rotation: None,
+    //     };
+    //
+    // }
 }

@@ -1,7 +1,7 @@
-use crate::game::stone::{Acceleration, Position, Rotation, Velocity};
+use crate::game::stone::{motion, Position, Rotation, Velocity};
+use crate::unit;
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
-use crate::{motion, unit};
 
 #[derive(Clone, Debug)]
 pub struct BeingDelivered {
@@ -20,16 +20,8 @@ impl BeingDelivered {
         self.delivering_off / self.release_time
     }
 
-    pub fn motion_x(&self) -> motion::Uniform {
-        motion::Uniform { s0: self.starting_point.x, v: self.velocity().x }
-    }
-
-    pub fn motion_y(&self) -> motion::Uniform {
-        motion::Uniform { s0: self.starting_point.y, v: self.velocity().y }
-    }
-
-    pub fn motion(&self) -> Vector2<motion::Uniform> {
-        Vector2 { x: self.motion_x(), y: self.motion_y() }
+    pub fn motion(&self) -> motion::Uniform {
+        motion::Uniform { s0: self.starting_point, v: self.velocity() }
     }
 
     pub fn release_point(&self) -> Position {
@@ -40,46 +32,29 @@ impl BeingDelivered {
 #[derive(Clone, Debug)]
 pub struct Moving {
     pub t0: Time,
-    pub t0_pos: Position,
-    pub t0_v: Velocity,
-    pub acc: Acceleration,
+    pub motion: motion::UniformlyAccelerated,
     pub rotation: Rotation,
 }
 
 impl Moving {
     pub fn position(&self, t: Time) -> Position {
-        let t = t - self.t0;
-        self.t0_pos + self.t0_v * t + self.acc * t * t / 2.0
+        self.motion.position(t - self.t0)
     }
 
     pub fn velocity(&self, t: Time) -> Velocity {
-        let t = t - self.t0;
-        self.t0_v + self.acc * t
+        self.motion.velocity(t - self.t0)
     }
 
     pub fn when_stop(&self, friction: unit::Acceleration) -> Time {
-        let v = self.t0_v.norm();
+        let v = self.motion.v0.norm();
         self.t0 + (v / friction)
     }
 
-    pub fn motion_x(&self) -> motion::UniformlyAccelerated {
-        motion::UniformlyAccelerated { s0: self.t0_pos.x, v0: self.t0_v.x, a: self.acc.x }
-    }
-
-    pub fn motion_y(&self) -> motion::UniformlyAccelerated {
-        motion::UniformlyAccelerated { s0: self.t0_pos.y, v0: self.t0_v.y, a: self.acc.y }
-    }
-
-    pub fn motion(&self) -> Vector2<motion::UniformlyAccelerated> {
-        Vector2 { x: self.motion_x(), y: self.motion_y() }
-    }
-
-    pub fn motion_at_t(&self, t: Time) -> Vector2<motion::UniformlyAccelerated> {
-        let s0 = self.position(t);
-        let v0 = self.velocity(t);
-        Vector2 {
-            x: motion::UniformlyAccelerated { s0: s0.x, v0: v0.x, a: self.acc.x },
-            y: motion::UniformlyAccelerated { s0: s0.y, v0: v0.y, a: self.acc.y },
+    pub fn motion_at_t(&self, t: Time) -> motion::UniformlyAccelerated {
+        motion::UniformlyAccelerated {
+            s0: self.position(t),
+            v0: self.velocity(t),
+            a: self.motion.a,
         }
     }
 }
@@ -160,9 +135,11 @@ mod tests {
     fn moving_stone_properties() {
         let state = Moving {
             t0: seconds(1.5),
-            t0_pos: Vector2 { x: feet(-1.0), y: feet(30.0) },
-            t0_v: Vector2 { x: feet_per_second(-0.01), y: feet_per_second(3.0) },
-            acc: Vector2 { x: feet_per_second_squared(0.003), y: feet_per_second_squared(-0.05) },
+            motion: motion::UniformlyAccelerated {
+                s0: Vector2 { x: feet(-1.0), y: feet(30.0) },
+                v0: Vector2 { x: feet_per_second(-0.01), y: feet_per_second(3.0) },
+                a: Vector2 { x: feet_per_second_squared(0.003), y: feet_per_second_squared(-0.05) },
+            },
             rotation: Rotation::CounterClockwise,
         };
 

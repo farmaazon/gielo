@@ -4,6 +4,7 @@ pub mod sheet;
 pub mod shot;
 pub mod stage;
 pub mod stone;
+pub mod stones;
 pub mod team;
 
 use crate::game::sheet::Hack;
@@ -102,7 +103,7 @@ impl Game {
 
     fn stone_delivered(end: stage::End, sheet: &Sheet, score: &mut score::Table) -> Stage {
         let next_stone = end.stone + 1;
-        if next_stone < sheet::STONE_COUNT {
+        if next_stone < stones::COUNT {
             Stage::Thinking(stage::End {
                 stone: next_stone,
                 playing_team: end.playing_team.opponent(),
@@ -277,12 +278,8 @@ mod tests {
     #[test]
     fn last_stone_of_the_end() {
         let test = Fixture::default();
-        let end = stage::End {
-            no: 1,
-            hammer: Team::B,
-            stone: sheet::STONE_COUNT - 1,
-            playing_team: Team::B,
-        };
+        let end =
+            stage::End { no: 1, hammer: Team::B, stone: stones::COUNT - 1, playing_team: Team::B };
         let mut game = test.make_game_at_thinking_stage(end, score::Table::default());
 
         let delivery_time = Instant::now();
@@ -308,7 +305,7 @@ mod tests {
         let end = stage::End {
             no: test.params.ends,
             hammer: Team::A,
-            stone: sheet::STONE_COUNT - 1,
+            stone: stones::COUNT - 1,
             playing_team: Team::A,
         };
         let score =
@@ -347,12 +344,12 @@ mod tests {
         let end = stage::End {
             no: test.params.ends,
             hammer: Team::A,
-            stone: sheet::STONE_COUNT,
+            stone: stones::COUNT,
             playing_team: Team::A,
         };
         let next_end = end.next_end((0, 2).into());
         let stage = Stage::EndConcluded(end, (0, 2).into());
-        let mut game = test.make_game_with_empty_sheet(stage, score, sheet::STONE_COUNT, Team::A);
+        let mut game = test.make_game_with_empty_sheet(stage, score, stones::COUNT, Team::A);
         game.finish_end().expect("Error while finishing end");
         assert!(matches!(game.stage, Stage::Thinking(end) if end == next_end));
         assert_eq!(game.score.full(), (4, 4).into());
@@ -377,7 +374,7 @@ mod tests {
         let mut game = test.make_game_with_empty_sheet(
             Stage::EndConcluded(end, end_score),
             score,
-            sheet::STONE_COUNT,
+            stones::COUNT,
             Team::A,
         );
         assert!(game.start_delivery(Instant::now(), tee_draw()).is_err());

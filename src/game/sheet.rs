@@ -1,15 +1,12 @@
+use crate::game::stones::Stones;
 use crate::game::team::{teams, PerTeam, Team};
-use crate::game::{team, Stone};
 use crate::unit::approx_eq;
 use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
-use derive_more::{AsRef, Deref};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use local_vec::LocalVec;
 use std::f32::consts::PI;
-use std::ops::{Index, IndexMut};
 use uom::si::length::foot;
 
 #[derive(Copy, Clone, Debug)]
@@ -17,9 +14,6 @@ pub enum Hack {
     Left,
     Right,
 }
-
-pub const STONES_PER_TEAM: usize = 8;
-pub const STONE_COUNT: usize = STONES_PER_TEAM * team::TEAMS_COUNT;
 
 lazy_static! {
     pub static ref LENGTH: Length = feet(150.0);
@@ -93,66 +87,6 @@ impl Parameters {
     }
 }
 
-#[derive(Clone, Debug, Default, AsRef, Deref)]
-pub struct Stones {
-    #[deref]
-    stones: LocalVec<Stone, STONE_COUNT>,
-    stones_count_change: isize,
-}
-
-impl Stones {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Stone> {
-        self.stones.iter_mut()
-    }
-
-    pub fn push(&mut self, new_stone: Stone) {
-        self.stones.push(new_stone);
-        self.stones_count_change += 1;
-    }
-
-    pub fn clear(&mut self) {
-        self.stones_count_change -= self.stones.len() as isize;
-        self.stones.clear();
-    }
-
-    pub fn read_len(&mut self) -> (isize, usize) {
-        (std::mem::take(&mut self.stones_count_change), self.stones.len())
-    }
-}
-
-impl<T> Index<T> for Stones
-where
-    LocalVec<Stone, STONE_COUNT>: Index<T>,
-{
-    type Output = <LocalVec<Stone, STONE_COUNT> as Index<T>>::Output;
-
-    fn index(&self, index: T) -> &Self::Output {
-        &self.stones[index]
-    }
-}
-
-impl<T> IndexMut<T> for Stones
-where
-    LocalVec<Stone, STONE_COUNT>: Index<T> + IndexMut<T>,
-{
-    fn index_mut(&mut self, index: T) -> &mut Self::Output {
-        &mut self.stones[index]
-    }
-}
-
-impl FromIterator<Stone> for Stones {
-    fn from_iter<T: IntoIterator<Item = Stone>>(iter: T) -> Self {
-        let mut stones = Self::new();
-        stones.stones.extend(iter);
-        stones.stones_count_change += stones.stones.len() as isize;
-        stones
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Sheet {
     pub stones: Stones,
@@ -202,8 +136,8 @@ impl Sheet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::stone;
     use crate::game::team::Team::{A, B};
+    use crate::game::{stone, Stone};
 
     #[test]
     fn counting_score() {

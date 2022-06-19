@@ -1,5 +1,5 @@
 use crate::game::team::{Team, TEAMS_COUNT};
-use crate::game::{sheet, stone, Delivery, Score};
+use crate::game::{stone, stones, Delivery, Score};
 use std::time;
 
 pub type EndNo = u8;
@@ -35,7 +35,7 @@ impl End {
         } else {
             hammer_team_stones_delivered + 1
         };
-        sheet::STONES_PER_TEAM - stones_delivered
+        stones::PER_TEAM - stones_delivered
     }
 }
 
@@ -50,11 +50,10 @@ pub enum Stage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::sheet;
 
     #[test]
     fn next_end() {
-        let end = End { no: 2, hammer: Team::B, stone: sheet::STONE_COUNT, playing_team: Team::B };
+        let end = End { no: 2, hammer: Team::B, stone: stones::COUNT, playing_team: Team::B };
         let new_end_hammer_b = End { no: 3, hammer: Team::B, stone: 0, playing_team: Team::A };
         let new_end_hammer_a = End { hammer: Team::A, playing_team: Team::B, ..new_end_hammer_b };
 
