@@ -28,6 +28,10 @@ impl BeingDelivered {
         motion::Uniform { s0: self.starting_point.y, v: self.velocity().y }
     }
 
+    pub fn motion(&self) -> Vector2<motion::Uniform> {
+        Vector2 { x: self.motion_x(), y: self.motion_y() }
+    }
+
     pub fn release_point(&self) -> Position {
         self.starting_point + self.delivering_off
     }
@@ -64,6 +68,19 @@ impl Moving {
 
     pub fn motion_y(&self) -> motion::UniformlyAccelerated {
         motion::UniformlyAccelerated { s0: self.t0_pos.y, v0: self.t0_v.y, a: self.acc.y }
+    }
+
+    pub fn motion(&self) -> Vector2<motion::UniformlyAccelerated> {
+        Vector2 { x: self.motion_x(), y: self.motion_y() }
+    }
+
+    pub fn motion_at_t(&self, t: Time) -> Vector2<motion::UniformlyAccelerated> {
+        let s0 = self.position(t);
+        let v0 = self.velocity(t);
+        Vector2 {
+            x: motion::UniformlyAccelerated { s0: s0.x, v0: v0.x, a: self.acc.x },
+            y: motion::UniformlyAccelerated { s0: s0.y, v0: v0.y, a: self.acc.y },
+        }
     }
 }
 

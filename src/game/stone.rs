@@ -5,9 +5,9 @@ use uom::ConstZero;
 pub use state::State;
 
 use crate::game::{sheet, Team};
-use crate::unit;
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
+use crate::{motion, unit};
 
 pub mod state;
 
@@ -60,6 +60,15 @@ impl Stone {
         }
     }
 
+    pub fn velocity(&self, t: Time) -> Option<Velocity> {
+        match &self.state {
+            State::BeingDelivered(state) => Some(state.velocity()),
+            State::Moving(state) => Some(state.velocity(t)),
+            State::Stationary(_) => Some(Velocity::default()),
+            State::Out { .. } => None,
+        }
+    }
+
     pub fn when_next_stage(&self, sheet: &sheet::Parameters) -> Option<Time> {
         match &self.state {
             State::BeingDelivered(state) => Some(state.release_time),
@@ -89,6 +98,24 @@ impl Stone {
             State::Moving(state) => {
                 let out_y = *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius;
                 state.motion_y().when_at_position(out_y).map(|t| t + state.t0)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn when_collision(&self, rhs: &Stone, sheet: &sheet::Parameters) -> Option<Time> {
+        match (&self.state, &rhs.state) {
+            (State::Moving(lhs), State::Moving(rhs)) => {
+                let t0 = lhs.t0.max(rhs.t0);
+                let motion = lhs.motion_at_t(t0) - rhs.motion_at_t(t0);
+                motion::when_cross_circle(motion, sheet.stone_radius * 2.0).map(|t| t + t0)
+            }
+            (State::Moving(moving), State::Stationary(stationary))
+            | (State::Stationary(stationary), State::Moving(moving)) => {
+                let mut motion = moving.motion();
+                motion.x.s0 -= stationary.position().x;
+                motion.y.s0 -= stationary.position().y;
+                motion::when_cross_circle(motion, sheet.stone_radius * 2.0).map(|t| t + moving.t0)
             }
             _ => None,
         }
@@ -126,6 +153,39 @@ impl Stone {
             };
             *state = new_state
         }
+    }
+
+    pub fn states_after_collision(
+        &self,
+        rhs: &Stone,
+        sheet: &sheet::Parameters,
+        t: Time,
+    ) -> Option<(State, State)> {
+        let lhs_pos = self.position(t)?;
+        let rhs_pos = rhs.position(t)?;
+        let lhs_v = self.velocity(t).unwrap_or_default();
+        let rhs_v = rhs.velocity(t).unwrap_or_default();
+        let offset = dbg!(rhs_pos - lhs_pos);
+        let hit_dir = dbg!(offset / offset.norm());
+        let lhs_given_v = dbg!(hit_dir * lhs_v.dot(hit_dir));
+        let rhs_given_v = dbg!(-hit_dir * rhs_v.dot(-hit_dir));
+        let lhs_new_v = dbg!(lhs_v + rhs_given_v - lhs_given_v);
+        let rhs_new_v = dbg!(rhs_v + lhs_given_v - rhs_given_v);
+        let lhs_state = State::Moving(state::Moving {
+            t0: t,
+            t0_pos: lhs_pos,
+            t0_v: lhs_new_v,
+            acc: compute_acc(sheet, lhs_new_v, Rotation::None),
+            rotation: Rotation::None,
+        });
+        let rhs_state = State::Moving(state::Moving {
+            t0: t,
+            t0_pos: rhs_pos,
+            t0_v: rhs_new_v,
+            acc: compute_acc(sheet, rhs_new_v, Rotation::None),
+            rotation: Rotation::None,
+        });
+        Some((lhs_state, rhs_state))
     }
 }
 

@@ -12,6 +12,14 @@ impl<T> Vector2<T> {
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Vector2<U> {
         Vector2 { x: f(self.x), y: f(self.y) }
     }
+
+    pub fn dot<U>(self, rhs: Vector2<U>) -> <T::Output as Add<T::Output>>::Output
+    where
+        T: Mul<U>,
+        T::Output: Add<T::Output>,
+    {
+        self.x * rhs.x + self.y * rhs.y
+    }
 }
 
 impl<T> Neg for Vector2<T>

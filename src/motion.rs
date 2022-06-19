@@ -1,10 +1,12 @@
-use crate::unit::{seconds, Acceleration, Length, Time, Velocity};
-use roots::{find_roots_linear, find_roots_quadratic, Roots};
+use crate::unit::{feet_per_second_squared, seconds, Acceleration, Length, Time, Velocity};
+use crate::vector::Vector2;
+use derive_more::{Add, Sub};
+use roots::{find_roots_linear, find_roots_quadratic, find_roots_quartic, Roots};
 use uom::si::acceleration::foot_per_second_squared;
 use uom::si::length::foot;
 use uom::si::velocity::foot_per_second;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub)]
 pub struct Uniform {
     pub s0: Length,
     pub v: Velocity,
@@ -19,7 +21,7 @@ impl Uniform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub)]
 pub struct UniformlyAccelerated {
     pub s0: Length,
     pub v0: Velocity,
@@ -36,8 +38,28 @@ impl UniformlyAccelerated {
     }
 }
 
+impl From<Uniform> for UniformlyAccelerated {
+    fn from(uniform: Uniform) -> Self {
+        Self { s0: uniform.s0, v0: uniform.v, a: feet_per_second_squared(0.0) }
+    }
+}
+
 fn min_non_negative_root(roots: Roots<f32>) -> Option<f32> {
     roots.as_ref().iter().filter(|&&t| t >= 0.0).copied().next()
+}
+
+pub fn when_cross_circle(motion: Vector2<UniformlyAccelerated>, r: Length) -> Option<Time> {
+    let a = motion.map(|m| m.a.get::<foot_per_second_squared>());
+    let v0 = motion.map(|m| m.v0.get::<foot_per_second>());
+    let s0 = motion.map(|m| m.s0.get::<foot>());
+    let r = r.get::<foot>();
+    let a4 = (a.x * a.x + a.y + a.y) / 4.0;
+    let a3 = v0.x * a.x + v0.y * a.y;
+    let a2 = v0.x * v0.x + v0.y * v0.y + s0.x * a.x + s0.y * a.y;
+    let a1 = 2.0 * (v0.x * s0.x + v0.y * s0.y);
+    let a0 = s0.x * s0.x + s0.y * s0.y - r * r;
+    let roots = find_roots_quartic(a4, a3, a2, a1, a0);
+    min_non_negative_root(roots).map(seconds)
 }
 
 #[cfg(test)]

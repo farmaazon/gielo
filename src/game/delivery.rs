@@ -31,6 +31,7 @@ mod event {
     pub enum Kind {
         StoneOut(stone::Id),
         StoneNextStage(stone::Id),
+        Collision(stone::Id, stone::Id),
         NextTimeQuantum,
     }
 
@@ -114,8 +115,17 @@ impl Delivery {
             .iter()
             .enumerate()
             .flat_map(|stone| self.stone_events(&sheet.parameters, stone));
-        let base_event =
-            stone_events.filter(|event| event.time >= self.current_time).min_by_key(key);
+        let stone_pairs = sheet.stones.iter().enumerate().flat_map(|(id, stone)| {
+            sheet.stones.iter().enumerate().take(id).map(move |rstone| ((id, stone), rstone))
+        });
+        let collisions = stone_pairs.flat_map(|((lid, lstone), (rid, rstone))| {
+            Event::from_times(
+                event::Kind::Collision(lid, rid),
+                lstone.when_collision(rstone, &sheet.parameters),
+            )
+        });
+        let all_events = stone_events.chain(collisions);
+        let base_event = all_events.filter(|event| event.time >= self.current_time).min_by_key(key);
         // Consider next quantum only if there are other potential events. Otherwise we will run infinitely.
         base_event.and_then(|event| {
             let next_quantum =
@@ -146,6 +156,16 @@ impl Delivery {
             }
             event::Kind::StoneNextStage(stone) => {
                 sheet.stones[stone].next_stage(&sheet.parameters);
+            }
+            event::Kind::Collision(lid, rid) => {
+                let lstone = &sheet.stones[lid];
+                let rstone = &sheet.stones[rid];
+                if let Some((lstate, rstate)) =
+                    dbg!(lstone.states_after_collision(&rstone, &sheet.parameters, time))
+                {
+                    sheet.stones[lid].state = lstate;
+                    sheet.stones[rid].state = rstate;
+                }
             }
             event::Kind::NextTimeQuantum => {
                 for stone in sheet.stones.iter_mut() {
