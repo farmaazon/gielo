@@ -91,7 +91,7 @@ pub mod tests {
         assert_eq!(stones.read_len(), TrackedLen { value: 0, change: -3 });
         stones.push(stone.clone());
         stones.read_len();
-        stones.push(stone.clone());
+        stones.push(stone);
         stones.clear();
         assert_eq!(stones.read_len(), TrackedLen { value: 0, change: -1 });
     }

@@ -1,6 +1,6 @@
 use crate::game::stones::Stones;
 use crate::game::team::{teams, PerTeam, Team};
-use crate::unit::approx_eq;
+use crate::unit::{approx_eq, joules_per_kilogram, AvailableEnergy};
 use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
@@ -60,10 +60,11 @@ pub fn hack_pos(hack: Hack) -> Vector2<Length> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
+    pub width: Length,
+    pub stone_radius: Length,
     pub friction: Acceleration,
     pub rotation_acc: Acceleration,
-    pub stone_radius: Length,
-    pub width: Length,
+    pub static_friction: AvailableEnergy,
 }
 
 impl Default for Parameters {
@@ -73,6 +74,7 @@ impl Default for Parameters {
             rotation_acc: feet_per_second_squared(245.0 / 8649.0),
             stone_radius: inches(18.0 / PI),
             width: feet(15.0) + inches(7.0),
+            static_friction: joules_per_kilogram(0.1),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::game::stone::{Acceleration, Position, Velocity};
 use crate::unit;
-use crate::unit::{seconds, Time};
+use crate::unit::{joules_per_kilogram, seconds, Time};
 use crate::vector::{EuclideanNorm, Vector2};
 use derive_more::{Add, Sub};
 use roots::{find_roots_linear, find_roots_quadratic, find_roots_quartic, Roots};
@@ -108,19 +108,31 @@ pub fn velocity_after_collision(
     s_b: Position,
     v_b: Velocity,
 ) -> (Velocity, Velocity) {
-    let offset = dbg!(s_b - s_a);
-    let hit_dir = dbg!(offset / offset.norm());
-    let v_given_by_a = dbg!(hit_dir * dbg!(v_a.dot(hit_dir)));
-    let v_given_by_b = dbg!(-hit_dir * dbg!(v_b.dot(-hit_dir)));
-    let new_v_a = dbg!(v_a + v_given_by_b - v_given_by_a);
-    let new_v_b = dbg!(v_b + v_given_by_a - v_given_by_b);
+    let offset = s_b - s_a;
+    let hit_dir = offset / offset.norm();
+    let v_given_by_a = hit_dir * v_a.dot(hit_dir);
+    let v_given_by_b = -hit_dir * v_b.dot(-hit_dir);
+    let new_v_a = v_a + v_given_by_b - v_given_by_a;
+    let new_v_b = v_b + v_given_by_a - v_given_by_b;
     (new_v_a, new_v_b)
+}
+
+pub fn decrease_energy(v: Velocity, energy_drop: unit::AvailableEnergy) -> Velocity {
+    let v_norm = v.norm();
+    let new_v_norm_squared = v_norm * v_norm - 2.0 * energy_drop;
+    if new_v_norm_squared >= joules_per_kilogram(0.0) {
+        v * new_v_norm_squared.sqrt() / v_norm
+    } else {
+        Velocity::default()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::{assert_approx_eq, feet, feet_per_second, feet_per_second_squared};
+    use crate::unit::{
+        assert_approx_eq, feet, feet_per_second as feet_ps, feet_per_second_squared as feet_pss,
+    };
 
     #[test]
     fn when_at_position_uniform() {
@@ -128,17 +140,22 @@ mod tests {
         let s_far = feet(20.0);
         let s0 = feet(10.0);
 
-        let run_case = |case: (unit::Velocity, Option<Time>, Option<Time>)| {
-            let (v, expect_near, expect_far) = case;
+        struct Case {
+            v: f32,
+            expect_near: Option<f32>,
+            expect_far: Option<f32>,
+        }
+
+        let run_case = |Case { v, expect_far, expect_near }: Case| {
             let motion_x = Uniform {
                 s0: Vector2 { x: s0, y: unit::Length::default() },
-                v: Vector2 { x: v, y: unit::Velocity::default() },
+                v: Vector2 { x: feet_ps(v), y: unit::Velocity::default() },
             };
             let motion_y = Uniform {
                 s0: Vector2 { x: unit::Length::default(), y: s0 },
-                v: Vector2 { x: unit::Velocity::default(), y: v },
+                v: Vector2 { x: unit::Velocity::default(), y: feet_ps(v) },
             };
-            if let Some(expect_near) = expect_near {
+            if let Some(expect_near) = expect_near.map(seconds) {
                 assert_approx_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
                 assert_approx_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
             } else {
@@ -147,7 +164,7 @@ mod tests {
             }
             assert_approx_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
             assert_approx_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
-            if let Some(expect_far) = expect_far {
+            if let Some(expect_far) = expect_far.map(seconds) {
                 assert_approx_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
                 assert_approx_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
             } else {
@@ -156,13 +173,14 @@ mod tests {
             }
         };
 
+        #[rustfmt::skip]
         for case in [
-            (feet_per_second(1.0), None, Some(seconds(10.0))),
-            (feet_per_second(-1.0), Some(seconds(5.0)), None),
-            (feet_per_second(0.0), None, None),
+            Case { v: 1.0,  expect_near: None,      expect_far: Some(10.0) },
+            Case { v: -1.0, expect_near: Some(5.0), expect_far: None       },
+            Case { v: 0.0,  expect_near: None,      expect_far: None       },
         ] {
             run_case(case);
-        }
+        };
     }
 
     #[test]
@@ -171,19 +189,25 @@ mod tests {
         let s_far = feet(20.0);
         let s0 = feet(10.0);
 
-        let run_case = |case: (unit::Velocity, unit::Acceleration, Option<Time>, Option<Time>)| {
-            let (v0, a, expect_near, expect_far) = case;
+        struct Case {
+            v0: f32,
+            a: f32,
+            expect_near: Option<f32>,
+            expect_far: Option<f32>,
+        }
+
+        let run_case = |Case { v0, a, expect_near, expect_far }: Case| {
             let motion_x = UniformlyAccelerated {
                 s0: Vector2 { x: s0, y: unit::Length::default() },
-                v0: Vector2 { x: v0, y: unit::Velocity::default() },
-                a: Vector2 { x: a, y: unit::Acceleration::default() },
+                v0: Vector2 { x: feet_ps(v0), y: unit::Velocity::default() },
+                a: Vector2 { x: feet_pss(a), y: unit::Acceleration::default() },
             };
             let motion_y = UniformlyAccelerated {
                 s0: Vector2 { x: unit::Length::default(), y: s0 },
-                v0: Vector2 { x: unit::Velocity::default(), y: v0 },
-                a: Vector2 { x: unit::Acceleration::default(), y: a },
+                v0: Vector2 { x: unit::Velocity::default(), y: feet_ps(v0) },
+                a: Vector2 { x: unit::Acceleration::default(), y: feet_pss(a) },
             };
-            if let Some(expect_near) = expect_near {
+            if let Some(expect_near) = expect_near.map(seconds) {
                 assert_approx_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
                 assert_approx_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
             } else {
@@ -192,7 +216,7 @@ mod tests {
             }
             assert_approx_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
             assert_approx_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
-            if let Some(expect_far) = expect_far {
+            if let Some(expect_far) = expect_far.map(seconds) {
                 assert_approx_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
                 assert_approx_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
             } else {
@@ -200,89 +224,96 @@ mod tests {
                 assert_eq!(motion_y.when_at_y(s_far), None);
             }
         };
-        use feet_per_second as feet_ps;
-        use feet_per_second_squared as feet_pss;
 
+        let sqrt5 = 5.0_f32.sqrt();
+        let sqrt2 = 2.0_f32.sqrt();
+        #[rustfmt::skip]
         for case in [
-            (feet_ps(1.0), feet_pss(0.2), None, Some(seconds(5.0 * (5.0_f32.sqrt() - 1.0)))),
-            (feet_ps(1.0), feet_pss(-0.2), Some(seconds(5.0 * (5.0_f32.sqrt() + 1.0))), None),
-            (feet_ps(-1.0), feet_pss(-0.2), Some(seconds(5.0 * (5.0_f32.sqrt() - 1.0))), None),
-            (feet_ps(-1.0), feet_pss(0.2), None, Some(seconds(5.0 * (5.0_f32.sqrt() + 1.0)))),
-            (
-                feet_ps(1.0),
-                feet_pss(-0.05),
-                Some(seconds(20.0 * (2.0_f32.sqrt() + 1.0))),
-                Some(seconds(20.0)),
-            ),
+            Case { v0: 1.0,  a: 0.2,   expect_near: None,                       expect_far: Some(5.0 * (sqrt5 - 1.0)) },
+            Case { v0: 1.0,  a: -0.2,  expect_near: Some(5.0 * (sqrt5 + 1.0)),  expect_far: None },
+            Case { v0: -1.0, a: -0.2,  expect_near: Some(5.0 * (sqrt5 - 1.0)),  expect_far: None },
+            Case { v0: -1.0, a: 0.2,   expect_near: None,                       expect_far: Some(5.0 * (sqrt5 + 1.0)) },
+            Case { v0: 1.0,  a: -0.05, expect_near: Some(20.0 * (sqrt2 + 1.0)), expect_far: Some(20.0) },
         ] {
             run_case(case);
-        }
+        };
     }
 
     #[test]
     fn when_enters_circle() {
-        let run_case =
-            |(s0, v0, a, r, expected_t): ((f32, f32), (f32, f32), (f32, f32), f32, Option<f32>)| {
-                let motion = UniformlyAccelerated {
-                    s0: Vector2::from(s0).map(feet),
-                    v0: Vector2::from(v0).map(feet_per_second),
-                    a: Vector2::from(a).map(feet_per_second_squared),
-                };
-                let result = motion.when_enters_circle(feet(r));
-                if let Some(expected_t) = expected_t {
-                    assert_approx_eq!(result.unwrap(), seconds(expected_t), ulps = 6);
-                } else {
-                    assert_eq!(result, None);
-                }
-            };
+        struct Case {
+            s0: (f32, f32),
+            v0: (f32, f32),
+            a: (f32, f32),
+            r: f32,
+            expect_t: Option<f32>,
+        }
 
+        let run_case = |Case { s0, v0, a, r, expect_t }: Case| {
+            let motion = UniformlyAccelerated {
+                s0: Vector2::from(s0).map(feet),
+                v0: Vector2::from(v0).map(feet_ps),
+                a: Vector2::from(a).map(feet_pss),
+            };
+            let result = motion.when_enters_circle(feet(r));
+            if let Some(expect_t) = expect_t {
+                assert_approx_eq!(result.unwrap(), seconds(expect_t), ulps = 6);
+            } else {
+                assert_eq!(result, None);
+            }
+        };
+
+        #[rustfmt::skip]
         for case in [
-            ((-10.0, 0.0), (1.0, 0.0), (0.0, 0.0), 2.0, Some(8.0)),
-            ((-10.0, 0.0), (-1.0, 0.0), (0.0, 0.0), 2.0, None),
-            ((-10.0, 0.0), (-1.0, 0.0), (0.0, 0.0), 11.0, None),
-            ((-10.0, 0.0), (0.0, 0.0), (1.0, 0.0), 2.0, Some(4.0)),
-            ((-10.0, 0.0), (0.0, 0.0), (-1.0, 0.0), 2.0, None),
-            ((0.0, -10.0), (0.0, 1.0), (0.0, 0.0), 2.0, Some(8.0)),
-            ((0.0, -10.0), (0.0, -1.0), (0.0, 0.0), 2.0, None),
-            ((0.0, -10.0), (0.0, 0.0), (0.0, 1.0), 2.0, Some(4.0)),
-            ((0.0, -10.0), (0.0, 0.0), (0.0, -1.0), 2.0, None),
-            ((-6.0, 8.0), (0.3, -0.4), (0.0, 0.0), 5.0, Some(10.0)),
-            ((-6.0, 8.0), (0.3, 0.0), (0.0, -0.08), 5.0, Some(10.0)),
-            ((-6.0, 8.0), (0.0, 0.0), (0.06, -0.08), 5.0, Some(10.0)),
+            Case { s0: (-10.0, 0.0), v0: (1.0, 0.0),  a: (0.0, 0.0),    r: 2.0,  expect_t: Some(8.0)  },
+            Case { s0: (-10.0, 0.0), v0: (-1.0, 0.0), a: (0.0, 0.0),    r: 2.0,  expect_t: None       },
+            Case { s0: (-10.0, 0.0), v0: (-1.0, 0.0), a: (0.0, 0.0),    r: 11.0, expect_t: None       },
+            Case { s0: (-10.0, 0.0), v0: (0.0, 0.0),  a: (1.0, 0.0),    r: 2.0,  expect_t: Some(4.0)  },
+            Case { s0: (-10.0, 0.0), v0: (0.0, 0.0),  a: (-1.0, 0.0),   r: 2.0,  expect_t: None       },
+            Case { s0: (0.0, -10.0), v0: (0.0, 1.0),  a: (0.0, 0.0),    r: 2.0,  expect_t: Some(8.0)  },
+            Case { s0: (0.0, -10.0), v0: (0.0, -1.0), a: (0.0, 0.0),    r: 2.0,  expect_t: None       },
+            Case { s0: (0.0, -10.0), v0: (0.0, 0.0),  a: (0.0, 1.0),    r: 2.0,  expect_t: Some(4.0)  },
+            Case { s0: (0.0, -10.0), v0: (0.0, 0.0),  a: (0.0, -1.0),   r: 2.0,  expect_t: None       },
+            Case { s0: (-6.0, 8.0),  v0: (0.3, -0.4), a: (0.0, 0.0),    r: 5.0,  expect_t: Some(10.0) },
+            Case { s0: (-6.0, 8.0),  v0: (0.3, 0.0),  a: (0.0, -0.08),  r: 5.0,  expect_t: Some(10.0) },
+            Case { s0: (-6.0, 8.0),  v0: (0.0, 0.0),  a: (0.06, -0.08), r: 5.0,  expect_t: Some(10.0) },
         ] {
             run_case(case);
-        }
+        };
     }
 
     #[test]
     fn velocity_after_collision() {
-        let run_case = |(s_a, v_a, s_b, v_b, expected_v_a, expected_v_b): (
-            (f32, f32),
-            (f32, f32),
-            (f32, f32),
-            (f32, f32),
-            (f32, f32),
-            (f32, f32),
-        )| {
+        struct Case {
+            s_a: (f32, f32),
+            v_a: (f32, f32),
+            s_b: (f32, f32),
+            v_b: (f32, f32),
+            expect_v_a: (f32, f32),
+            expect_v_b: (f32, f32),
+        }
+
+        let run_case = |Case { s_a, v_a, s_b, v_b, expect_v_a, expect_v_b }: Case| {
             let s_a = Vector2::from(s_a).map(feet);
-            let v_a = Vector2::from(v_a).map(feet_per_second);
+            let v_a = Vector2::from(v_a).map(feet_ps);
             let s_b = Vector2::from(s_b).map(feet);
-            let v_b = Vector2::from(v_b).map(feet_per_second);
-            let expected_v_a = Vector2::from(expected_v_a).map(feet_per_second);
-            let expected_v_b = Vector2::from(expected_v_b).map(feet_per_second);
+            let v_b = Vector2::from(v_b).map(feet_ps);
+            let expect_v_a = Vector2::from(expect_v_a).map(feet_pss);
+            let expect_v_b = Vector2::from(expect_v_b).map(feet_pss);
             let (new_v_a, new_v_b) = super::velocity_after_collision(s_a, v_a, s_b, v_b);
-            assert_approx_eq!(new_v_a.x, expected_v_a.x, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_a.y, expected_v_a.y, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_b.x, expected_v_b.x, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_b.y, expected_v_b.y, ulps = 6, epsilon = 1e-6);
+            assert_approx_eq!(new_v_a.x, expect_v_a.x, ulps = 6, epsilon = 1e-6);
+            assert_approx_eq!(new_v_a.y, expect_v_a.y, ulps = 6, epsilon = 1e-6);
+            assert_approx_eq!(new_v_b.x, expect_v_b.x, ulps = 6, epsilon = 1e-6);
+            assert_approx_eq!(new_v_b.y, expect_v_b.y, ulps = 6, epsilon = 1e-6);
         };
 
+        #[rustfmt::skip]
         for case in [
-            ((-10.0, 0.0), (1.0, 0.0), (-5.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0)),
-            ((-1.0, 0.0), (2.0, 2.0), (1.0, 0.0), (0.0, 0.0), (0.0, 2.0), (2.0, 0.0)),
-            ((-1.0, -1.0), (2.0, 2.0), (1.0, 1.0), (0.0, 0.0), (0.0, 0.0), (2.0, 2.0)),
+            Case { s_a: (-10.0, 0.0), v_a: (1.0, 0.0), s_b: (-5.0, 0.0), v_b: (0.0, 0.0), expect_v_a: (0.0, 0.0), expect_v_b: (1.0, 0.0)},
+            Case { s_a: (-1.0, 0.0),  v_a: (2.0, 2.0), s_b: (1.0, 0.0),  v_b: (0.0, 0.0), expect_v_a: (0.0, 2.0), expect_v_b: (2.0, 0.0)},
+            Case { s_a: (-1.0, -1.0), v_a: (2.0, 2.0), s_b: (1.0, 1.0),  v_b: (0.0, 0.0), expect_v_a: (0.0, 0.0), expect_v_b: (2.0, 2.0)},
         ] {
             run_case(case);
-        }
+        };
     }
 }

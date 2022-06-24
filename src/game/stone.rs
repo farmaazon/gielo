@@ -167,18 +167,28 @@ impl Stone {
         let rhs_pos = rhs.position(t)?;
         let lhs_v = self.velocity(t).unwrap_or_default();
         let rhs_v = rhs.velocity(t).unwrap_or_default();
-        let (new_lhs_v, new_rhs_v) =
+        let (mut new_lhs_v, mut new_rhs_v) =
             motion::velocity_after_collision(lhs_pos, lhs_v, rhs_pos, rhs_v);
+        if matches!(self.state, State::Stationary(_)) {
+            new_lhs_v = motion::decrease_energy(new_lhs_v, sheet.static_friction);
+        }
+        if matches!(rhs.state, State::Stationary(_)) {
+            new_rhs_v = motion::decrease_energy(new_rhs_v, sheet.static_friction);
+        }
         let make_state = |pos: Position, new_v: Velocity| {
-            State::Moving(state::Moving {
-                t0: t,
-                motion: motion::UniformlyAccelerated {
-                    s0: pos,
-                    v0: new_v,
-                    a: compute_acc(sheet, new_v, Rotation::None),
-                },
-                rotation: Rotation::None,
-            })
+            if new_v.x > unit::Velocity::ZERO || new_v.y > unit::Velocity::ZERO {
+                State::Moving(state::Moving {
+                    t0: t,
+                    motion: motion::UniformlyAccelerated {
+                        s0: pos,
+                        v0: new_v,
+                        a: compute_acc(sheet, new_v, Rotation::None),
+                    },
+                    rotation: Rotation::None,
+                })
+            } else {
+                State::Stationary(state::Stationary::new(pos))
+            }
         };
         Some((make_state(lhs_pos, new_lhs_v), make_state(rhs_pos, new_rhs_v)))
     }
@@ -279,6 +289,7 @@ mod tests {
             rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
             width: feet(15.0),
+            ..sheet::Parameters::default()
         };
         // CounterClockwise
         let mut state = state::BeingDelivered {
@@ -335,6 +346,7 @@ mod tests {
             rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
             width: feet(15.0),
+            ..sheet::Parameters::default()
         };
         let state = state::Moving {
             t0: seconds(2.0),

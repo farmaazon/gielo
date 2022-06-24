@@ -8,6 +8,7 @@ use slint::Model;
 use slint::VecModel;
 use std::any::Any;
 use std::cell::{RefCell, RefMut};
+use std::cmp::Ordering;
 use std::rc::Rc;
 use uom::si::acceleration::foot_per_second_squared;
 use uom::si::length::foot;
@@ -44,6 +45,7 @@ impl<'a> SheetModel<'a> {
             rotation_acc: feet_per_second_squared(self.get_rotation_acc()),
             stone_radius: feet(self.get_stone_radius()),
             width: feet(self.get_geometry().width),
+            ..game::sheet::Parameters::default()
         }
     }
 }
@@ -101,10 +103,10 @@ impl Stones {
         let sheet = &mut game.sheet;
         let count = sheet.stones.read_len();
         let known_count = (count.value as isize - count.change) as usize;
-        if count.change > 0 {
-            self.notify.row_added(known_count, count.change as usize);
-        } else if count.change < 0 {
-            self.notify.row_removed(count.value, (-count.change) as usize);
+        match count.change.cmp(&0) {
+            Ordering::Greater => self.notify.row_added(known_count, count.change as usize),
+            Ordering::Less => self.notify.row_removed(count.value, (-count.change) as usize),
+            Ordering::Equal => {}
         }
         for (index, stone) in sheet.stones.iter_mut().take(known_count).enumerate() {
             let (changed, _) = stone.read_position(time);

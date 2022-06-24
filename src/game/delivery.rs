@@ -161,7 +161,7 @@ impl Delivery {
                 let lstone = &sheet.stones[lid];
                 let rstone = &sheet.stones[rid];
                 if let Some((lstate, rstate)) =
-                    dbg!(lstone.states_after_collision(&rstone, &sheet.parameters, time))
+                    dbg!(lstone.states_after_collision(rstone, &sheet.parameters, time))
                 {
                     sheet.stones[lid].state = lstate;
                     sheet.stones[rid].state = rstate;

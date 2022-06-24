@@ -21,16 +21,17 @@ pub fn milliseconds(value: BaseType) -> Time {
 pub fn feet_per_second(value: BaseType) -> Velocity {
     Velocity::new::<uom::si::velocity::foot_per_second>(value)
 }
-
 pub fn feet_per_second_squared(value: BaseType) -> Acceleration {
     Acceleration::new::<uom::si::acceleration::foot_per_second_squared>(value)
 }
-
 pub fn radians(value: BaseType) -> Angle {
     Angle::new::<uom::si::angle::radian>(value)
 }
 pub fn degrees(value: BaseType) -> Angle {
     Angle::new::<uom::si::angle::degree>(value)
+}
+pub fn joules_per_kilogram(value: BaseType) -> AvailableEnergy {
+    AvailableEnergy::new::<uom::si::available_energy::joule_per_kilogram>(value)
 }
 
 #[allow(unused_macros)]

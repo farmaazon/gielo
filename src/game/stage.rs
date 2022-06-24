@@ -1,5 +1,6 @@
 use crate::game::team::{Team, TEAMS_COUNT};
 use crate::game::{stone, stones, Delivery, Score};
+use std::cmp::Ordering;
 use std::time;
 
 pub type EndNo = u8;
@@ -18,12 +19,10 @@ impl End {
     }
 
     pub fn next_end(self, prev_score: Score) -> Self {
-        let hammer = if prev_score.a > prev_score.b {
-            Team::B
-        } else if prev_score.a < prev_score.b {
-            Team::A
-        } else {
-            self.hammer
+        let hammer = match prev_score.a.cmp(&prev_score.b) {
+            Ordering::Less => Team::A,
+            Ordering::Greater => Team::B,
+            Ordering::Equal => self.hammer,
         };
         End { no: self.no + 1, hammer, stone: 0, playing_team: hammer.opponent() }
     }
