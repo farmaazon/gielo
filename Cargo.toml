@@ -11,19 +11,19 @@ float-cmp = "0.9.0"
 lazy_static = "1.4.0"
 local_vec = "0.5.0"
 roots = { git = "https://github.com/vorot/roots.git", rev="cb13f4fec62809883304b6d36a005c4a92ba6079" }
-simple_logger = "2.1.0"
+simple_logger = "4.0.0"
 itertools = "0.10.3"
 log = "0.4.17"
 
 [dependencies.slint]
-version = "0.2.1"
-default-features = false
-features = ["backend-gl-all", "compat-0-2-0", "std"]
+version = "0.3.1"
+#default-features = false
+#features = ["backend-gl-all", "compat-0-2-0", "std"]
 
 [dependencies.uom]
-version = "0.32.0"
+version = "0.33.0"
 default-features = false
 features = ["f32", "si", "std"]
 
 [build-dependencies]
-slint-build = "0.2.1"
+slint-build = "0.3.1"

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate uom;
+
 pub mod game;
 pub mod ui;
 pub mod unit;

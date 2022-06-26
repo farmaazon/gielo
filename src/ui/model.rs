@@ -1,7 +1,6 @@
 use crate::game;
 use crate::game::Game;
 use crate::ui::{GameModel, SheetEndGeometry, SheetGeometry, SheetModel, StoneModel, Team};
-use crate::unit::{feet, feet_per_second_squared};
 use crate::vector::Vector2;
 use anyhow::{anyhow, Result};
 use slint::Model;
@@ -15,38 +14,28 @@ use uom::si::length::foot;
 
 impl<'a> SheetModel<'a> {
     pub fn initialize(&self) {
-        let sheet_params = game::sheet::Parameters::default();
-        let geometry = SheetGeometry {
-            width: sheet_params.width.get::<foot>(),
-            height: game::sheet::LENGTH.get::<foot>(),
-            house_radius: game::sheet::HOUSE_RADIUS.get::<foot>(),
-            hack_offset: game::sheet::HACK_X_OFFSET.get::<foot>(),
-            tee_x: (*game::sheet::CENTER_LINE_X + sheet_params.width / 2.0).get::<foot>(),
-            delivery_end: SheetEndGeometry {
-                back_y: game::sheet::delivery_end::BACK_LINE_Y.get::<foot>(),
-                tee_y: game::sheet::delivery_end::TEE_LINE_Y.get::<foot>(),
-                hog_y: game::sheet::delivery_end::HOG_LINE_Y.get::<foot>(),
-            },
-            playing_end: SheetEndGeometry {
-                back_y: game::sheet::playing_end::BACK_LINE_Y.get::<foot>(),
-                tee_y: game::sheet::playing_end::TEE_LINE_Y.get::<foot>(),
-                hog_y: game::sheet::playing_end::HOG_LINE_Y.get::<foot>(),
-            },
-        };
-        self.set_geometry(geometry);
-        self.set_friction(sheet_params.friction.get::<foot_per_second_squared>());
-        self.set_rotation_acc(sheet_params.rotation_acc.get::<foot_per_second_squared>());
-        self.set_stone_radius(sheet_params.stone_radius.get::<foot>());
+        self.set_parameters(game::sheet::Parameters::default())
     }
 
-    pub fn parameters(&self) -> game::sheet::Parameters {
-        game::sheet::Parameters {
-            friction: feet_per_second_squared(self.get_friction()),
-            rotation_acc: feet_per_second_squared(self.get_rotation_acc()),
-            stone_radius: feet(self.get_stone_radius()),
-            width: feet(self.get_geometry().width),
-            ..game::sheet::Parameters::default()
-        }
+    pub fn set_parameters(&self, params: game::sheet::Parameters) {
+        let make_end_geometry = |geom: game::sheet::EndGeometry| SheetEndGeometry {
+            back_y: geom.back_line_y.get::<foot>(),
+            tee_y: geom.tee_line_y.get::<foot>(),
+            hog_y: geom.hog_line_y.get::<foot>(),
+        };
+        let geometry = SheetGeometry {
+            width: params.geometry.width.get::<foot>(),
+            height: params.geometry.length.get::<foot>(),
+            house_radius: params.geometry.house_radius.get::<foot>(),
+            hack_offset: params.geometry.hack_x_offset.get::<foot>(),
+            tee_x: (params.geometry.center_line_x + params.geometry.width / 2.0).get::<foot>(),
+            delivery_end: make_end_geometry(params.geometry.delivery_end),
+            playing_end: make_end_geometry(params.geometry.playing_end),
+        };
+        self.set_geometry(geometry);
+        self.set_friction(params.friction.get::<foot_per_second_squared>());
+        self.set_rotation_acc(params.rotation_acc.get::<foot_per_second_squared>());
+        self.set_stone_radius(params.stone_radius.get::<foot>());
     }
 }
 

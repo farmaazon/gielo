@@ -31,6 +31,10 @@ pub struct Stone {
 }
 
 impl Stone {
+    pub fn new_stationary(team: Team, position: Position) -> Self {
+        Self { team, state: State::Stationary(state::Stationary::new(position)) }
+    }
+
     pub fn position(&self, t: Time) -> Option<Position> {
         match &self.state {
             State::BeingDelivered(state) => Some(state.position(t)),
@@ -79,7 +83,7 @@ impl Stone {
     }
 
     pub fn when_outside_x(&self, sheet: &sheet::Parameters) -> Option<Time> {
-        [(sheet.left_bound(), -1.0), (sheet.right_bound(), 1.0)]
+        [(sheet.geometry.left_bound(), -1.0), (sheet.geometry.right_bound(), 1.0)]
             .into_iter()
             .filter_map(|(bound, x_sign)| {
                 let out_x = bound - x_sign * sheet.stone_radius;
@@ -95,7 +99,7 @@ impl Stone {
     pub fn when_outside_y(&self, sheet: &sheet::Parameters) -> Option<Time> {
         match &self.state {
             State::Moving(state) => {
-                let out_y = *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius;
+                let out_y = sheet.geometry.playing_end.back_line_y + sheet.stone_radius;
                 state.motion.when_at_y(out_y).map(|t| t + state.t0)
             }
             _ => None,
@@ -107,13 +111,13 @@ impl Stone {
             (State::Moving(lhs), State::Moving(rhs)) => {
                 let t0 = lhs.t0.max(rhs.t0);
                 let motion = lhs.motion_at_t(t0) - rhs.motion_at_t(t0);
-                motion.when_enters_circle(sheet.stone_radius * 2.0).map(|t| t + t0)
+                motion.when_hits_circle(sheet.stone_radius * 2.0).map(|t| t + t0)
             }
             (State::Moving(moving), State::Stationary(stationary))
             | (State::Stationary(stationary), State::Moving(moving)) => {
                 let mut motion = moving.motion;
                 motion.s0 -= stationary.position();
-                motion.when_enters_circle(sheet.stone_radius * 2.0).map(|t| t + moving.t0)
+                motion.when_hits_circle(sheet.stone_radius * 2.0).map(|t| t + moving.t0)
             }
             _ => None,
         }
@@ -168,7 +172,7 @@ impl Stone {
         let lhs_v = self.velocity(t).unwrap_or_default();
         let rhs_v = rhs.velocity(t).unwrap_or_default();
         let (mut new_lhs_v, mut new_rhs_v) =
-            motion::velocity_after_collision(lhs_pos, lhs_v, rhs_pos, rhs_v);
+            dbg!(motion::velocity_after_collision(lhs_pos, lhs_v, rhs_pos, rhs_v));
         if matches!(self.state, State::Stationary(_)) {
             new_lhs_v = motion::decrease_energy(new_lhs_v, sheet.static_friction);
         }
@@ -210,7 +214,8 @@ fn compute_acc(sheet: &sheet::Parameters, v0: Velocity, rotation: Rotation) -> A
 mod tests {
     use crate::game::sheet::Hack;
     use crate::unit::{
-        assert_approx_eq, feet, feet_per_second, feet_per_second_squared, inches, seconds,
+        assert_approx_eq, feet, feet_per_second, feet_per_second_squared,
+        feet_squared_per_second_squared, inches, seconds,
     };
 
     use super::*;
@@ -220,9 +225,9 @@ mod tests {
         let sheet = sheet::Parameters::default();
         let state = state::BeingDelivered {
             release_time: seconds(3.0),
-            starting_point: sheet::hack_pos(Hack::Left),
+            starting_point: sheet.geometry.hack_pos(Hack::Left),
             delivering_off: Vector2 {
-                x: sheet.right_bound() - *sheet::HACK_X_OFFSET - sheet.stone_radius,
+                x: sheet.geometry.right_bound() - sheet.geometry.hack_x_offset - sheet.stone_radius,
                 y: feet(6.0),
             } * 2.0,
             rotation: Rotation::Clockwise,
@@ -232,9 +237,11 @@ mod tests {
         let stone = Stone {
             team: Team::B,
             state: State::BeingDelivered(state::BeingDelivered {
-                starting_point: sheet::hack_pos(Hack::Right),
+                starting_point: sheet.geometry.hack_pos(Hack::Right),
                 delivering_off: Vector2 {
-                    x: sheet.left_bound() + *sheet::HACK_X_OFFSET + sheet.stone_radius,
+                    x: sheet.geometry.left_bound()
+                        + sheet.geometry.hack_x_offset
+                        + sheet.stone_radius,
                     y: feet(6.0),
                 } * 3.0,
                 ..state
@@ -250,7 +257,7 @@ mod tests {
             t0: seconds(10.0),
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 {
-                    x: sheet.right_bound() - sheet.stone_radius - feet(1.0),
+                    x: sheet.geometry.right_bound() - sheet.stone_radius - feet(1.0),
                     y: feet(100.0),
                 },
                 v0: Vector2 { x: feet_per_second(1.0), y: feet_per_second(3.0) },
@@ -270,7 +277,7 @@ mod tests {
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 {
                     x: feet(3.0),
-                    y: *sheet::playing_end::BACK_LINE_Y + sheet.stone_radius - feet(1.0),
+                    y: sheet.geometry.playing_end.back_line_y + sheet.stone_radius - feet(1.0),
                 },
                 v0: Vector2 { x: feet_per_second(-0.1), y: feet_per_second(1.0) },
                 a: Vector2 { x: feet_per_second_squared(0.001), y: feet_per_second_squared(0.03) },
@@ -288,7 +295,6 @@ mod tests {
             friction: feet_per_second_squared(0.2),
             rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
-            width: feet(15.0),
             ..sheet::Parameters::default()
         };
         // CounterClockwise
@@ -345,7 +351,6 @@ mod tests {
             friction: feet_per_second_squared(0.2),
             rotation_acc: feet_per_second_squared(0.03),
             stone_radius: inches(6.0),
-            width: feet(15.0),
             ..sheet::Parameters::default()
         };
         let state = state::Moving {
@@ -405,21 +410,174 @@ mod tests {
         assert_approx_eq!(new_state.position().y, feet(100.0925));
     }
 
+    #[test]
+    fn collision_with_stationary() {
+        let sheet = sheet::Parameters {
+            stone_radius: feet(0.5),
+            friction: feet_per_second_squared(0.5),
+            static_friction: feet_squared_per_second_squared(55.0 / 512.0),
+            ..sheet::Parameters::default()
+        };
+        let moving = Stone {
+            team: Team::A,
+            state: State::Moving(state::Moving {
+                t0: seconds(2.0),
+                motion: motion::UniformlyAccelerated {
+                    s0: Vector2 { x: feet(3.0), y: feet(100.0) },
+                    v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
+                    a: Acceleration::default(),
+                },
+                rotation: Rotation::None,
+            }),
+        };
+        let stationary = Stone {
+            team: Team::B,
+            state: State::Stationary(state::Stationary::new(Vector2 {
+                x: feet(1.8),
+                y: feet(101.6),
+            })),
+        };
+        let collision_time = moving.when_collision(&stationary, &sheet).expect("Stone will miss");
+        assert_approx_eq!(collision_time, seconds(4.0), ulps = 10);
+
+        let (new_moving_state, new_stationary_state) = moving
+            .states_after_collision(&stationary, &sheet, collision_time)
+            .expect("Stones missed.");
+        if let State::Stationary(new_state) = new_moving_state {
+            assert_approx_eq!(new_state.position().x, feet(2.4), ulps = 10);
+            assert_approx_eq!(new_state.position().y, feet(100.8), ulps = 10);
+        } else {
+            panic!("Wrong new state of moving stone");
+        }
+        if let State::Moving(new_state) = new_stationary_state {
+            assert_approx_eq!(new_state.t0, collision_time);
+            assert_eq!(new_state.motion.s0.x, feet(1.8));
+            assert_eq!(new_state.motion.s0.y, feet(101.6));
+            assert_approx_eq!(new_state.motion.v0.x, feet_per_second(-0.1125), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.v0.y, feet_per_second(0.15), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(0.3), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+            assert_eq!(new_state.rotation, Rotation::None);
+        } else {
+            panic!("Wrong new state of stationary stone");
+        }
+    }
+
     // #[test]
-    // fn collision_with_stationary() {
-    //     let sheet = sheet::Parameters {
-    //         stone_radius: feet(2.0),
-    //         ..sheet::Parameters::default()
+    // fn collision_with_stationary2() {
+    //     let sheet = sheet::Parameters::default();
+    //     let moving = Stone {
+    //         team: Team::A,
+    //         state: State::Moving(state::Moving {
+    //             t0: seconds(25.5),
+    //             motion: motion::UniformlyAccelerated {
+    //                 s0: Vector2 { x: feet(1.2736267), y: feet(131.15353) },
+    //                 v0: Vector2 { x: feet_per_second(0.32272235), y: feet_per_second(0.51202404) },
+    //                 a: Vector2 {
+    //                     x: feet_per_second_squared(-0.14046976),
+    //                     y: feet_per_second_squared(-0.22286618),
+    //                 },
+    //             },
+    //             rotation: Rotation::None,
+    //         }),
     //     };
-    //     let state = state::Moving {
-    //         t0: seconds(2.0),
-    //         motion: motion::UniformlyAccelerated {
-    //             s0: Vector2 { x: feet(3.0), y: feet(100.0) },
-    //             v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
-    //             a: Vector2 { x: feet_per_second_squared(0.0), y: feet_per_second_squared(-0.0) },
-    //         },
-    //         rotation: None,
+    //     let stationary = Stone {
+    //         team: Team::B,
+    //         state: State::Stationary(state::Stationary::new(Vector2 {
+    //             x: feet(2.0472093),
+    //             y: feet(130.66595),
+    //         })),
     //     };
+    //     let collision_time = moving.when_collision(&stationary, &sheet).expect("Stone will miss");
+    //     assert_approx_eq!(collision_time, seconds(25.5));
     //
+    //     let (new_moving_state, new_stationary_state) = dbg!(moving
+    //         .states_after_collision(&stationary, &sheet, collision_time)
+    //         .expect("Stones missed."));
+    //     if let State::Stationary(new_state) = new_moving_state {
+    //         assert_approx_eq!(new_state.position().x, feet(2.4), ulps = 10);
+    //         assert_approx_eq!(new_state.position().y, feet(100.8), ulps = 10);
+    //     } else {
+    //         panic!("Wrong new state of moving stone");
+    //     }
+    //     if let State::Moving(new_state) = new_stationary_state {
+    //         assert_approx_eq!(new_state.t0, collision_time);
+    //         assert_eq!(new_state.motion.s0.x, feet(1.8));
+    //         assert_eq!(new_state.motion.s0.y, feet(101.6));
+    //         assert_approx_eq!(new_state.motion.v0.x, feet_per_second(-0.1125), epsilon = 1e-6);
+    //         assert_approx_eq!(new_state.motion.v0.y, feet_per_second(0.15), epsilon = 1e-6);
+    //         assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(0.3), epsilon = 1e-6);
+    //         assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+    //         assert_eq!(new_state.rotation, Rotation::None);
+    //     } else {
+    //         panic!("Wrong new state of stationary stone");
+    //     }
     // }
+
+    #[test]
+    fn collision_with_moving() {
+        let sheet = sheet::Parameters {
+            stone_radius: feet(0.5),
+            friction: feet_per_second_squared(0.5),
+            static_friction: feet_squared_per_second_squared(55.0 / 512.0),
+            ..sheet::Parameters::default()
+        };
+        let left_stone = Stone {
+            team: Team::A,
+            state: State::Moving(state::Moving {
+                t0: seconds(2.0),
+                motion: motion::UniformlyAccelerated {
+                    s0: Vector2 { x: feet(3.0), y: feet(100.0) },
+                    v0: Vector2 { x: feet_per_second(0.3), y: feet_per_second(0.4) },
+                    a: Acceleration::default(),
+                },
+                rotation: Rotation::None,
+            }),
+        };
+        let right_stone = Stone {
+            team: Team::B,
+            state: State::Moving(state::Moving {
+                t0: seconds(2.0),
+                motion: motion::UniformlyAccelerated {
+                    s0: Vector2 { x: feet(5.8), y: feet(100.0) },
+                    v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
+                    a: Acceleration::default(),
+                },
+                rotation: Rotation::None,
+            }),
+        };
+        let collision_time =
+            left_stone.when_collision(&right_stone, &sheet).expect("Stone will miss");
+        let another_time =
+            right_stone.when_collision(&left_stone, &sheet).expect("Stone will miss");
+        assert_approx_eq!(collision_time, seconds(5.0), epsilon = 1e-6);
+        assert_approx_eq!(another_time, seconds(5.0), epsilon = 1e-6);
+
+        let (new_left_state, new_right_state) = left_stone
+            .states_after_collision(&right_stone, &sheet, collision_time)
+            .expect("Stones missed.");
+        if let State::Moving(new_state) = new_left_state {
+            assert_approx_eq!(new_state.t0, collision_time);
+            assert_eq!(new_state.motion.s0.x, feet(3.9));
+            assert_eq!(new_state.motion.s0.y, feet(101.2));
+            assert_approx_eq!(new_state.motion.v0.x, feet_per_second(-0.3), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.v0.y, feet_per_second(0.4), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(0.3), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+        } else {
+            panic!("Wrong new state of moving stone");
+        }
+        if let State::Moving(new_state) = new_right_state {
+            assert_approx_eq!(new_state.t0, collision_time);
+            assert_eq!(new_state.motion.s0.x, feet(4.9));
+            assert_eq!(new_state.motion.s0.y, feet(101.2));
+            assert_approx_eq!(new_state.motion.v0.x, feet_per_second(0.3), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.v0.y, feet_per_second(0.4), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.x, feet_per_second_squared(-0.3), epsilon = 1e-6);
+            assert_approx_eq!(new_state.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+            assert_eq!(new_state.rotation, Rotation::None);
+        } else {
+            panic!("Wrong new state of stationary stone");
+        }
+    }
 }

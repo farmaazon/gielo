@@ -1,14 +1,12 @@
-use decorum::NotNan;
-use lazy_static::lazy_static;
-use uom::si::time::second;
-
-use event::Event;
-
 use crate::game::sheet::{Hack, Sheet};
 use crate::game::stone::Rotation;
 use crate::game::{sheet, stone, Stone, Team};
 use crate::unit::{milliseconds, Angle, Time};
 use crate::vector::Vector2;
+use decorum::NotNan;
+use event::Event;
+use lazy_static::lazy_static;
+use uom::si::time::second;
 
 lazy_static! {
     static ref TIME_QUANTUM_DURATION: Time = milliseconds(250.0);
@@ -63,8 +61,8 @@ impl Delivery {
         sheet: &mut Sheet,
         Parameters { angle, weight, team, hack, rotation }: Parameters,
     ) -> Self {
-        let delivering_dist = *sheet::delivery_end::HOG_LINE_Y - *sheet::delivery_end::HACK_LINE_Y;
-        let measure_dist = *sheet::delivery_end::HOG_LINE_Y - *sheet::delivery_end::TEE_LINE_Y;
+        let delivering_dist = sheet.parameters.geometry.delivery_dist();
+        let measure_dist = sheet.parameters.geometry.measure_dist();
         let release_time = weight * delivering_dist / measure_dist;
         let delivering_off =
             Vector2 { x: delivering_dist * angle.sin(), y: delivering_dist * angle.cos() };
@@ -72,7 +70,7 @@ impl Delivery {
             team,
             state: stone::State::BeingDelivered(stone::state::BeingDelivered {
                 release_time,
-                starting_point: sheet::hack_pos(hack),
+                starting_point: sheet.parameters.geometry.hack_pos(hack),
                 delivering_off,
                 rotation,
             }),
@@ -161,7 +159,7 @@ impl Delivery {
                 let lstone = &sheet.stones[lid];
                 let rstone = &sheet.stones[rid];
                 if let Some((lstate, rstate)) =
-                    dbg!(lstone.states_after_collision(rstone, &sheet.parameters, time))
+                    lstone.states_after_collision(rstone, &sheet.parameters, time)
                 {
                     sheet.stones[lid].state = lstate;
                     sheet.stones[rid].state = rstate;
@@ -178,7 +176,10 @@ impl Delivery {
 
     /// Returns true when finished.
     pub fn run(&mut self, sheet: &mut Sheet, until: Option<Time>) -> bool {
-        while let Some(event) = self.next_event(sheet, until) {
+        while let Some(event) = dbg!(self.next_event(sheet, until)) {
+            if let event::Kind::Collision(a, b) = event.kind {
+                dbg!((&sheet.stones[a], &sheet.stones[b]));
+            }
             self.apply_event(sheet, event);
         }
         if let Some(current_time) = until {
@@ -190,7 +191,9 @@ impl Delivery {
 
 #[cfg(test)]
 mod tests {
-    use crate::unit::{approx_eq, assert_approx_eq, feet, radians, seconds};
+    use crate::unit::{
+        approx_eq, assert_approx_eq, feet, feet_squared_per_second_squared, radians, seconds,
+    };
 
     use super::*;
 
@@ -227,7 +230,11 @@ mod tests {
         assert!(matches!(sheet.stones[0].state, stone::State::Stationary(_)));
         let position = sheet.stones[0].position(seconds(0.0)).unwrap();
         assert_approx_eq!(position.x, feet(0.0), epsilon = 2.0);
-        assert_approx_eq!(position.y, sheet::playing_end::TEE_LINE_Y, epsilon = 2.0);
+        assert_approx_eq!(
+            position.y,
+            sheet.parameters.geometry.playing_end.tee_line_y,
+            epsilon = 2.0
+        );
     }
 
     #[test]
@@ -244,5 +251,64 @@ mod tests {
         assert!(delivery.run(&mut sheet, Some(seconds(60.0))));
         assert!(matches!(sheet.stones[0].state, stone::State::Out { .. }));
         assert_eq!(sheet.stones[0].position(seconds(0.0)), None);
+    }
+
+    #[test]
+    fn clear_stone() {
+        let mut sheet = Sheet::new(sheet::Parameters::default());
+        let tee = sheet.parameters.geometry.tee();
+        sheet.stones.push(Stone::new_stationary(Team::B, tee));
+        let params = Parameters {
+            angle: radians(-2.0 / 132.0),
+            weight: seconds(2.3),
+            team: Team::A,
+            hack: Hack::Left,
+            rotation: Rotation::CounterClockwise,
+        };
+
+        let mut delivery = Delivery::new(&mut sheet, params);
+        assert!(!delivery.run(&mut sheet, Some(seconds(15.0))));
+        assert!(
+            matches!(&sheet.stones[0].state, stone::State::Stationary(state) if state.position() == tee)
+        );
+        assert!(matches!(&sheet.stones[1].state, stone::State::Moving(_)));
+        assert!(!delivery.run(&mut sheet, Some(seconds(16.0))));
+        assert!(
+            matches!(&sheet.stones[0].state, stone::State::Moving(state) if state.position(seconds(16.0)) != tee)
+        );
+        assert!(matches!(&sheet.stones[1].state, stone::State::Moving(_)));
+        assert!(delivery.run(&mut sheet, Some(seconds(20.0))));
+        assert!(matches!(&sheet.stones[0].state, stone::State::Out { .. }));
+        assert!(matches!(&sheet.stones[1].state, stone::State::Out { .. }));
+    }
+
+    #[test]
+    fn take_out_through_freezed_stone() {
+        let sheet_params = sheet::Parameters {
+            static_friction: feet_squared_per_second_squared(0.0),
+            ..sheet::Parameters::default()
+        };
+        let tee = sheet_params.geometry.tee();
+        let mut sheet = Sheet::new(sheet_params);
+        sheet.stones.push(Stone::new_stationary(Team::A, tee));
+        sheet.stones.push(Stone::new_stationary(
+            Team::B,
+            tee + Vector2 { x: feet(0.0), y: sheet_params.stone_radius * 2.0 },
+        ));
+        let params = Parameters {
+            angle: radians(3.0 / 132.0),
+            weight: seconds(2.7),
+            team: Team::A,
+            hack: Hack::Left,
+            rotation: Rotation::Clockwise,
+        };
+
+        let mut delivery = Delivery::new(&mut sheet, params);
+        assert!(delivery.run(&mut sheet, None));
+        assert!(
+            matches!(&sheet.stones[0].state, stone::State::Stationary(state) if approx_eq!(state.position().y, sheet.parameters.geometry.playing_end.tee_line_y, epsilon = 0.5))
+        );
+        assert!(matches!(&sheet.stones[1].state, stone::State::Out { .. }));
+        assert!(matches!(&sheet.stones[2].state, stone::State::Stationary { .. }));
     }
 }

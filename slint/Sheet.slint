@@ -43,8 +43,8 @@ Mark := Rectangle {
     }
 }
 
-export Sheet := ScrollView {
-    width: ice.width + 20px;
+export Sheet := Flickable {
+    width: ice.width;
     viewport-width: ice.width;
     viewport-height: ice.height;
     viewport-y: height - SheetModel.geometry-px.playing-end.back-y - 60.px;

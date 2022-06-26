@@ -1,9 +1,18 @@
 use uom::system;
-use uom::ISQ;
 
 pub type BaseType = f32;
 
 ISQ!(uom::si, BaseType, (foot, kilogram, second, ampere, kelvin, mole, candela));
+
+pub mod new_unit {
+
+    uom::unit! {
+        system: uom::si;
+        quantity: uom::si::available_energy;
+
+        @foot_squared_per_second_squared: 0.09290304; "ft ^ 2 * s ^ -2", "foot squared per second squared", "feet squared per second squared";
+    }
+}
 
 pub fn feet(value: BaseType) -> Length {
     Length::new::<uom::si::length::foot>(value)
@@ -33,11 +42,14 @@ pub fn degrees(value: BaseType) -> Angle {
 pub fn joules_per_kilogram(value: BaseType) -> AvailableEnergy {
     AvailableEnergy::new::<uom::si::available_energy::joule_per_kilogram>(value)
 }
+pub fn feet_squared_per_second_squared(value: BaseType) -> AvailableEnergy {
+    AvailableEnergy::new::<new_unit::foot_squared_per_second_squared>(value)
+}
 
 #[allow(unused_macros)]
 macro_rules! approx_eq {
-    ($rhs:expr, $lhs:expr$(, $argv:tt)*) => {
-        float_cmp::approx_eq!($crate::unit::BaseType, $rhs.value, $lhs.value$(, $argv)*)
+    ($rhs:expr, $lhs:expr$(, $($argv:tt)*)?) => {
+        float_cmp::approx_eq!($crate::unit::BaseType, $rhs.value, $lhs.value$(, $($argv)*)?)
     }
 }
 

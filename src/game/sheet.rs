@@ -1,11 +1,10 @@
 use crate::game::stones::Stones;
 use crate::game::team::{teams, PerTeam, Team};
-use crate::unit::{approx_eq, joules_per_kilogram, AvailableEnergy};
+use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy};
 use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use std::f32::consts::PI;
 use uom::si::length::foot;
 
@@ -15,52 +14,85 @@ pub enum Hack {
     Right,
 }
 
-lazy_static! {
-    pub static ref LENGTH: Length = feet(150.0);
-    pub static ref CENTER_LINE_X: Length = feet(0.0);
-    pub static ref HACK_X_OFFSET: Length = inches(6.0);
-    pub static ref TEE: Vector2<Length> =
-        Vector2 { x: *CENTER_LINE_X, y: *playing_end::TEE_LINE_Y };
-    pub static ref HOUSE_RADIUS: Length = feet(6.0);
+#[derive(Copy, Clone, Debug)]
+pub struct EndGeometry {
+    pub hack_line_y: Length,
+    pub back_line_y: Length,
+    pub tee_line_y: Length,
+    pub hog_line_y: Length,
 }
 
-pub mod delivery_end {
-    use super::*;
+#[derive(Copy, Clone, Debug)]
+pub struct Geometry {
+    pub width: Length,
+    pub length: Length,
+    pub center_line_x: Length,
+    pub hack_x_offset: Length,
+    pub house_radius: Length,
+    pub delivery_end: EndGeometry,
+    pub playing_end: EndGeometry,
+}
 
-    lazy_static! {
-        pub static ref BOARD_LINE_Y: Length = feet(0.0);
-        pub static ref HACK_LINE_Y: Length = feet(6.0);
-        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y + feet(6.0);
-        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y + feet(6.0);
-        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y + feet(21.0);
+impl Default for Geometry {
+    fn default() -> Self {
+        let length = feet(150.0);
+        Self {
+            width: feet(15.0) + inches(7.0),
+            length,
+            center_line_x: feet(0.0),
+            hack_x_offset: inches(6.0),
+            house_radius: feet(6.0),
+            delivery_end: EndGeometry {
+                hack_line_y: feet(6.0),
+                back_line_y: feet(12.0),
+                tee_line_y: feet(18.0),
+                hog_line_y: feet(39.0),
+            },
+            playing_end: EndGeometry {
+                hack_line_y: length - feet(6.0),
+                back_line_y: length - feet(12.0),
+                tee_line_y: length - feet(18.0),
+                hog_line_y: length - feet(39.0),
+            },
+        }
     }
 }
 
-pub mod playing_end {
-    use super::*;
-
-    lazy_static! {
-        pub static ref BOARD_LINE_Y: Length = *LENGTH;
-        pub static ref HACK_LINE_Y: Length = *LENGTH - feet(6.0);
-        pub static ref BACK_LINE_Y: Length = *HACK_LINE_Y - feet(6.0);
-        pub static ref TEE_LINE_Y: Length = *BACK_LINE_Y - feet(6.0);
-        pub static ref HOG_LINE_Y: Length = *TEE_LINE_Y - feet(21.0);
+impl Geometry {
+    pub fn hack_pos(&self, hack: Hack) -> Vector2<Length> {
+        Vector2 {
+            x: match hack {
+                Hack::Left => self.center_line_x + self.hack_x_offset,
+                Hack::Right => self.center_line_x - self.hack_x_offset,
+            },
+            y: self.delivery_end.hack_line_y,
+        }
     }
-}
 
-pub fn hack_pos(hack: Hack) -> Vector2<Length> {
-    Vector2 {
-        x: match hack {
-            Hack::Left => *CENTER_LINE_X + *HACK_X_OFFSET,
-            Hack::Right => *CENTER_LINE_X - *HACK_X_OFFSET,
-        },
-        y: *delivery_end::HACK_LINE_Y,
+    pub fn tee(&self) -> Vector2<Length> {
+        Vector2 { x: self.center_line_x, y: self.playing_end.tee_line_y }
+    }
+
+    pub fn left_bound(&self) -> Length {
+        self.center_line_x - self.width / 2.0
+    }
+
+    pub fn right_bound(&self) -> Length {
+        self.center_line_x + self.width / 2.0
+    }
+
+    pub fn delivery_dist(&self) -> Length {
+        self.delivery_end.hog_line_y - self.delivery_end.hack_line_y
+    }
+
+    pub fn measure_dist(&self) -> Length {
+        self.delivery_end.hog_line_y - self.delivery_end.tee_line_y
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
-    pub width: Length,
+    pub geometry: Geometry,
     pub stone_radius: Length,
     pub friction: Acceleration,
     pub rotation_acc: Acceleration,
@@ -70,22 +102,12 @@ pub struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Self {
+            geometry: Geometry::default(),
             friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
             rotation_acc: feet_per_second_squared(245.0 / 8649.0),
             stone_radius: inches(18.0 / PI),
-            width: feet(15.0) + inches(7.0),
-            static_friction: joules_per_kilogram(0.1),
+            static_friction: feet_squared_per_second_squared(0.25),
         }
-    }
-}
-
-impl Parameters {
-    pub fn left_bound(&self) -> Length {
-        *CENTER_LINE_X - self.width / 2.0
-    }
-
-    pub fn right_bound(&self) -> Length {
-        *CENTER_LINE_X + self.width / 2.0
     }
 }
 
@@ -101,14 +123,14 @@ impl Sheet {
     }
 
     pub fn count_score(&self) -> PerTeam<u8> {
-        let out_of_house = *HOUSE_RADIUS + self.parameters.stone_radius;
+        let out_of_house = self.parameters.geometry.house_radius + self.parameters.stone_radius;
         let mut score = PerTeam::<u8>::default();
         let stones_distances = teams().map(|team| {
             self.stones
                 .iter()
                 .filter(|s| s.team == team)
                 .filter_map(|s| s.position(seconds(0.0)))
-                .map(|pos| (pos - *TEE).norm())
+                .map(|pos| (pos - self.parameters.geometry.tee()).norm())
                 .filter(|&dist| dist < out_of_house || approx_eq!(dist, out_of_house))
                 .sorted_by_key(|dist| NotNan::from_inner(dist.get::<foot>()))
                 .collect_vec()
@@ -154,10 +176,11 @@ mod tests {
                 stones: [(Team, f32, f32); M],
                 (score_a, score_b): (u8, u8),
             ) -> Self {
+                let tee = Geometry::default().tee();
                 Self {
                     stones: stones
                         .into_iter()
-                        .map(|(team, x, y)| (team, *TEE + Vector2 { x: feet(x), y: feet(y) }))
+                        .map(|(team, x, y)| (team, tee + Vector2 { x: feet(x), y: feet(y) }))
                         .collect(),
                     score: PerTeam { a: score_a, b: score_b },
                 }

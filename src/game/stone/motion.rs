@@ -1,6 +1,6 @@
 use crate::game::stone::{Acceleration, Position, Velocity};
 use crate::unit;
-use crate::unit::{joules_per_kilogram, seconds, Time};
+use crate::unit::{feet_squared_per_second_squared, seconds, Time};
 use crate::vector::{EuclideanNorm, Vector2};
 use derive_more::{Add, Sub};
 use roots::{find_roots_linear, find_roots_quadratic, find_roots_quartic, Roots};
@@ -68,7 +68,7 @@ impl UniformlyAccelerated {
         min_non_negative_root(roots).map(seconds)
     }
 
-    pub fn when_enters_circle(&self, r: unit::Length) -> Option<Time> {
+    pub fn when_hits_circle(&self, r: unit::Length) -> Option<Time> {
         let a = self.a.map(|a| a.get::<foot_per_second_squared>());
         let v0 = self.v0.map(|v| v.get::<foot_per_second>());
         let s0 = self.s0.map(|s| s.get::<foot>());
@@ -78,17 +78,24 @@ impl UniformlyAccelerated {
         let a2 = v0.x * v0.x + v0.y * v0.y + s0.x * a.x + s0.y * a.y;
         let a1 = 2.0 * (v0.x * s0.x + v0.y * s0.y);
         let a0 = s0.x * s0.x + s0.y * s0.y - r * r;
-        let roots = find_roots_quartic(a4, a3, a2, a1, a0);
-        roots
-            .as_ref()
-            .iter()
-            .filter(|&&t| {
-                let derivative = 4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
-                t >= 0.0 && derivative < 0.0
-            })
-            .copied()
-            .next()
-            .map(seconds)
+        let already_in_circle = s0.x * s0.x + s0.y * s0.y < r * r;
+        let derivative_at_t0 = a1;
+        if already_in_circle && derivative_at_t0 < -1e-6 {
+            Some(seconds(0.0))
+        } else {
+            let roots = find_roots_quartic(a4, a3, a2, a1, a0);
+            roots
+                .as_ref()
+                .iter()
+                .filter(|&&t| {
+                    let derivative =
+                        4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
+                    t >= 0.0 && derivative < -1e-6
+                })
+                .copied()
+                .next()
+                .map(seconds)
+        }
     }
 }
 
@@ -110,8 +117,8 @@ pub fn velocity_after_collision(
 ) -> (Velocity, Velocity) {
     let offset = s_b - s_a;
     let hit_dir = offset / offset.norm();
-    let v_given_by_a = hit_dir * v_a.dot(hit_dir);
-    let v_given_by_b = -hit_dir * v_b.dot(-hit_dir);
+    let v_given_by_a = dbg!(hit_dir * v_a.dot(hit_dir));
+    let v_given_by_b = dbg!(-hit_dir * v_b.dot(-hit_dir));
     let new_v_a = v_a + v_given_by_b - v_given_by_a;
     let new_v_b = v_b + v_given_by_a - v_given_by_b;
     (new_v_a, new_v_b)
@@ -120,7 +127,7 @@ pub fn velocity_after_collision(
 pub fn decrease_energy(v: Velocity, energy_drop: unit::AvailableEnergy) -> Velocity {
     let v_norm = v.norm();
     let new_v_norm_squared = v_norm * v_norm - 2.0 * energy_drop;
-    if new_v_norm_squared >= joules_per_kilogram(0.0) {
+    if new_v_norm_squared >= feet_squared_per_second_squared(0.0) {
         v * new_v_norm_squared.sqrt() / v_norm
     } else {
         Velocity::default()
@@ -255,7 +262,7 @@ mod tests {
                 v0: Vector2::from(v0).map(feet_ps),
                 a: Vector2::from(a).map(feet_pss),
             };
-            let result = motion.when_enters_circle(feet(r));
+            let result = motion.when_hits_circle(feet(r));
             if let Some(expect_t) = expect_t {
                 assert_approx_eq!(result.unwrap(), seconds(expect_t), ulps = 6);
             } else {
@@ -312,6 +319,32 @@ mod tests {
             Case { s_a: (-10.0, 0.0), v_a: (1.0, 0.0), s_b: (-5.0, 0.0), v_b: (0.0, 0.0), expect_v_a: (0.0, 0.0), expect_v_b: (1.0, 0.0)},
             Case { s_a: (-1.0, 0.0),  v_a: (2.0, 2.0), s_b: (1.0, 0.0),  v_b: (0.0, 0.0), expect_v_a: (0.0, 2.0), expect_v_b: (2.0, 0.0)},
             Case { s_a: (-1.0, -1.0), v_a: (2.0, 2.0), s_b: (1.0, 1.0),  v_b: (0.0, 0.0), expect_v_a: (0.0, 0.0), expect_v_b: (2.0, 2.0)},
+        ] {
+            run_case(case);
+        };
+    }
+
+    #[test]
+    fn decreasing_energy() {
+        struct Case {
+            v: (f32, f32),
+            e: f32,
+            expect_v: (f32, f32),
+        }
+
+        let run_case = |Case { v, e, expect_v }: Case| {
+            let v = Vector2::from(v).map(feet_ps);
+            let e = feet_squared_per_second_squared(e);
+            let expect_v = Vector2::from(expect_v).map(feet_ps);
+            let new_v = super::decrease_energy(v, e);
+            assert_approx_eq!(new_v.x, expect_v.x, ulps = 10);
+            assert_approx_eq!(new_v.y, expect_v.y, ulps = 10);
+        };
+
+        #[rustfmt::skip]
+        for case in [
+            Case { v: (10.0, 0.0), e: 9.5,        expect_v: (9.0, 0.0)      },
+            Case { v: (0.3, -0.4), e: 55.0/512.0, expect_v: (0.1125, -0.15) },
         ] {
             run_case(case);
         };

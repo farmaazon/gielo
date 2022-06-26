@@ -11,8 +11,8 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn angle(&self, from: sheet::Hack) -> Angle {
-        let offset = self.mark - sheet::hack_pos(from);
+    pub fn angle(&self, from: sheet::Hack, sheet: &sheet::Parameters) -> Angle {
+        let offset = self.mark - sheet.geometry.hack_pos(from);
         (offset.x / offset.y).atan()
     }
 }
@@ -26,10 +26,11 @@ mod tests {
     #[test]
     fn compute_angle() {
         fn test_case((x, y): (f32, f32), expected: Angle) {
+            let sheet = sheet::Parameters::default();
             for hack in [Hack::Left, Hack::Right] {
-                let mark = sheet::hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
+                let mark = sheet.geometry.hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
                 let call = Call { mark, weight: Time::default(), rotation: Rotation::Clockwise };
-                assert_approx_eq!(call.angle(hack), expected);
+                assert_approx_eq!(call.angle(hack, &sheet), expected);
             }
         }
 

@@ -121,7 +121,7 @@ impl Game {
             Stage::Thinking(end) => {
                 let hack = Hack::Left;
                 let delivery_params = delivery::Parameters {
-                    angle: call.angle(hack),
+                    angle: call.angle(hack, &self.sheet.parameters),
                     weight: call.weight,
                     team: end.playing_team,
                     hack,
@@ -174,10 +174,10 @@ mod tests {
         sheet_params: sheet::Parameters,
     }
 
-    fn tee_draw() -> shot::Call {
+    fn tee_draw(sheet: &sheet::Parameters) -> shot::Call {
         shot::Call {
             weight: seconds(3.0),
-            mark: *sheet::TEE + Vector2 { x: feet(5.0), y: feet(0.0) },
+            mark: sheet.geometry.tee() + Vector2 { x: feet(5.0), y: feet(0.0) },
             rotation: Rotation::Clockwise,
         }
     }
@@ -240,7 +240,8 @@ mod tests {
         ));
 
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw()).expect("Error while starting delivery");
+        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+            .expect("Error while starting delivery");
         assert!(matches!(
             &game.stage,
             Stage::Delivering {
@@ -283,7 +284,8 @@ mod tests {
         let mut game = test.make_game_at_thinking_stage(end, score::Table::default());
 
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw()).expect("Error while starting delivery");
+        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+            .expect("Error while starting delivery");
         game.update(delivery_time + Duration::from_secs_f32(20.0));
         assert!(matches!(
             game.stage,
@@ -312,7 +314,8 @@ mod tests {
             score::Table::from_end_scores([(0, 1), (0, 0), (2, 0), (0, 1), (0, 0), (2, 0), (0, 2)]);
         let mut game = test.make_game_at_thinking_stage(end, score);
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw()).expect("Error while starting delivery");
+        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+            .expect("Error while starting delivery");
         game.update(delivery_time + Duration::from_secs_f32(20.0));
         assert!(matches!(
             game.stage,
@@ -364,8 +367,9 @@ mod tests {
         assert!(game.finish_end().is_err());
         assert!(matches!(game.stage, Stage::Thinking(end_after) if end_after == end));
 
-        game.start_delivery(Instant::now(), tee_draw()).expect("Error while starting delivery");
-        assert!(game.start_delivery(Instant::now(), tee_draw()).is_err());
+        game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters))
+            .expect("Error while starting delivery");
+        assert!(game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters)).is_err());
         assert!(game.finish_end().is_err());
         assert!(matches!(game.stage, Stage::Delivering{ end: end_after, ..} if end_after == end));
 
@@ -377,6 +381,6 @@ mod tests {
             stones::COUNT,
             Team::A,
         );
-        assert!(game.start_delivery(Instant::now(), tee_draw()).is_err());
+        assert!(game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters)).is_err());
     }
 }
