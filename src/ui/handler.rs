@@ -1,4 +1,5 @@
 pub mod game;
+pub mod stone;
 pub mod team;
 
 use crate::{ui, Game};

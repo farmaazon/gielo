@@ -1,3 +1,4 @@
+use crate::game::dirty::Dirty;
 use crate::game::sheet::{Hack, Sheet};
 use crate::game::stone::Rotation;
 use crate::game::{sheet, stone, Stone, Team};
@@ -58,6 +59,7 @@ pub struct Delivery {
 
 impl Delivery {
     pub fn new(
+        dirty: &mut Dirty,
         sheet: &mut Sheet,
         Parameters { angle, weight, team, hack, rotation }: Parameters,
     ) -> Self {
@@ -66,16 +68,16 @@ impl Delivery {
         let release_time = weight * delivering_dist / measure_dist;
         let delivering_off =
             Vector2 { x: delivering_dist * angle.sin(), y: delivering_dist * angle.cos() };
-        let delivered_stone = Stone {
+        let delivered_stone = Stone::new(
             team,
-            state: stone::State::BeingDelivered(stone::state::BeingDelivered {
+            stone::State::BeingDelivered(stone::state::BeingDelivered {
                 release_time,
                 starting_point: sheet.parameters.geometry.hack_pos(hack),
                 delivering_off,
                 rotation,
             }),
-        };
-        sheet.stones.push(delivered_stone);
+        );
+        sheet.stones.push(dirty, delivered_stone);
         Self {
             current_time: Time::default(),
             next_time_quantum: *TIME_QUANTUM_DURATION,
@@ -146,14 +148,19 @@ impl Delivery {
         outside_x.chain(outside_y).chain(next_stage)
     }
 
-    pub fn apply_event(&mut self, sheet: &mut Sheet, Event { time, kind }: Event) {
+    pub fn apply_event(
+        &mut self,
+        dirty: &mut Dirty,
+        sheet: &mut Sheet,
+        Event { time, kind }: Event,
+    ) {
         self.current_time = time;
         match kind {
             event::Kind::StoneOut(stone) => {
-                sheet.stones[stone].state = stone::State::Out { dirty: true };
+                sheet.stones[stone].set_state(&mut dirty.stone(stone), stone::State::Out);
             }
             event::Kind::StoneNextStage(stone) => {
-                sheet.stones[stone].next_stage(&sheet.parameters);
+                sheet.stones[stone].next_stage(&mut dirty.stone(stone), &sheet.parameters);
             }
             event::Kind::Collision(lid, rid) => {
                 let lstone = &sheet.stones[lid];
@@ -161,13 +168,13 @@ impl Delivery {
                 if let Some((lstate, rstate)) =
                     lstone.states_after_collision(rstone, &sheet.parameters, time)
                 {
-                    sheet.stones[lid].state = lstate;
-                    sheet.stones[rid].state = rstate;
+                    sheet.stones[lid].set_state(&mut dirty.stone(lid), lstate);
+                    sheet.stones[rid].set_state(&mut dirty.stone(rid), rstate);
                 }
             }
             event::Kind::NextTimeQuantum => {
-                for stone in sheet.stones.iter_mut() {
-                    stone.next_time_quantum(time, &sheet.parameters);
+                for (index, stone) in sheet.stones.iter_mut().enumerate() {
+                    stone.next_time_quantum(&mut dirty.stone(index), time, &sheet.parameters);
                 }
                 self.next_time_quantum = time + *TIME_QUANTUM_DURATION;
             }
@@ -175,15 +182,16 @@ impl Delivery {
     }
 
     /// Returns true when finished.
-    pub fn run(&mut self, sheet: &mut Sheet, until: Option<Time>) -> bool {
-        while let Some(event) = dbg!(self.next_event(sheet, until)) {
-            if let event::Kind::Collision(a, b) = event.kind {
-                dbg!((&sheet.stones[a], &sheet.stones[b]));
-            }
-            self.apply_event(sheet, event);
+    pub fn run(&mut self, dirty: &mut Dirty, sheet: &mut Sheet, until: Option<Time>) -> bool {
+        while let Some(event) = self.next_event(sheet, until) {
+            self.apply_event(dirty, sheet, event);
         }
         if let Some(current_time) = until {
             self.current_time = current_time;
+        }
+        let moving_stones = sheet.stones.iter().enumerate().filter(|(_, stone)| stone.is_moving());
+        for (id, _) in moving_stones {
+            dirty.stone(id).set()
         }
         self.next_event_cached.is_none()
     }
@@ -207,18 +215,21 @@ mod tests {
             hack: Hack::Left,
             rotation: Rotation::Clockwise,
         };
-        let mut delivery = Delivery::new(&mut sheet, params);
-        assert!(!delivery.run(&mut sheet, Some(seconds(2.0))));
-        assert!(matches!(sheet.stones[0].state, stone::State::BeingDelivered { .. }));
+        let mut dirty = Dirty::new();
+        let mut delivery = Delivery::new(&mut dirty, &mut sheet, params);
+        assert!(!delivery.run(&mut dirty, &mut sheet, Some(seconds(2.0))));
+        assert!(matches!(sheet.stones[0].state(), stone::State::BeingDelivered { .. }));
+        dirty.check_and_clear(&Dirty { stone_count: 1, stones: 1, ..Dirty::default() });
 
         let mut check_moving_stage = |time: Time, exp_t0: Time, exp_pos: stone::Position| {
-            assert!(!delivery.run(&mut sheet, Some(time)));
+            assert!(!delivery.run(&mut dirty, &mut sheet, Some(time)));
             assert!(
-                matches!(sheet.stones[0].state, stone::State::Moving (stone::state::Moving {t0, ..}) if approx_eq!(t0, exp_t0))
+                matches!(sheet.stones[0].state(), stone::State::Moving (stone::state::Moving {t0, ..}) if approx_eq!(t0, exp_t0))
             );
             let position = sheet.stones[0].position(time).unwrap();
             assert_approx_eq!(position.x, exp_pos.x, epsilon = 2.0);
             assert_approx_eq!(position.y, exp_pos.y, epsilon = 2.0);
+            dirty.check_and_clear(&Dirty { stones: 1, ..Dirty::default() });
         };
 
         check_moving_stage(seconds(5.1), seconds(5.0), Vector2 { x: feet(2.0), y: feet(40.0) });
@@ -226,8 +237,8 @@ mod tests {
         check_moving_stage(seconds(20.0), seconds(20.0), Vector2 { x: feet(3.0), y: feet(115.0) });
         check_moving_stage(seconds(30.2), seconds(30.0), Vector2 { x: feet(1.0), y: feet(130.0) });
 
-        assert!(delivery.run(&mut sheet, None));
-        assert!(matches!(sheet.stones[0].state, stone::State::Stationary(_)));
+        assert!(delivery.run(&mut dirty, &mut sheet, None));
+        assert!(matches!(sheet.stones[0].state(), stone::State::Stationary(_)));
         let position = sheet.stones[0].position(seconds(0.0)).unwrap();
         assert_approx_eq!(position.x, feet(0.0), epsilon = 2.0);
         assert_approx_eq!(
@@ -235,6 +246,7 @@ mod tests {
             sheet.parameters.geometry.playing_end.tee_line_y,
             epsilon = 2.0
         );
+        dirty.check_and_clear(&Dirty { stones: 1, ..Dirty::default() });
     }
 
     #[test]
@@ -247,17 +259,19 @@ mod tests {
             hack: Hack::Left,
             rotation: Rotation::Clockwise,
         };
-        let mut delivery = Delivery::new(&mut sheet, params);
-        assert!(delivery.run(&mut sheet, Some(seconds(60.0))));
-        assert!(matches!(sheet.stones[0].state, stone::State::Out { .. }));
+        let mut dirty = Dirty::new();
+        let mut delivery = Delivery::new(&mut dirty, &mut sheet, params);
+        assert!(delivery.run(&mut dirty, &mut sheet, Some(seconds(60.0))));
+        assert!(matches!(sheet.stones[0].state(), stone::State::Out { .. }));
         assert_eq!(sheet.stones[0].position(seconds(0.0)), None);
+        dirty.check_and_clear(&Dirty { stone_count: 1, stones: 1, ..Dirty::default() });
     }
 
     #[test]
     fn clear_stone() {
         let mut sheet = Sheet::new(sheet::Parameters::default());
         let tee = sheet.parameters.geometry.tee();
-        sheet.stones.push(Stone::new_stationary(Team::B, tee));
+        sheet.stones.push(&mut Dirty::new(), Stone::new_stationary(Team::B, tee));
         let params = Parameters {
             angle: radians(-2.0 / 132.0),
             weight: seconds(2.3),
@@ -266,20 +280,25 @@ mod tests {
             rotation: Rotation::CounterClockwise,
         };
 
-        let mut delivery = Delivery::new(&mut sheet, params);
-        assert!(!delivery.run(&mut sheet, Some(seconds(15.0))));
+        let mut dirty = Dirty::new();
+        let mut delivery = Delivery::new(&mut dirty, &mut sheet, params);
+        dirty.check_and_clear(&Dirty { stone_count: 1, ..Dirty::default() });
+        assert!(!delivery.run(&mut dirty, &mut sheet, Some(seconds(15.0))));
         assert!(
-            matches!(&sheet.stones[0].state, stone::State::Stationary(state) if state.position() == tee)
+            matches!(sheet.stones[0].state(), stone::State::Stationary(position) if *position == tee)
         );
-        assert!(matches!(&sheet.stones[1].state, stone::State::Moving(_)));
-        assert!(!delivery.run(&mut sheet, Some(seconds(16.0))));
+        assert!(matches!(sheet.stones[1].state(), stone::State::Moving(_)));
+        dirty.check_and_clear(&Dirty { stone_count: 0, stones: 2, ..Dirty::default() });
+        assert!(!delivery.run(&mut dirty, &mut sheet, Some(seconds(16.0))));
         assert!(
-            matches!(&sheet.stones[0].state, stone::State::Moving(state) if state.position(seconds(16.0)) != tee)
+            matches!(sheet.stones[0].state(), stone::State::Moving(state) if state.position(seconds(16.0)) != tee)
         );
-        assert!(matches!(&sheet.stones[1].state, stone::State::Moving(_)));
-        assert!(delivery.run(&mut sheet, Some(seconds(20.0))));
-        assert!(matches!(&sheet.stones[0].state, stone::State::Out { .. }));
-        assert!(matches!(&sheet.stones[1].state, stone::State::Out { .. }));
+        assert!(matches!(sheet.stones[1].state(), stone::State::Moving(_)));
+        dirty.check_and_clear(&Dirty { stones: 3, ..Dirty::default() });
+        assert!(delivery.run(&mut dirty, &mut sheet, Some(seconds(20.0))));
+        assert!(matches!(sheet.stones[0].state(), stone::State::Out { .. }));
+        assert!(matches!(sheet.stones[1].state(), stone::State::Out { .. }));
+        dirty.check_and_clear(&Dirty { stones: 3, ..Dirty::default() });
     }
 
     #[test]
@@ -290,11 +309,14 @@ mod tests {
         };
         let tee = sheet_params.geometry.tee();
         let mut sheet = Sheet::new(sheet_params);
-        sheet.stones.push(Stone::new_stationary(Team::A, tee));
-        sheet.stones.push(Stone::new_stationary(
-            Team::B,
-            tee + Vector2 { x: feet(0.0), y: sheet_params.stone_radius * 2.0 },
-        ));
+        sheet.stones.push(&mut Dirty::new(), Stone::new_stationary(Team::A, tee));
+        sheet.stones.push(
+            &mut Dirty::new(),
+            Stone::new_stationary(
+                Team::B,
+                tee + Vector2 { x: feet(0.0), y: sheet_params.stone_radius * 2.0 },
+            ),
+        );
         let params = Parameters {
             angle: radians(3.0 / 132.0),
             weight: seconds(2.7),
@@ -303,12 +325,13 @@ mod tests {
             rotation: Rotation::Clockwise,
         };
 
-        let mut delivery = Delivery::new(&mut sheet, params);
-        assert!(delivery.run(&mut sheet, None));
+        let mut dirty = Dirty::new();
+        let mut delivery = Delivery::new(&mut dirty, &mut sheet, params);
+        assert!(delivery.run(&mut dirty, &mut sheet, None));
         assert!(
-            matches!(&sheet.stones[0].state, stone::State::Stationary(state) if approx_eq!(state.position().y, sheet.parameters.geometry.playing_end.tee_line_y, epsilon = 0.5))
+            matches!(&sheet.stones[0].state(), stone::State::Stationary(position) if approx_eq!(position.y, sheet.parameters.geometry.playing_end.tee_line_y, epsilon = 0.5))
         );
-        assert!(matches!(&sheet.stones[1].state, stone::State::Out { .. }));
-        assert!(matches!(&sheet.stones[2].state, stone::State::Stationary { .. }));
+        assert!(matches!(sheet.stones[1].state(), stone::State::Out { .. }));
+        assert!(matches!(sheet.stones[2].state(), stone::State::Stationary { .. }));
     }
 }

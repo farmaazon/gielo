@@ -1,14 +1,14 @@
 use crate::game::team::PerTeam;
 use crate::game::MAX_ENDS;
 use local_vec::LocalVec;
+use crate::game::dirty::Dirty;
 
 pub type Score = PerTeam<u8>;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct Table {
     ends: LocalVec<Score, MAX_ENDS>,
     full: Score,
-    scored_ends_change: usize,
 }
 
 impl Table {
@@ -19,15 +19,17 @@ impl Table {
     pub fn from_end_scores(end_scores: impl IntoIterator<Item = impl Into<Score>>) -> Self {
         let mut this = Self::new();
         for end_score in end_scores {
-            this.push_end(end_score.into())
+            let score = end_score.into();
+            this.ends.push(score);
+            this.full += score;
         }
         this
     }
 
-    pub fn push_end(&mut self, score: Score) {
+    pub fn push_end(&mut self, dirty: &mut Dirty, score: Score) {
         self.ends.push(score);
         self.full += score;
-        self.scored_ends_change += 1;
+        dirty.score = true;
     }
 
     pub fn full(&self) -> Score {
@@ -36,9 +38,5 @@ impl Table {
 
     pub fn ends(&self) -> &[Score] {
         &self.ends
-    }
-
-    pub fn read(&mut self) -> (usize, Score) {
-        (std::mem::take(&mut self.scored_ends_change), self.full)
     }
 }

@@ -117,8 +117,8 @@ pub fn velocity_after_collision(
 ) -> (Velocity, Velocity) {
     let offset = s_b - s_a;
     let hit_dir = offset / offset.norm();
-    let v_given_by_a = dbg!(hit_dir * v_a.dot(hit_dir));
-    let v_given_by_b = dbg!(-hit_dir * v_b.dot(-hit_dir));
+    let v_given_by_a = hit_dir * v_a.dot(hit_dir);
+    let v_given_by_b = -hit_dir * v_b.dot(-hit_dir);
     let new_v_a = v_a + v_given_by_b - v_given_by_a;
     let new_v_b = v_b + v_given_by_a - v_given_by_b;
     (new_v_a, new_v_b)

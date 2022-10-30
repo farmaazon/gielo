@@ -19,26 +19,30 @@ impl Handler {
         Self { score, model }
     }
 
-    pub fn synchronize_score(&self, game: &mut Game) {
-        let (count_changed, _) = game.score.read();
-        if count_changed > 0 {
-            let known_ends = game.score.ends().len() - count_changed;
+    pub fn synchronize(&self, dirty: &game::Dirty, game: &Game) {
+        self.synchronize_score(dirty, game);
+        self.synchronize_teams(dirty, game);
+    }
+
+    pub fn synchronize_score(&self, dirty: &game::Dirty, game: &Game) {
+        if dirty.score {
+            let known_ends = self.score.a.row_count();
             for new_end in game.score.ends().iter().skip(known_ends) {
                 for (score, new_end) in self.score.as_ref().zip(*new_end) {
                     score.push(new_end as i32)
                 }
             }
-            // Full score also changed - need to synchronize teams
-            self.synchronize_teams(game);
         }
     }
 
-    pub fn synchronize_teams(&self, game: &Game) {
-        let items = self.model.row_count();
-        for (index, team) in (0..items).zip(game::team::teams()) {
-            let team_score = self.score[team].clone();
-            let team_struct = Self::team_ui_model(game, team_score, team);
-            self.model.set_row_data(index, team_struct);
+    pub fn synchronize_teams(&self, dirty: &game::Dirty, game: &Game) {
+        if dirty.stage || dirty.score {
+            let items = self.model.row_count();
+            for (index, team) in (0..items).zip(game::team::teams()) {
+                let team_score = self.score[team].clone();
+                let team_struct = Self::team_ui_model(game, team_score, team);
+                self.model.set_row_data(index, team_struct);
+            }
         }
     }
 

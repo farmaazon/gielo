@@ -1,5 +1,4 @@
-use crate::game::{team, Stone};
-use crate::Tracked;
+use crate::game::{team, Dirty, Stone};
 use derive_more::{AsRef, Deref};
 use local_vec::LocalVec;
 use std::ops::{Index, IndexMut};
@@ -7,13 +6,9 @@ use std::ops::{Index, IndexMut};
 pub const PER_TEAM: usize = 8;
 pub const COUNT: usize = PER_TEAM * team::TEAMS_COUNT;
 
-pub type TrackedLen = Tracked<usize, isize>;
-
 #[derive(Clone, Debug, Default, AsRef, Deref)]
 pub struct Stones {
-    #[deref]
     stones: LocalVec<Stone, COUNT>,
-    stones_count_change: isize,
 }
 
 impl Stones {
@@ -25,21 +20,14 @@ impl Stones {
         self.stones.iter_mut()
     }
 
-    pub fn push(&mut self, new_stone: Stone) {
+    pub fn push(&mut self, dirty: &mut Dirty, new_stone: Stone) {
         self.stones.push(new_stone);
-        self.stones_count_change += 1;
+        dirty.stone_count += 1;
     }
 
-    pub fn clear(&mut self) {
-        self.stones_count_change -= self.stones.len() as isize;
+    pub fn clear(&mut self, dirty: &mut Dirty) {
+        dirty.stone_count -= self.stones.len() as isize;
         self.stones.clear();
-    }
-
-    pub fn read_len(&mut self) -> TrackedLen {
-        TrackedLen {
-            value: self.stones.len(),
-            change: std::mem::take(&mut self.stones_count_change),
-        }
     }
 }
 
@@ -67,7 +55,6 @@ impl FromIterator<Stone> for Stones {
     fn from_iter<T: IntoIterator<Item = Stone>>(iter: T) -> Self {
         let mut stones = Self::new();
         stones.stones.extend(iter);
-        stones.stones_count_change += stones.stones.len() as isize;
         stones
     }
 }
@@ -81,18 +68,22 @@ pub mod tests {
     #[test]
     pub fn tracking_stones_changes() {
         let mut stones = Stones::default();
-        let stone = Stone { team: Team::A, state: stone::State::Out { dirty: false } };
-        stones.push(stone.clone());
-        assert_eq!(stones.read_len(), TrackedLen { value: 1, change: 1 });
-        stones.push(stone.clone());
-        stones.push(stone.clone());
-        assert_eq!(stones.read_len(), TrackedLen { value: 3, change: 2 });
-        stones.clear();
-        assert_eq!(stones.read_len(), TrackedLen { value: 0, change: -3 });
-        stones.push(stone.clone());
-        stones.read_len();
-        stones.push(stone);
-        stones.clear();
-        assert_eq!(stones.read_len(), TrackedLen { value: 0, change: -1 });
+        let stone = Stone::new(Team::A, stone::State::Out);
+
+        let mut dirty = Dirty::new();
+        stones.push(&mut dirty, stone.clone());
+        assert_eq!(stones.len(), 1);
+        assert_eq!(dirty.stone_count, 1);
+
+        let mut dirty = Dirty::new();
+        stones.push(&mut dirty, stone.clone());
+        stones.push(&mut dirty, stone.clone());
+        assert_eq!(stones.len(), 3);
+        assert_eq!(dirty.stone_count, 2);
+
+        let mut dirty = Dirty::new();
+        stones.clear(&mut dirty);
+        assert_eq!(stones.len(), 0);
+        assert_eq!(dirty.stone_count, -3);
     }
 }

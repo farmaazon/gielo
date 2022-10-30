@@ -6,8 +6,7 @@ use anyhow::{anyhow, Result};
 use slint::Model;
 use slint::VecModel;
 use std::any::Any;
-use std::cell::{RefCell, RefMut};
-use std::cmp::Ordering;
+use std::cell::RefCell;
 use std::rc::Rc;
 use uom::si::acceleration::foot_per_second_squared;
 use uom::si::length::foot;
@@ -79,30 +78,12 @@ impl<'a> GameModel<'a> {
 
 pub struct Stones {
     game: Rc<RefCell<Game>>,
-    notify: slint::ModelNotify,
+    pub notify: slint::ModelNotify,
 }
 
 impl Stones {
     pub fn new(game: Rc<RefCell<Game>>) -> Self {
         Self { game, notify: slint::ModelNotify::default() }
-    }
-
-    pub fn synchronize(&self, game: &mut RefMut<Game>) {
-        let time = game.delivery_time();
-        let sheet = &mut game.sheet;
-        let count = sheet.stones.read_len();
-        let known_count = (count.value as isize - count.change) as usize;
-        match count.change.cmp(&0) {
-            Ordering::Greater => self.notify.row_added(known_count, count.change as usize),
-            Ordering::Less => self.notify.row_removed(count.value, (-count.change) as usize),
-            Ordering::Equal => {}
-        }
-        for (index, stone) in sheet.stones.iter_mut().take(known_count).enumerate() {
-            let (changed, _) = stone.read_position(time);
-            if changed {
-                self.notify.row_changed(index);
-            }
-        }
     }
 }
 
@@ -110,18 +91,18 @@ impl Model for Stones {
     type Data = StoneModel;
 
     fn row_count(&self) -> usize {
-        self.game.borrow_mut().sheet.stones.read_len().value
+        self.game.borrow().sheet.stones.len()
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
-        let mut game = self.game.borrow_mut();
+        let game = self.game.borrow();
         let time = game.delivery_time();
-        let stone = &mut game.sheet.stones[row];
-        let (_, position) = stone.read_position(time);
-        let position_feet = position
+        let stone = &game.sheet.stones[row];
+        let position_feet = stone
+            .position(time)
             .map(|v| v.map(|x| x.get::<foot>()))
             .unwrap_or(Vector2 { x: -100.0, y: -100.0 });
-        let team = stone.team;
+        let team = stone.team();
         Some(StoneModel { x: position_feet.x, y: position_feet.y, color: game.teams[team].color })
     }
 

@@ -1,4 +1,6 @@
 pub mod delivery;
+pub mod dirty;
+pub mod end;
 pub mod score;
 pub mod sheet;
 pub mod shot;
@@ -7,6 +9,7 @@ pub mod stone;
 pub mod stones;
 pub mod team;
 
+pub use crate::game::dirty::Dirty;
 use crate::game::sheet::Hack;
 pub use crate::game::stage::Stage;
 use crate::game::team::{PerTeam, Team};
@@ -82,14 +85,14 @@ impl Game {
         }
     }
 
-    pub fn update(&mut self, now: time::Instant) {
+    pub fn update(&mut self, dirty: &mut Dirty, now: time::Instant) {
         let new_stage = match &mut self.stage {
             Stage::Delivering { end, started_at, delivery } => {
                 let real_time = seconds((now - *started_at).as_secs_f32());
                 let game_time = real_time * self.params.speed_factor;
-                let finished = delivery.run(&mut self.sheet, Some(game_time));
+                let finished = delivery.run(dirty, &mut self.sheet, Some(game_time));
                 if finished {
-                    Some(Self::stone_delivered(*end, &self.sheet, &mut self.score))
+                    Some(Self::stone_delivered(dirty, *end, &self.sheet, &mut self.score))
                 } else {
                     None
                 }
@@ -97,11 +100,17 @@ impl Game {
             _ => None,
         };
         if let Some(stage) = new_stage {
-            self.stage = stage
+            self.stage = stage;
+            dirty.stage = true;
         }
     }
 
-    fn stone_delivered(end: stage::End, sheet: &Sheet, score: &mut score::Table) -> Stage {
+    fn stone_delivered(
+        dirty: &mut Dirty,
+        end: stage::End,
+        sheet: &Sheet,
+        score: &mut score::Table,
+    ) -> Stage {
         let next_stone = end.stone + 1;
         if next_stone < stones::COUNT {
             Stage::Thinking(stage::End {
@@ -111,12 +120,17 @@ impl Game {
             })
         } else {
             let end_score = sheet.count_score();
-            score.push_end(end_score);
+            score.push_end(dirty, end_score);
             Stage::EndConcluded(end, end_score)
         }
     }
 
-    pub fn start_delivery(&mut self, now: time::Instant, call: shot::Call) -> Result<()> {
+    pub fn start_delivery(
+        &mut self,
+        dirty: &mut Dirty,
+        now: time::Instant,
+        call: shot::Call,
+    ) -> Result<()> {
         self.stage = match &mut self.stage {
             Stage::Thinking(end) => {
                 let hack = Hack::Left;
@@ -127,10 +141,11 @@ impl Game {
                     hack,
                     rotation: call.rotation,
                 };
+                dirty.stage = true;
                 Stage::Delivering {
                     end: *end,
                     started_at: now,
-                    delivery: Delivery::new(&mut self.sheet, delivery_params),
+                    delivery: Delivery::new(dirty, &mut self.sheet, delivery_params),
                 }
             }
             stage => bail!("Starting delivery at wrong stage {:?}", stage),
@@ -138,13 +153,14 @@ impl Game {
         Ok(())
     }
 
-    pub fn finish_end(&mut self) -> Result<()> {
+    pub fn finish_end(&mut self, dirty: &mut Dirty) -> Result<()> {
         self.stage = match &mut self.stage {
             Stage::EndConcluded(end, end_score) => {
+                dirty.stage = true;
                 let score = self.score.full();
                 let tied = score.a == score.b;
                 if tied || end.no < self.params.ends {
-                    self.sheet.stones.clear();
+                    self.sheet.stones.clear(dirty);
                     Stage::Thinking(end.next_end(*end_score))
                 } else {
                     Stage::GameConcluded(score)
@@ -187,9 +203,10 @@ mod tests {
             Sheet {
                 parameters: self.sheet_params,
                 stones: (0..played_stones)
-                    .map(|i| Stone {
-                        team: if i % 2 == 0 { starting_team } else { starting_team.opponent() },
-                        state: stone::State::Out { dirty: true },
+                    .map(|i| {
+                        let team =
+                            if i % 2 == 0 { starting_team } else { starting_team.opponent() };
+                        Stone::new(team, stone::State::Out)
                     })
                     .collect(),
             }
@@ -240,7 +257,8 @@ mod tests {
         ));
 
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+        let mut dirty = Dirty::new();
+        game.start_delivery(&mut dirty, delivery_time, tee_draw(&game.sheet.parameters))
             .expect("Error while starting delivery");
         assert!(matches!(
             &game.stage,
@@ -251,10 +269,11 @@ mod tests {
             } if *started_at == delivery_time && delivery.current_time == seconds(0.0)
         ));
         let stone = game.delivered_stone().expect("No stone is delivered during delivery");
-        assert!(matches!(&stone.state, stone::State::BeingDelivered(_)));
+        assert!(matches!(stone.state(), stone::State::BeingDelivered(_)));
+        dirty.check_and_clear(&Dirty { stone_count: 1, stage: true, ..Dirty::default() });
 
         let in_the_middle_time = delivery_time + Duration::from_secs_f32(6.0);
-        game.update(in_the_middle_time);
+        game.update(&mut dirty, in_the_middle_time);
         assert!(matches!(
             &game.stage,
             Stage::Delivering {
@@ -264,16 +283,18 @@ mod tests {
             } if *started_at == delivery_time && delivery.current_time == seconds(12.0)
         ));
         let stone = game.delivered_stone().expect("No stone is delivered during delivery");
-        assert!(matches!(&stone.state, stone::State::Moving(_)));
+        assert!(matches!(stone.state(), stone::State::Moving(_)));
+        dirty.check_and_clear(&Dirty { stones: 1, ..Dirty::default() });
 
         let when_stopped = delivery_time + Duration::from_secs_f32(20.0);
-        game.update(when_stopped);
+        game.update(&mut dirty, when_stopped);
         assert!(matches!(
             game.stage,
             Stage::Thinking(stage::End { no: 1, hammer: Team::B, stone: 1, playing_team: Team::B })
         ));
         let stone = game.sheet.stones.last().expect("No stones after finished delivery");
-        assert!(matches!(&stone.state, stone::State::Stationary(_)));
+        assert!(matches!(stone.state(), stone::State::Stationary(_)));
+        dirty.check_and_clear(&Dirty { stones: 1, stage: true, ..Dirty::default() });
     }
 
     #[test]
@@ -282,23 +303,32 @@ mod tests {
         let end =
             stage::End { no: 1, hammer: Team::B, stone: stones::COUNT - 1, playing_team: Team::B };
         let mut game = test.make_game_at_thinking_stage(end, score::Table::default());
+        let mut dirty = Dirty::new();
 
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+        game.start_delivery(&mut dirty, delivery_time, tee_draw(&game.sheet.parameters))
             .expect("Error while starting delivery");
-        game.update(delivery_time + Duration::from_secs_f32(20.0));
+        game.update(&mut dirty, delivery_time + Duration::from_secs_f32(20.0));
         assert!(matches!(
             game.stage,
             Stage::EndConcluded(finished_end, score) if finished_end == end && score == (0, 1).into()
         ));
+        dirty.check_and_clear(&Dirty {
+            stone_count: 1,
+            stones: 1 << (stones::COUNT - 1),
+            stage: true,
+            score: true,
+            ..Dirty::default()
+        });
 
-        game.finish_end().expect("Error while finishing end");
+        game.finish_end(&mut dirty).expect("Error while finishing end");
         let next_end = end.next_end((0, 1).into());
         assert!(matches!(
             game.stage,
             Stage::Thinking(end) if end == next_end
         ));
         assert_eq!(game.score.ends(), &[(0, 1).into()]);
+        dirty.check_and_clear(&Dirty { stone_count: -16, stage: true, ..Dirty::default() });
     }
 
     #[test]
@@ -313,17 +343,18 @@ mod tests {
         let score =
             score::Table::from_end_scores([(0, 1), (0, 0), (2, 0), (0, 1), (0, 0), (2, 0), (0, 2)]);
         let mut game = test.make_game_at_thinking_stage(end, score);
+        let mut dirty = Dirty::new();
         let delivery_time = Instant::now();
-        game.start_delivery(delivery_time, tee_draw(&game.sheet.parameters))
+        game.start_delivery(&mut dirty, delivery_time, tee_draw(&game.sheet.parameters))
             .expect("Error while starting delivery");
-        game.update(delivery_time + Duration::from_secs_f32(20.0));
+        game.update(&mut dirty, delivery_time + Duration::from_secs_f32(20.0));
         assert!(matches!(
             game.stage,
             Stage::EndConcluded(finished_end, score) if finished_end == end && score == (1, 0).into()
         ));
         assert_eq!(game.score.full(), (5, 4).into());
 
-        game.finish_end().expect("Error while finishing end");
+        game.finish_end(&mut dirty).expect("Error while finishing end");
         assert!(matches!(
             game.stage,
             Stage::GameConcluded(end_score) if end_score == (5, 4).into()
@@ -353,7 +384,7 @@ mod tests {
         let next_end = end.next_end((0, 2).into());
         let stage = Stage::EndConcluded(end, (0, 2).into());
         let mut game = test.make_game_with_empty_sheet(stage, score, stones::COUNT, Team::A);
-        game.finish_end().expect("Error while finishing end");
+        game.finish_end(&mut Dirty::new()).expect("Error while finishing end");
         assert!(matches!(game.stage, Stage::Thinking(end) if end == next_end));
         assert_eq!(game.score.full(), (4, 4).into());
     }
@@ -364,14 +395,19 @@ mod tests {
         let end =
             stage::End { no: test.params.ends, hammer: Team::A, stone: 3, playing_team: Team::B };
         let mut game = test.make_game_at_thinking_stage(end, score::Table::default());
-        assert!(game.finish_end().is_err());
+        let mut dirty = Dirty::new();
+        assert!(game.finish_end(&mut dirty).is_err());
         assert!(matches!(game.stage, Stage::Thinking(end_after) if end_after == end));
+        dirty.check_and_clear(&Dirty::new());
 
-        game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters))
+        game.start_delivery(&mut Dirty::new(), Instant::now(), tee_draw(&game.sheet.parameters))
             .expect("Error while starting delivery");
-        assert!(game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters)).is_err());
-        assert!(game.finish_end().is_err());
+        assert!(game
+            .start_delivery(&mut dirty, Instant::now(), tee_draw(&game.sheet.parameters))
+            .is_err());
+        assert!(game.finish_end(&mut dirty).is_err());
         assert!(matches!(game.stage, Stage::Delivering{ end: end_after, ..} if end_after == end));
+        dirty.check_and_clear(&Dirty::new());
 
         let end_score = (0, 1).into();
         let score = score::Table::from_end_scores([end_score]);
@@ -381,6 +417,9 @@ mod tests {
             stones::COUNT,
             Team::A,
         );
-        assert!(game.start_delivery(Instant::now(), tee_draw(&game.sheet.parameters)).is_err());
+        assert!(game
+            .start_delivery(&mut dirty, Instant::now(), tee_draw(&game.sheet.parameters))
+            .is_err());
+        dirty.check_and_clear(&Dirty::new());
     }
 }

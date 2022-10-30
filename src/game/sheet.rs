@@ -111,7 +111,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Sheet {
     pub stones: Stones,
     pub parameters: Parameters,
@@ -128,7 +128,7 @@ impl Sheet {
         let stones_distances = teams().map(|team| {
             self.stones
                 .iter()
-                .filter(|s| s.team == team)
+                .filter(|s| s.team() == team)
                 .filter_map(|s| s.position(seconds(0.0)))
                 .map(|pos| (pos - self.parameters.geometry.tee()).norm())
                 .filter(|&dist| dist < out_of_house || approx_eq!(dist, out_of_house))
@@ -188,10 +188,10 @@ mod tests {
 
             fn run(self) {
                 let parameters = Parameters { stone_radius: feet(0.5), ..Parameters::default() };
-                let stones = self.stones.iter().cloned().map(|(team, position)| Stone {
-                    team,
-                    state: stone::State::Stationary(stone::state::Stationary::new(position)),
-                });
+                let stones =
+                    self.stones.iter().cloned().map(|(team, position)| {
+                        Stone::new(team, stone::State::Stationary(position))
+                    });
                 let sheet = Sheet { parameters, stones: stones.collect() };
                 let score = sheet.count_score();
                 assert_eq!(score, self.score, "Error in {:?}", self);

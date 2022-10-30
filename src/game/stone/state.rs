@@ -60,41 +60,16 @@ impl Moving {
 }
 
 #[derive(Clone, Debug)]
-pub struct Stationary {
-    pos: Position,
-    dirty: bool,
-}
-
-impl Stationary {
-    pub fn new(pos: Position) -> Self {
-        Self { pos, dirty: true }
-    }
-
-    pub fn position(&self) -> Position {
-        self.pos
-    }
-
-    pub fn read_position(&mut self) -> (bool, Position) {
-        let was_dirty = std::mem::take(&mut self.dirty);
-        (was_dirty, self.pos)
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-}
-
-#[derive(Clone, Debug)]
 pub enum State {
     BeingDelivered(BeingDelivered),
     Moving(Moving),
-    Stationary(Stationary),
-    Out { dirty: bool },
+    Stationary(Position),
+    Out,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self::Stationary(Stationary::new(Position::default()))
+        Self::Stationary(Position::default())
     }
 }
 
@@ -161,13 +136,5 @@ mod tests {
 
         let when_stop = state.when_stop(feet_per_second_squared(0.05));
         assert_approx_eq!(when_stop, seconds(61.50033));
-    }
-
-    #[test]
-    fn reading_stationary_position() {
-        let pos = Vector2 { x: feet(0.0), y: feet(100.0) };
-        let mut state = Stationary::new(pos);
-        assert_eq!(state.read_position(), (true, pos));
-        assert_eq!(state.read_position(), (false, pos));
     }
 }
