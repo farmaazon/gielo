@@ -17,8 +17,8 @@ log = "0.4.17"
 
 [dependencies.slint]
 version = "0.3.1"
-#default-features = false
-#features = ["backend-gl-all", "compat-0-2-0", "std"]
+default-features = false
+features = ["compat-0-3-0", "std", "backend-winit", "renderer-winit-femtovg"]
 
 [dependencies.uom]
 version = "0.33.0"

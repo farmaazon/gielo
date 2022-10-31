@@ -551,56 +551,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7704b5fdd17b18ae31c4c1da5a2e0305a2bf17b5249300a9ee9ed7b72114c636"
 
 [[package]]
-name = "cpp"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dec5e86d4f6547f0218ad923d9508244a71ef83b763196e6698b4f70f3595185"
-dependencies = [
- "cpp_macros",
-]
-
-[[package]]
-name = "cpp_build"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f4d303b8ec35fb3afd7e963e2c898117f1e49930becb703e4a7ac528ad2dd0"
-dependencies = [
- "cc",
- "cpp_common",
- "lazy_static",
- "proc-macro2",
- "regex",
- "syn",
- "unicode-xid",
-]
-
-[[package]]
-name = "cpp_common"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76071bb9c8c4dd2b5eb209907deab7b031323cf1be3dfdc6ec5d37f4f187d8a1"
-dependencies = [
- "lazy_static",
- "proc-macro2",
- "syn",
-]
-
-[[package]]
-name = "cpp_macros"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fdaa01904c12a8989dbfa110b41ef27efc432ac9934f691b9732f01cb64dc01"
-dependencies = [
- "aho-corasick",
- "byteorder",
- "cpp_common",
- "lazy_static",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1328,33 +1278,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "i-slint-backend-qt"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2f99f135cbceaf91d92a88829a348933b55032a86a2f30580638b24d85047f0"
-dependencies = [
- "const-field-offset",
- "cpp",
- "cpp_build",
- "i-slint-common",
- "i-slint-core",
- "i-slint-core-macros",
- "lyon_path",
- "once_cell",
- "pin-project",
- "pin-weak",
- "qttypes",
- "vtable",
-]
-
-[[package]]
 name = "i-slint-backend-selector"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33288a025d265650c5b2ee6f0bc9b0d01542e78b8d3d757acdafad02e73d9d75"
 dependencies = [
  "cfg-if 1.0.0",
- "i-slint-backend-qt",
  "i-slint-backend-winit",
  "i-slint-core",
 ]
@@ -1533,9 +1462,9 @@ dependencies = [
 
 [[package]]
 name = "imgref"
-version = "1.9.1"
+version = "1.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d0c0db6c932f8262e0ed8909f2e7f8c0e9b1cfb4da884267ce09a10be54365"
+checksum = "b2cf49df1085dcfb171460e4592597b84abe50d900fb83efb6e41b20fefd6c2c"
 
 [[package]]
 name = "indexmap"
@@ -1707,9 +1636,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.7.5"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32613e41de4c47ab04970c348ca7ae7382cf116625755af070b008a15516a889"
+checksum = "e999beba7b6e8345721bd280141ed958096a2e4abdf74f67ff4ce49b4b54e47a"
 
 [[package]]
 name = "lyon_algorithms"
@@ -2110,20 +2039,19 @@ dependencies = [
 
 [[package]]
 name = "ouroboros"
-version = "0.15.0"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f31a3b678685b150cba82b702dcdc5e155893f63610cf388d30cd988d4ca2bf"
+checksum = "dfbb50b356159620db6ac971c6d5c9ab788c9cc38a6f49619fca2a27acb062ca"
 dependencies = [
  "aliasable",
  "ouroboros_macro",
- "stable_deref_trait",
 ]
 
 [[package]]
 name = "ouroboros_macro"
-version = "0.15.0"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "084fd65d5dd8b3772edccb5ffd1e4b7eba43897ecd0f9401e330e8c542959408"
+checksum = "4a0d9d1a6191c4f391f87219d1ea42b23f09ee84d64763cd05ee6ea88d9f384d"
 dependencies = [
  "Inflector",
  "proc-macro-error",
@@ -2323,17 +2251,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec757218438d5fda206afc041538b2f6d889286160d649a86a24d37e1235afd1"
 dependencies = [
  "unicode-xid",
-]
-
-[[package]]
-name = "qttypes"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c068c77775ed30e644d8f3b3d9a1d1ee9e120a634ede281cdc42a100823deb7"
-dependencies = [
- "cpp",
- "cpp_build",
- "semver 1.0.9",
 ]
 
 [[package]]
