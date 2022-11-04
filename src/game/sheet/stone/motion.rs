@@ -1,4 +1,4 @@
-use crate::game::stone::{Acceleration, Position, Velocity};
+use crate::game::sheet::stone::{Acceleration, Position, Velocity};
 use crate::unit;
 use crate::unit::{feet_squared_per_second_squared, seconds, Time};
 use crate::vector::{EuclideanNorm, Vector2};
@@ -8,7 +8,7 @@ use uom::si::acceleration::foot_per_second_squared;
 use uom::si::length::foot;
 use uom::si::velocity::foot_per_second;
 
-#[derive(Clone, Copy, Debug, Default, Add, Sub)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq)]
 pub struct Uniform {
     pub s0: Position,
     pub v: Velocity,
@@ -31,7 +31,7 @@ impl Uniform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Add, Sub)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq)]
 pub struct UniformlyAccelerated {
     pub s0: Position,
     pub v0: Velocity,
@@ -88,8 +88,7 @@ impl UniformlyAccelerated {
                 .as_ref()
                 .iter()
                 .filter(|&&t| {
-                    let derivative =
-                        4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
+                    let derivative = 4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
                     t >= 0.0 && derivative < -1e-6
                 })
                 .copied()

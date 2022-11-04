@@ -24,7 +24,7 @@ pub enum Rotation {
     CounterClockwise,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Stone {
     team: Team,
     state: State,

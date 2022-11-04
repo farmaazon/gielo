@@ -1,4 +1,4 @@
-use crate::game::stones::Stones;
+use crate::game::sheet::stones::Stones;
 use crate::game::team::{teams, PerTeam, Team};
 use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy};
 use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
@@ -7,6 +7,9 @@ use decorum::NotNan;
 use itertools::Itertools;
 use std::f32::consts::PI;
 use uom::si::length::foot;
+
+pub mod stone;
+pub mod stones;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -160,8 +163,9 @@ impl Sheet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::sheet::stone;
+    use crate::game::sheet::stone::Stone;
     use crate::game::team::Team::{A, B};
-    use crate::game::{stone, Stone};
 
     #[test]
     fn counting_score() {

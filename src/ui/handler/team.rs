@@ -1,5 +1,6 @@
 use crate::{game, ui, Game};
 use slint::Model;
+use std::cmp;
 use std::rc::Rc;
 
 pub struct Handler {
@@ -25,18 +26,29 @@ impl Handler {
     }
 
     pub fn synchronize_score(&self, dirty: &game::Dirty, game: &Game) {
-        if dirty.score {
-            let known_ends = self.score.a.row_count();
-            for new_end in game.score.ends().iter().skip(known_ends) {
-                for (score, new_end) in self.score.as_ref().zip(*new_end) {
-                    score.push(new_end as i32)
+        let known_ends = self.score.a.row_count();
+        match dirty.finished_ends_count.cmp(&0) {
+            cmp::Ordering::Greater => {
+                for new_end in game.finished_ends.iter().skip(known_ends) {
+                    let new_end_score = new_end.score;
+                    for (score, new_end_score) in self.score.as_ref().zip(new_end_score) {
+                        score.push(new_end_score as i32)
+                    }
                 }
             }
+            cmp::Ordering::Less => {
+                for score in self.score.as_ref() {
+                    while score.row_count() > game.finished_ends.len() {
+                        score.remove(game.finished_ends.len());
+                    }
+                }
+            }
+            cmp::Ordering::Equal => {}
         }
     }
 
     pub fn synchronize_teams(&self, dirty: &game::Dirty, game: &Game) {
-        if dirty.stage || dirty.score {
+        if dirty.phase || dirty.score || dirty.stone_count != 0 {
             let items = self.model.row_count();
             for (index, team) in (0..items).zip(game::team::teams()) {
                 let team_score = self.score[team].clone();
@@ -56,11 +68,11 @@ impl Handler {
             name: info.name.clone(),
             color: info.color,
             stones_left: game
-                .current_end_stage()
-                .map_or(game::stones::PER_TEAM, |e| e.stones_left(team))
+                .current_end()
+                .map_or(game::sheet::stones::PER_TEAM, |e| e.stones_left(team))
                 as i32,
             end_score: score.into(),
-            score: game.score.full()[team] as i32,
+            score: game.score[team] as i32,
         }
     }
 }

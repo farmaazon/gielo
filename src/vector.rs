@@ -150,7 +150,7 @@ pub trait EuclideanNorm {
     fn norm(self) -> Self::Output;
 }
 
-impl EuclideanNorm for crate::game::stone::Velocity {
+impl EuclideanNorm for crate::game::sheet::stone::Velocity {
     type Output = crate::unit::Velocity;
 
     fn norm(self) -> Self::Output {

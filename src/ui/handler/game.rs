@@ -1,4 +1,3 @@
-use crate::game::stone::Rotation;
 use crate::ui::handler::{make_callback, stone, team};
 use crate::unit::{feet, seconds};
 use crate::vector::Vector2;
@@ -27,7 +26,7 @@ impl Handler {
         let stones_model = Rc::new(ui::model::Stones::new(game.clone()));
         let stone_handler = stone::Handler::new(stones_model.clone());
         let update_timer = RefCell::new(None);
-        sheet_model.set_stones(stones_model.clone().into());
+        sheet_model.set_stones(stones_model.into());
         let this = Rc::new(Self {
             ui: ui.clone_strong(),
             game,
@@ -35,39 +34,41 @@ impl Handler {
             team_handler,
             update_timer,
         });
-        let to_initialize =
-            game::Dirty { stone_count: 0, stones: u16::MAX, score: true, stage: true };
+        let to_initialize = game::Dirty {
+            stone_count: 0,
+            finished_ends_count: 0,
+            stones: u16::MAX,
+            score: true,
+            phase: true,
+        };
         this.synchronize(to_initialize);
         game_model.on_deliver(make_callback!(this.on_deliver()));
-        game_model.on_finish_end(make_callback!(this.on_finish_end()));
+        game_model.on_proceed(make_callback!(this.on_proceed()));
         this
     }
 
     pub fn synchronize(self: &Rc<Self>, dirty: game::Dirty) {
         let game = self.game.borrow();
-        self.synchronize_stage(&dirty, &*game);
-        self.stone_handler.synchronize(&dirty, &*game);
-        self.team_handler.synchronize_score(&dirty, &*game);
-        self.team_handler.synchronize_teams(&dirty, &*game);
+        self.synchronize_phase(&dirty, &game);
+        self.stone_handler.synchronize(&dirty, &game);
+        self.team_handler.synchronize_score(&dirty, &game);
+        self.team_handler.synchronize_teams(&dirty, &game);
     }
 
-    fn synchronize_stage(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
-        if dirty.stage {
-            let game_model = self.ui.global::<ui::GameModel>();
-            match game.current_end_stage() {
-                Some(end) => {
-                    game_model.set_end(end.no as i32);
-                    game_model.set_current_team(match end.playing_team {
-                        game::team::Team::A => 0,
-                        game::team::Team::B => 1,
-                    });
-                }
-                None => {
-                    game_model.set_end(game.params.ends as i32);
-                }
-            }
-            let delivering = matches!(&game.stage, game::Stage::Delivering { .. });
-            if !delivering {
+    fn synchronize_phase(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
+        let game_model = self.ui.global::<ui::GameModel>();
+        if dirty.phase {
+            game_model.set_game_finished(game.is_finished());
+            game_model.set_end_finished(game.is_end_finished());
+            game_model.set_thinking(game.is_thinking());
+            game_model.set_delivering(game.is_delivering());
+            let playing_team = game.current_turn().map(|turn| turn.playing_team);
+            game_model.set_current_team(match playing_team {
+                Some(game::team::Team::A) => 0,
+                Some(game::team::Team::B) => 1,
+                None => 0,
+            });
+            if !game.is_delivering() {
                 if let Some(timer) = self.update_timer.take() {
                     timer.stop();
                 }
@@ -80,9 +81,13 @@ impl Handler {
                 );
                 *self.update_timer.borrow_mut() = Some(timer);
             }
-            game_model.set_delivering(delivering);
-            game_model.set_end_finished(matches!(&game.stage, game::Stage::EndConcluded(_, _)));
-            game_model.set_game_finished(matches!(&game.stage, game::Stage::GameConcluded(_)));
+        }
+        if dirty.finished_ends_count != 0 || dirty.phase {
+            game_model.set_end(if game.is_finished() {
+                game.params.ends as i32
+            } else {
+                game.finished_ends.len() as i32 + 1
+            });
         }
     }
 
@@ -96,24 +101,24 @@ impl Handler {
     pub fn on_deliver(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         let shot = self.ui.global::<ui::Shot>();
-        let call = game::shot::Call {
+        let call = game::turn::delivery::Call {
             weight: seconds(shot.get_weight_sec()),
             mark: Vector2 { x: feet(shot.get_mark_x()), y: feet(shot.get_mark_y()) },
             rotation: if shot.get_clockwise() {
-                Rotation::Clockwise
+                game::sheet::stone::Rotation::Clockwise
             } else {
-                Rotation::CounterClockwise
+                game::sheet::stone::Rotation::CounterClockwise
             },
         };
-        self.game.borrow_mut().start_delivery(&mut dirty, time::Instant::now(), call)?;
+        self.game.borrow_mut().start_delivery(&mut dirty, call, time::Instant::now())?;
         self.synchronize(dirty);
 
         Ok(())
     }
 
-    pub fn on_finish_end(self: &Rc<Self>) -> Result<()> {
+    pub fn on_proceed(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
-        self.game.borrow_mut().finish_end(&mut dirty)?;
+        self.game.borrow_mut().proceed(&mut dirty)?;
         self.synchronize(dirty);
         Ok(())
     }

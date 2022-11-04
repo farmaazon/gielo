@@ -1,4 +1,5 @@
-use crate::game::{team, Dirty, Stone};
+use crate::game::sheet::stone::Stone;
+use crate::game::{team, Dirty};
 use derive_more::{AsRef, Deref};
 use local_vec::LocalVec;
 use std::ops::{Index, IndexMut};
@@ -6,7 +7,7 @@ use std::ops::{Index, IndexMut};
 pub const PER_TEAM: usize = 8;
 pub const COUNT: usize = PER_TEAM * team::TEAMS_COUNT;
 
-#[derive(Clone, Debug, Default, AsRef, Deref)]
+#[derive(Clone, Debug, Default, AsRef, Deref, PartialEq)]
 pub struct Stones {
     stones: LocalVec<Stone, COUNT>,
 }
@@ -62,7 +63,7 @@ impl FromIterator<Stone> for Stones {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::game::stone;
+    use crate::game::sheet::stone;
     use crate::game::team::Team;
 
     #[test]

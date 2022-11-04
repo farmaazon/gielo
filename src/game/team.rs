@@ -21,7 +21,7 @@ impl Team {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq, Sum)]
 pub struct PerTeam<T> {
     pub a: T,
     pub b: T,

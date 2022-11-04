@@ -1,9 +1,9 @@
-use crate::game::stone::{motion, Position, Rotation, Velocity};
+use crate::game::sheet::stone::{motion, Position, Rotation, Velocity};
 use crate::unit;
 use crate::unit::Time;
 use crate::vector::{EuclideanNorm, Vector2};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BeingDelivered {
     pub release_time: Time,
     pub starting_point: Position,
@@ -29,7 +29,7 @@ impl BeingDelivered {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Moving {
     pub t0: Time,
     pub motion: motion::UniformlyAccelerated,
@@ -59,7 +59,7 @@ impl Moving {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum State {
     BeingDelivered(BeingDelivered),
     Moving(Moving),

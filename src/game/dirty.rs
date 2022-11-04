@@ -1,11 +1,12 @@
-use crate::game::stone;
+use crate::game::sheet::stone;
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct Dirty {
     pub stone_count: isize,
+    pub finished_ends_count: isize,
     pub stones: u16,
     pub score: bool,
-    pub stage: bool,
+    pub phase: bool,
 }
 
 impl Dirty {
@@ -34,12 +35,12 @@ pub struct Stone<'a> {
 
 impl<'a> Stone<'a> {
     pub fn set(&mut self) {
-        self.dirty.stones = self.dirty.stones | 1 << self.index;
+        self.dirty.stones |= 1 << self.index;
     }
 
     pub fn check_and_clear(&mut self, expected: bool) {
         assert_eq!(self.get(), expected);
-        self.dirty.stones = self.dirty.stones | !(1 << self.index);
+        self.dirty.stones |= !(1 << self.index);
     }
 
     pub fn get(&self) -> bool {
