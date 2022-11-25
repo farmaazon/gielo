@@ -1,3 +1,6 @@
+use crate::game::stone::Flag;
+use crate::game::turn::Phase;
+use crate::game::{end, turn};
 use crate::ui::handler::{make_callback, stone, team};
 use crate::unit::{feet, seconds};
 use crate::vector::Vector2;
@@ -34,13 +37,8 @@ impl Handler {
             team_handler,
             update_timer,
         });
-        let to_initialize = game::Dirty {
-            stone_count: 0,
-            finished_ends_count: 0,
-            stones: u16::MAX,
-            score: true,
-            phase: true,
-        };
+        let to_initialize =
+            game::Dirty { finished_ends_count: 0, stones: Flag::ALL, score: true, phase: true };
         this.synchronize(to_initialize);
         game_model.on_deliver(make_callback!(this.on_deliver()));
         game_model.on_proceed(make_callback!(this.on_proceed()));
@@ -50,7 +48,8 @@ impl Handler {
     pub fn synchronize(self: &Rc<Self>, dirty: game::Dirty) {
         let game = self.game.borrow();
         self.synchronize_phase(&dirty, &game);
-        self.stone_handler.synchronize(&dirty, &game);
+        self.synchronize_violations(&dirty, &game);
+        self.stone_handler.synchronize(&dirty);
         self.team_handler.synchronize_score(&dirty, &game);
         self.team_handler.synchronize_teams(&dirty, &game);
     }
@@ -62,12 +61,19 @@ impl Handler {
             game_model.set_end_finished(game.is_end_finished());
             game_model.set_thinking(game.is_thinking());
             game_model.set_delivering(game.is_delivering());
-            let playing_team = game.current_turn().map(|turn| turn.playing_team);
+            let playing_team = game.current_turn().map(|turn| turn.playing_team());
             game_model.set_current_team(match playing_team {
                 Some(game::team::Team::A) => 0,
                 Some(game::team::Team::B) => 1,
                 None => 0,
             });
+            if let Some(end::Phase::Finished { score }) = game.current_end().map(|e| &e.phase) {
+                game_model.set_end_score(if score.a > 0 {
+                    score.a as i32
+                } else {
+                    -(score.b as i32)
+                });
+            }
             if !game.is_delivering() {
                 if let Some(timer) = self.update_timer.take() {
                     timer.stop();
@@ -91,6 +97,21 @@ impl Handler {
         }
     }
 
+    fn synchronize_violations(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
+        let game_model = self.ui.global::<ui::GameModel>();
+        if dirty.phase {
+            let violations = game
+                .current_turn()
+                .and_then(|turn| match &turn.phase {
+                    Phase::Finished { violations, .. } => Some(*violations),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            game_model.set_fgz_rule_violated(violations.contains(turn::Violation::FreeGuardRule));
+            game_model.set_no_tick_rule_violated(violations.contains(turn::Violation::NoTickRule));
+        }
+    }
+
     pub fn update(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().update(&mut dirty, time::Instant::now());
@@ -105,9 +126,9 @@ impl Handler {
             weight: seconds(shot.get_weight_sec()),
             mark: Vector2 { x: feet(shot.get_mark_x()), y: feet(shot.get_mark_y()) },
             rotation: if shot.get_clockwise() {
-                game::sheet::stone::Rotation::Clockwise
+                game::stone::Rotation::Clockwise
             } else {
-                game::sheet::stone::Rotation::CounterClockwise
+                game::stone::Rotation::CounterClockwise
             },
         };
         self.game.borrow_mut().start_delivery(&mut dirty, call, time::Instant::now())?;

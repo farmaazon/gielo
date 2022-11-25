@@ -91,18 +91,18 @@ impl Model for Stones {
     type Data = StoneModel;
 
     fn row_count(&self) -> usize {
-        self.game.borrow().sheet.stones.len()
+        game::stone::COUNT
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
         let game = self.game.borrow();
-        let time = game.delivery_time();
-        let stone = &game.sheet.stones[row];
-        let position_feet = stone
-            .position(time)
-            .map(|v| v.map(|x| x.get::<foot>()))
-            .unwrap_or(Vector2 { x: -100.0, y: -100.0 });
-        let team = stone.team();
+        let stones = &game.sheet.stones;
+        let position_feet = if stones.in_play().contains(row) {
+            stones.positions()[row].map(|x| x.get::<foot>())
+        } else {
+            Vector2 { x: -100.0, y: -100.0 }
+        };
+        let team = game::stone::team(row);
         Some(StoneModel { x: position_feet.x, y: position_feet.y, color: game.teams[team].color })
     }
 

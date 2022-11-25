@@ -49,11 +49,11 @@ LeftPane := Rectangle {
         }
 
         Text {
-            text: "Strength: " + strength.value;
+            text: "Strength: " + weight.value;
             vertical-stretch: 0;
         }
 
-        strength := Slider {
+        weight := Slider {
             minimum: 2.0;
             maximum: 3.6;
             height: 30px;
@@ -88,8 +88,24 @@ LeftPane := Rectangle {
             clicked => { GameModel.deliver() }
         }
 
-        if GameModel.end-finished: Button {
-            text: "Finish End";
+        if GameModel.fgz-rule-violated: Text {
+            text: "Free Guard Zone rule violated.";
+        }
+
+        if GameModel.no-tick-rule-violated: Text {
+            text: "No Tick rule violated.";
+        }
+
+        if GameModel.end-finished: Text {
+            text: "End Finished. " + (GameModel.end-score > 0 ?
+                GameModel.teams[0].name + " scored " + GameModel.end-score + " points."
+            : GameModel.end-score < 0 ?
+                GameModel.teams[1].name + " scored " + (-GameModel.end-score) + " points."
+            : "");
+        }
+
+        if GameModel.end-finished || GameModel.fgz-rule-violated || GameModel.no-tick-rule-violated: Button {
+            text: "Proceed";
             vertical-stretch: 0;
 
             clicked => { GameModel.proceed() }

@@ -1,11 +1,9 @@
 use uom::system;
 
 pub type BaseType = f32;
-
 ISQ!(uom::si, BaseType, (foot, kilogram, second, ampere, kelvin, mole, candela));
 
 pub mod new_unit {
-
     uom::unit! {
         system: uom::si;
         quantity: uom::si::available_energy;

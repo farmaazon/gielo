@@ -48,7 +48,7 @@ impl Handler {
     }
 
     pub fn synchronize_teams(&self, dirty: &game::Dirty, game: &Game) {
-        if dirty.phase || dirty.score || dirty.stone_count != 0 {
+        if dirty.phase || dirty.score {
             let items = self.model.row_count();
             for (index, team) in (0..items).zip(game::team::teams()) {
                 let team_score = self.score[team].clone();
@@ -69,7 +69,7 @@ impl Handler {
             color: info.color,
             stones_left: game
                 .current_end()
-                .map_or(game::sheet::stones::PER_TEAM, |e| e.stones_left(team))
+                .map_or(game::stone::COUNT_PER_TEAM, |e| e.stones_left(team))
                 as i32,
             end_score: score.into(),
             score: game.score[team] as i32,

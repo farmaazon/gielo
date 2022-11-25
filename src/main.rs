@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate uom;
+extern crate core;
 
 pub mod game;
 pub mod ui;

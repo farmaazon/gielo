@@ -1,15 +1,13 @@
-use crate::game::sheet::stones::Stones;
-use crate::game::team::{teams, PerTeam, Team};
+use crate::game::stone;
+use crate::game::stone::Stones;
+use crate::game::team::{PerTeam, Team};
 use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy};
-use crate::unit::{feet, feet_per_second_squared, inches, seconds, Acceleration, Length};
+use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
 use itertools::Itertools;
 use std::f32::consts::PI;
 use uom::si::length::foot;
-
-pub mod stone;
-pub mod stones;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -125,16 +123,48 @@ impl Sheet {
         Self { stones: Stones::new(), parameters }
     }
 
+    pub fn dist_from_tee(&self, position: stone::Position) -> Length {
+        (position - self.parameters.geometry.tee()).norm()
+    }
+
+    pub fn dist_from_tee_in_house(&self, position: stone::Position) -> Option<Length> {
+        let out_of_house = self.parameters.geometry.house_radius + self.parameters.stone_radius;
+        let dist = self.dist_from_tee(position);
+        (dist <= out_of_house || approx_eq!(dist, out_of_house)).then_some(dist)
+    }
+
+    pub fn is_in_house(&self, position: stone::Position) -> bool {
+        self.dist_from_tee_in_house(position).is_some()
+    }
+
+    pub fn is_guard(&self, position: stone::Position) -> bool {
+        let before_tee_line = (position.y + self.parameters.stone_radius)
+            < self.parameters.geometry.playing_end.tee_line_y;
+        !self.is_in_house(position) && before_tee_line
+    }
+
+    pub fn is_center_guard(&self, position: stone::Position) -> bool {
+        let dist_from_center_line = (position.x - self.parameters.geometry.center_line_x).abs();
+        let touches_center_line = dist_from_center_line < self.parameters.stone_radius
+            || approx_eq!(dist_from_center_line, self.parameters.stone_radius);
+        self.is_guard(position) && touches_center_line
+    }
+
+    pub fn guards(&self) -> stone::Flag {
+        self.stones.stone_flags(|stone| self.is_guard(stone)) & self.stones.in_play()
+    }
+
+    pub fn center_guards(&self) -> stone::Flag {
+        self.stones.stone_flags(|stone| self.is_center_guard(stone)) & self.stones.in_play()
+    }
+
     pub fn count_score(&self) -> PerTeam<u8> {
         let out_of_house = self.parameters.geometry.house_radius + self.parameters.stone_radius;
         let mut score = PerTeam::<u8>::default();
-        let stones_distances = teams().map(|team| {
+        let stones_distances = stone::Flag::TEAM.map(|team_stones| {
             self.stones
-                .iter()
-                .filter(|s| s.team() == team)
-                .filter_map(|s| s.position(seconds(0.0)))
-                .map(|pos| (pos - self.parameters.geometry.tee()).norm())
-                .filter(|&dist| dist < out_of_house || approx_eq!(dist, out_of_house))
+                .iter_flag(team_stones & self.stones.in_play())
+                .filter_map(|(_, s)| self.dist_from_tee_in_house(s))
                 .sorted_by_key(|dist| NotNan::from_inner(dist.get::<foot>()))
                 .collect_vec()
         });
@@ -164,8 +194,70 @@ impl Sheet {
 mod tests {
     use super::*;
     use crate::game::sheet::stone;
-    use crate::game::sheet::stone::Stone;
     use crate::game::team::Team::{A, B};
+
+    #[derive(Debug)]
+    struct FlagTest {
+        stones: Vec<(stone::Id, stone::Position)>,
+        expected: stone::Flag,
+    }
+
+    impl FlagTest {
+        fn new(data: impl IntoIterator<Item = (stone::Id, (f32, f32), bool)>) -> Self {
+            let tee = Geometry::default().tee();
+            let mut expected = stone::Flag(0);
+            let stones = data
+                .into_iter()
+                .map(|(id, (x, y), exp)| {
+                    if exp {
+                        expected |= stone::Flag::stone(id);
+                    }
+                    (id, tee + Vector2 { x: feet(x), y: feet(y) })
+                })
+                .collect();
+            Self { stones, expected }
+        }
+
+        fn sheet(&self) -> Sheet {
+            Sheet {
+                parameters: Parameters::default(),
+                stones: self.stones.iter().cloned().collect(),
+            }
+        }
+    }
+
+    #[test]
+    fn guards() {
+        let house_radius = Geometry::default().house_radius.value;
+        let test = FlagTest::new([
+            (0, (0.0, 0.0), false),
+            (1, (0.0, -house_radius), false),
+            (2, (0.0, -house_radius - 1.0), true),
+            (3, (-4.0, -house_radius - 4.0), true),
+            (4, (4.0, -house_radius - 4.0), true),
+            (5, (house_radius - 0.1, house_radius - 0.1), false),
+            (8, (-house_radius + 0.1, house_radius - 0.1), false),
+        ]);
+        assert_eq!(test.sheet().guards(), test.expected)
+    }
+
+    #[test]
+    fn center_guards() {
+        let house_radius = Geometry::default().house_radius.get::<foot>();
+        let stone_radius = Parameters::default().stone_radius.get::<foot>();
+        let test = FlagTest::new([
+            (0, (0.0, 0.0), false),
+            (1, (0.0, -house_radius), false),
+            (2, (0.0, -house_radius - 1.0), true),
+            (3, (-4.0, -house_radius - 4.0), false),
+            (4, (4.0, -house_radius - 4.0), false),
+            (5, (house_radius - 0.1, house_radius - 0.1), false),
+            (8, (-house_radius + 0.1, house_radius - 0.1), false),
+            (9, (-stone_radius, -house_radius - 4.0), true),
+            (10, (stone_radius, -house_radius - 4.0), true),
+        ]);
+        assert_eq!(test.sheet().center_guards(), test.expected)
+    }
 
     #[test]
     fn counting_score() {
@@ -192,11 +284,18 @@ mod tests {
 
             fn run(self) {
                 let parameters = Parameters { stone_radius: feet(0.5), ..Parameters::default() };
-                let stones =
-                    self.stones.iter().cloned().map(|(team, position)| {
-                        Stone::new(team, stone::State::Stationary(position))
-                    });
-                let sheet = Sheet { parameters, stones: stones.collect() };
+                let mut per_team = stone::TEAM_IDS;
+                let stones = self
+                    .stones
+                    .iter()
+                    .map(|&(team, position)| {
+                        (
+                            per_team[team].next().expect("Too many stones of one team in case"),
+                            position,
+                        )
+                    })
+                    .collect();
+                let sheet = Sheet { parameters, stones };
                 let score = sheet.count_score();
                 assert_eq!(score, self.score, "Error in {:?}", self);
             }

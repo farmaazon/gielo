@@ -19,10 +19,13 @@ export global GameModel := {
     property <[Team]> teams;
     property <int> end;
     property <int> current-team;
-    property <bool> delivering;
-    property <bool> end-finished;
-    property <bool> game-finished;
     property <bool> thinking;
+    property <bool> delivering;
+    property <bool> fgz-rule-violated;
+    property <bool> no-tick-rule-violated;
+    property <bool> end-finished;
+    property <int> end-score;
+    property <bool> game-finished;
 
     callback start-new-game();
     callback deliver();

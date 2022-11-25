@@ -1,4 +1,4 @@
-use crate::game::sheet::stone::{Acceleration, Position, Velocity};
+use crate::game::stone::{Acceleration, Position, Velocity};
 use crate::unit;
 use crate::unit::{feet_squared_per_second_squared, seconds, Time};
 use crate::vector::{EuclideanNorm, Vector2};
@@ -344,6 +344,7 @@ mod tests {
         for case in [
             Case { v: (10.0, 0.0), e: 9.5,        expect_v: (9.0, 0.0)      },
             Case { v: (0.3, -0.4), e: 55.0/512.0, expect_v: (0.1125, -0.15) },
+            Case { v: (-0.01, 0.1), e: 55.0/512.0, expect_v: (0.0, 0.0) },
         ] {
             run_case(case);
         };

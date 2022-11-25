@@ -127,6 +127,10 @@ where
     }
 }
 
+impl<T: uom::ConstZero> uom::ConstZero for Vector2<T> {
+    const ZERO: Self = Self { x: T::ZERO, y: T::ZERO };
+}
+
 impl<T> ApproxEq for Vector2<T>
 where
     T: ApproxEq,
@@ -150,7 +154,7 @@ pub trait EuclideanNorm {
     fn norm(self) -> Self::Output;
 }
 
-impl EuclideanNorm for crate::game::sheet::stone::Velocity {
+impl EuclideanNorm for crate::game::stone::Velocity {
     type Output = crate::unit::Velocity;
 
     fn norm(self) -> Self::Output {

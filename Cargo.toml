@@ -4,16 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.57"
-decorum = "0.3.1"
-derive_more = "0.99.17"
-float-cmp = "0.9.0"
-lazy_static = "1.4.0"
-local_vec = "0.5.0"
+anyhow = "1.0"
+enumset = "1.0"
+decorum = "0.3"
+derive_more = "0.99"
+float-cmp = "0.9"
+lazy_static = "1.4"
+local_vec = "0.5"
 roots = { git = "https://github.com/vorot/roots.git", rev="cb13f4fec62809883304b6d36a005c4a92ba6079" }
-simple_logger = "4.0.0"
-itertools = "0.10.3"
-log = "0.4.17"
+simple_logger = "4.0"
+itertools = "0.10"
+log = "0.4"
 
 [dependencies.slint]
 version = "0.3.1"
@@ -21,7 +22,7 @@ default-features = false
 features = ["compat-0-3-0", "std", "backend-winit", "renderer-winit-femtovg"]
 
 [dependencies.uom]
-version = "0.33.0"
+version = "0.33"
 default-features = false
 features = ["f32", "si", "std"]
 

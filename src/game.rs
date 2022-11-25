@@ -1,11 +1,13 @@
 pub mod dirty;
 pub mod end;
 pub mod sheet;
+pub mod simulation;
+pub mod stone;
 pub mod team;
 pub mod turn;
 
 pub use crate::game::dirty::Dirty;
-use crate::game::sheet::stone::Stone;
+use crate::game::simulation::Simulation;
 use crate::game::team::{PerTeam, Team};
 use crate::unit::Time;
 use anyhow::{bail, Result};
@@ -19,11 +21,13 @@ pub type Score = PerTeam<u8>;
 pub struct Parameters {
     pub speed_factor: f32,
     pub ends: u8,
+    pub free_guard_rule_stones: usize,
+    pub no_tick_rule_stones: usize,
 }
 
 impl Default for Parameters {
     fn default() -> Self {
-        Self { speed_factor: 10.0, ends: 8 }
+        Self { speed_factor: 10.0, ends: 8, free_guard_rule_stones: 5, no_tick_rule_stones: 5 }
     }
 }
 
@@ -48,6 +52,7 @@ impl TryFrom<Phase> for end::Current {
 #[derive(Debug)]
 pub struct Game {
     pub params: Parameters,
+    pub simulation: Simulation,
     pub teams: PerTeam<team::Info>,
     pub sheet: Sheet,
     pub finished_ends: Vec<end::Finished>,
@@ -60,16 +65,30 @@ impl Game {
         teams: PerTeam<team::Info>,
         params: Parameters,
         sheet_params: sheet::Parameters,
+        simulation_params: simulation::Parameters,
         first_hammer: Team,
     ) -> Self {
+        let sheet = Sheet::new(sheet_params);
+        let simulation = Simulation::new(simulation_params, &sheet_params);
         Self {
             params,
             teams,
-            sheet: Sheet::new(sheet_params),
+            sheet,
+            simulation,
             finished_ends: vec![],
             score: Score::default(),
             phase: Phase::End(end::Current::new(first_hammer)),
         }
+    }
+
+    pub fn new_with_default_params(teams: PerTeam<team::Info>, first_hammer: Team) -> Self {
+        Self::new(
+            teams,
+            Parameters::default(),
+            sheet::Parameters::default(),
+            simulation::Parameters::default(),
+            first_hammer,
+        )
     }
 
     pub fn current_end(&self) -> Option<&end::Current> {
@@ -102,9 +121,9 @@ impl Game {
         )
     }
 
-    pub fn delivered_stone(&self) -> Option<&Stone> {
+    pub fn delivered_stone(&self) -> Option<stone::Id> {
         match &self.phase {
-            Phase::End(end) => Some(&self.sheet.stones[end.delivered_stone()?]),
+            Phase::End(end) => end.delivered_stone(),
             _ => None,
         }
     }
@@ -118,7 +137,7 @@ impl Game {
 
     pub fn update(&mut self, dirty: &mut Dirty, now: time::Instant) {
         if let Phase::End(end) = &mut self.phase {
-            end.update(dirty, &mut self.sheet, now, self.params.speed_factor)
+            end.update(dirty, &mut self.sheet, &self.simulation, &self.params, now)
         }
     }
 
@@ -156,7 +175,7 @@ impl Game {
                 }
             }
             Phase::End(end) => {
-                end.proceed(dirty, &self.sheet)?;
+                end.proceed(dirty, &mut self.sheet, &self.params)?;
                 None
             }
             _ => bail!("Proceeding at wrong game phase"),
@@ -176,10 +195,11 @@ impl Game {
         teams: PerTeam<team::Info>,
         params: Parameters,
         sheet_params: sheet::Parameters,
+        simulation_params: simulation::Parameters,
         hammer: Team,
         finished_end_scores: Vec<Score>,
     ) -> Self {
-        let mut game = Self::new(teams, params, sheet_params, hammer);
+        let mut game = Self::new(teams, params, sheet_params, simulation_params, hammer);
         game.finished_ends = finished_end_scores
             .iter()
             .map(|&score| end::Finished { score, ..end::Finished::new_with_all_stones_out(hammer) })
@@ -192,7 +212,6 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::sheet::stones;
     use crate::game::turn::delivery;
     use slint::Color;
 
@@ -205,31 +224,31 @@ mod tests {
 
     #[test]
     fn state_of_new_game() {
-        let game =
-            Game::new(mock_teams(), Parameters::default(), sheet::Parameters::default(), Team::B);
-        assert!(matches!(
-            game.current_turn(),
-            Some(turn::Current { playing_team: Team::A, phase: turn::Phase::Thinking })
-        ));
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, .. }) if finished_turns.is_empty()
-        ));
+        let game = Game::new_with_default_params(mock_teams(), Team::B);
+        let current_turn = game.current_turn().unwrap();
+        assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.b[0]);
+        assert!(matches!(current_turn.phase, turn::Phase::Thinking));
+        let current_end = game.current_end().unwrap();
+        assert_eq!(current_end.finished_turns.len(), 0);
         assert_eq!(game.finished_ends.len(), 0);
         assert_eq!(game.score, Score { a: 0, b: 0 });
+        assert!(game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(!game.is_end_finished());
     }
 
     #[test]
     fn last_stone_in_end() {
-        let mut game =
-            Game::new(mock_teams(), Parameters::default(), sheet::Parameters::default(), Team::B);
+        let mut game = Game::new_with_default_params(mock_teams(), Team::B);
+        let stone = *stone::QUEUE_BY_HAMMER.b.last().unwrap();
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::B, stones::COUNT - 1);
-        game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
-        assert!(matches!(
-            game.current_turn(),
-            Some(turn::Current { playing_team: Team::B, phase: turn::Phase::Thinking })
-        ));
+        *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT - 1);
+        assert!(game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(!game.is_end_finished());
+        assert_eq!(game.delivered_stone(), None);
 
         let delivery_time = time::Instant::now();
         let mut dirty = Dirty::new();
@@ -239,51 +258,67 @@ mod tests {
             delivery_time,
         )
         .expect("Error while starting delivery");
-        assert!(matches!(
-            game.current_turn(),
-            Some(turn::Current { playing_team: Team::B, phase: turn::Phase::Delivering { .. } })
-        ));
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, .. }) if finished_turns.len() == stones::COUNT - 1
-        ));
+        assert!(!game.is_thinking());
+        assert!(game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(!game.is_end_finished());
+        assert_eq!(game.delivered_stone(), Some(stone));
         assert_eq!(game.finished_ends.len(), 0);
         assert_eq!(game.score, Score { a: 0, b: 0 });
-        dirty.check_and_clear(&Dirty { stone_count: 1, phase: true, ..Dirty::default() });
+        dirty.check_and_clear(&Dirty {
+            stones: stone::Flag::stone(stone),
+            phase: true,
+            ..Dirty::default()
+        });
 
         let when_stopped = delivery_time + time::Duration::from_secs(4);
         game.update(&mut dirty, when_stopped);
-        assert!(game.current_turn().is_none());
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, .. }) if finished_turns.len() == stones::COUNT
-        ));
+        assert!(!game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(game.is_end_finished());
+        assert_eq!(game.delivered_stone(), None);
         assert_eq!(game.finished_ends.len(), 0);
         assert_eq!(game.score, Score { a: 0, b: 0 });
         dirty.check_and_clear(&Dirty {
             phase: true,
-            stones: 1 << (stones::COUNT - 1),
+            stones: stone::Flag::stone(stone),
             ..Dirty::default()
         });
 
         game.proceed(&mut dirty).expect("Proceeding finished end failed");
-        assert!(matches!(
-            game.current_turn(),
-            Some(turn::Current { playing_team: Team::B, phase: turn::Phase::Thinking })
-        ));
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, ..}) if finished_turns.is_empty()
-        ));
+        assert!(game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(!game.is_end_finished());
+        assert_eq!(game.delivered_stone(), None);
         assert_eq!(game.finished_ends.len(), 1);
         assert_eq!(game.finished_ends[0].score, Score { a: 0, b: 1 });
         assert_eq!(game.score, Score { a: 0, b: 1 });
+        assert_eq!(game.current_end().unwrap().hammer, Team::A);
         dirty.check_and_clear(&Dirty {
-            stone_count: -(stones::COUNT as isize),
+            stones: stone::Flag::stone(stone),
             finished_ends_count: 1,
             phase: true,
             score: true,
-            ..Dirty::default()
+        });
+    }
+
+    #[test]
+    fn proceeding_after_blank() {
+        let mut game = Game::new_with_default_params(mock_teams(), Team::B);
+        let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
+        *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT);
+        assert!(game.is_end_finished());
+
+        let mut dirty = Dirty::new();
+        game.proceed(&mut dirty).expect("Proceeding finished end failed");
+        assert_eq!(game.current_end().unwrap().hammer, Team::B);
+        dirty.check_and_clear(&Dirty {
+            stones: stone::Flag(0),
+            finished_ends_count: 1,
+            phase: true,
+            score: true,
         });
     }
 
@@ -293,6 +328,7 @@ mod tests {
             mock_teams(),
             Parameters::default(),
             sheet::Parameters::default(),
+            simulation::Parameters::default(),
             Team::B,
             vec![
                 Score { a: 0, b: 0 },
@@ -305,7 +341,7 @@ mod tests {
             ],
         );
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::A, stones::COUNT - 1);
+        *end = end::Current::new_with_turns_finished(Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 
         let delivery_time = time::Instant::now();
@@ -318,15 +354,14 @@ mod tests {
         )
         .expect("Error while starting delivery");
         game.update(&mut dirty, when_stopped);
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, .. }) if finished_turns.len() == stones::COUNT
-        ));
+        assert!(!game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(game.is_end_finished());
         assert_eq!(game.finished_ends.len(), 7);
         assert_eq!(game.score, Score { a: 4, b: 7 });
         dirty.check_and_clear(&Dirty {
-            stone_count: 1,
-            stones: 1 << (stones::COUNT - 1),
+            stones: stone::Flag::stone(*stone::QUEUE_BY_HAMMER.a.last().unwrap()),
             phase: true,
             ..Dirty::default()
         });
@@ -335,6 +370,10 @@ mod tests {
         assert!(matches!(&game.phase, Phase::GameConcluded));
         assert!(game.current_turn().is_none());
         assert!(game.current_end().is_none());
+        assert!(!game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(game.is_finished());
+        assert!(!game.is_end_finished());
         assert_eq!(game.finished_ends.len(), 8);
         assert_eq!(game.score, Score { a: 5, b: 7 });
         dirty.check_and_clear(&Dirty {
@@ -351,6 +390,7 @@ mod tests {
             mock_teams(),
             Parameters::default(),
             sheet::Parameters::default(),
+            simulation::Parameters::default(),
             Team::B,
             vec![
                 Score { a: 1, b: 0 },
@@ -363,7 +403,7 @@ mod tests {
             ],
         );
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::A, stones::COUNT - 1);
+        *end = end::Current::new_with_turns_finished(Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 
         let delivery_time = time::Instant::now();
@@ -380,22 +420,17 @@ mod tests {
         let mut dirty = Dirty::new();
         game.proceed(&mut dirty).expect("Proceeding finished end failed");
         assert!(matches!(&game.phase, Phase::End(_)));
-        assert!(matches!(
-            game.current_turn(),
-            Some(turn::Current { playing_team: Team::A, phase: turn::Phase::Thinking })
-        ));
-        assert!(matches!(
-            game.current_end(),
-            Some(end::Current { finished_turns, ..}) if finished_turns.is_empty()
-        ));
+        assert!(game.is_thinking());
+        assert!(!game.is_delivering());
+        assert!(!game.is_finished());
+        assert!(!game.is_end_finished());
         assert_eq!(game.finished_ends.len(), 8);
         assert_eq!(game.score, Score { a: 7, b: 7 });
         dirty.check_and_clear(&Dirty {
-            stone_count: -(stones::COUNT as isize),
+            stones: stone::Flag::stone(*stone::QUEUE_BY_HAMMER.a.last().unwrap()),
             finished_ends_count: 1,
             phase: true,
             score: true,
-            ..Dirty::default()
         });
     }
 }
