@@ -5,7 +5,7 @@ use crate::game::simulation::{stone, Simulation};
 use crate::game::stone::Rotation;
 use crate::game::turn::delivery::ResolvedStart;
 use crate::game::{Dirty, Sheet};
-use crate::unit::Time;
+use crate::unit::{approx_eq, Time};
 use crate::vector::Vector2;
 use decorum::NotNan;
 use derive_more::{Deref, DerefMut};
@@ -50,6 +50,7 @@ pub struct Process {
     pub delivered_stone: stone::Id,
     pub rotation: Rotation,
     pub current_time: Time,
+    pub collision_happened: bool,
     next_event_cached: Option<Event>,
 }
 
@@ -70,6 +71,7 @@ impl Process {
             delivered_stone: stone,
             rotation,
             current_time: Time::ZERO,
+            collision_happened: false,
             next_event_cached: Some(Event {
                 time: release_time,
                 stone,
@@ -164,7 +166,19 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
             }
             event::Kind::StoneStopped => {
                 stone_update.stop(time);
-                self.sheet.stones.set_position(self.dirty, stone_id, stone_update.stone.motion.s0);
+                let stone_back =
+                    stone_update.stone.motion.s0.y - stone_update.sheet_params.stone_radius;
+                let hog_line = stone_update.sheet_params.geometry.playing_end.hog_line_y;
+                let before_hog = stone_back < hog_line || approx_eq!(stone_back, hog_line);
+                if before_hog && !self.process.collision_happened {
+                    self.sheet.stones.remove_stone(self.dirty, stone_id);
+                } else {
+                    self.sheet.stones.set_position(
+                        self.dirty,
+                        stone_id,
+                        stone_update.stone.motion.s0,
+                    );
+                }
             }
             event::Kind::Collision { with } => {
                 let with_stone = match stone_id.cmp(&with) {
@@ -173,6 +187,7 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
                     cmp::Ordering::Equal => panic!("Stone collided with itself"),
                 };
                 stone_update.collision(with_stone, time);
+                self.process.collision_happened = true;
             }
             event::Kind::NextTimeQuantum => stone_update.set_next_time_quantum(),
         }
@@ -208,7 +223,7 @@ mod tests {
     use crate::game::stone::{Position, Rotation};
     use crate::game::{sheet, simulation};
     use crate::unit::{
-        assert_approx_eq, feet, feet_squared_per_second_squared, radians, seconds, Angle,
+        assert_approx_eq, feet, feet_squared_per_second_squared, inches, radians, seconds, Angle,
     };
     use crate::vector::Vector2;
 
@@ -305,6 +320,15 @@ mod tests {
     }
 
     #[test]
+    fn too_weak() {
+        let mut test =
+            DeliveryTest::set_up(radians(6.0 / 132.0), seconds(3.4), Rotation::Clockwise, 4, []);
+        test.run_update(Some(seconds(60.0)), true);
+        assert_eq!(test.sheet.stones.in_play(), Flag(0));
+        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
+    }
+
+    #[test]
     fn clear_stone() {
         let tee = sheet::Geometry::default().tee();
         let delivered = game::stone::TEAM_IDS.a.start;
@@ -368,6 +392,36 @@ mod tests {
             test.sheet.stones.positions()[frozen].y,
             test.sheet.parameters.geometry.playing_end.tee_line_y,
             epsilon = 0.5
+        );
+    }
+
+    #[test]
+    fn take_out_guard_just_behind_hog_line() {
+        let sheet_params = sheet::Parameters::default();
+        let guard = game::stone::TEAM_IDS.a.start;
+        let delivered = game::stone::TEAM_IDS.b.start;
+        let stones = [(
+            guard,
+            Position {
+                x: sheet_params.geometry.center_line_x,
+                y: sheet_params.geometry.playing_end.hog_line_y
+                    + sheet_params.stone_radius
+                    + inches(0.1),
+            },
+        )];
+        let mut test = DeliveryTest::set_up(
+            radians(1.5 / 132.0),
+            seconds(2.7),
+            Rotation::Clockwise,
+            delivered,
+            stones,
+        );
+
+        test.run_update(None, true);
+        assert_eq!(test.sheet.stones.in_play(), Flag::stone(delivered));
+        assert!(
+            test.sheet.stones.positions()[delivered].y
+                < sheet_params.geometry.playing_end.hog_line_y
         );
     }
 }
