@@ -149,7 +149,12 @@ impl Game {
     ) -> Result<()> {
         match &mut self.phase {
             Phase::End(end) => {
-                let delivery = turn::delivery::Start { call, sheet: &mut self.sheet, dirty };
+                let delivery = turn::delivery::Start {
+                    call,
+                    sheet: &mut self.sheet,
+                    dirty,
+                    teams: &self.teams,
+                };
                 end.start_delivery(delivery, now)
             }
             _ => bail!("Starting delivery at wrong game phase"),
@@ -210,21 +215,43 @@ impl Game {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::game::turn::delivery;
-    use slint::Color;
 
-    fn mock_teams() -> PerTeam<team::Info> {
-        PerTeam {
-            a: team::Info { name: "A".into(), color: Color::from_rgb_u8(255, 0, 0) },
-            b: team::Info { name: "B".into(), color: Color::from_rgb_u8(255, 255, 0) },
+    pub struct PhaseTestSetup {
+        pub parameters: Parameters,
+        pub sheet: Sheet,
+        pub simulation: Simulation,
+        pub teams: PerTeam<team::Info>,
+        pub dirty: Dirty,
+        pub time: time::Instant,
+    }
+
+    impl Default for PhaseTestSetup {
+        fn default() -> Self {
+            let sheet_params = sheet::Parameters::default();
+            let simulation = Simulation::new(simulation::Parameters::default(), &sheet_params);
+            Self {
+                parameters: Parameters::default(),
+                sheet: Sheet::new(sheet_params),
+                simulation,
+                teams: PerTeam::default(),
+                dirty: Dirty::default(),
+                time: time::Instant::now(),
+            }
+        }
+    }
+
+    impl PhaseTestSetup {
+        pub fn new() -> Self {
+            Self::default()
         }
     }
 
     #[test]
     fn state_of_new_game() {
-        let game = Game::new_with_default_params(mock_teams(), Team::B);
+        let game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let current_turn = game.current_turn().unwrap();
         assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.b[0]);
         assert!(matches!(current_turn.phase, turn::Phase::Thinking));
@@ -240,7 +267,7 @@ mod tests {
 
     #[test]
     fn last_stone_in_end() {
-        let mut game = Game::new_with_default_params(mock_teams(), Team::B);
+        let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let stone = *stone::QUEUE_BY_HAMMER.b.last().unwrap();
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
         *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT - 1);
@@ -306,7 +333,7 @@ mod tests {
 
     #[test]
     fn proceeding_after_blank() {
-        let mut game = Game::new_with_default_params(mock_teams(), Team::B);
+        let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
         *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT);
         assert!(game.is_end_finished());
@@ -325,7 +352,7 @@ mod tests {
     #[test]
     fn last_stone_in_game() {
         let mut game = Game::new_with_ends_finished(
-            mock_teams(),
+            PerTeam::default(),
             Parameters::default(),
             sheet::Parameters::default(),
             simulation::Parameters::default(),
@@ -387,7 +414,7 @@ mod tests {
     #[test]
     fn extra_end() {
         let mut game = Game::new_with_ends_finished(
-            mock_teams(),
+            PerTeam::default(),
             Parameters::default(),
             sheet::Parameters::default(),
             simulation::Parameters::default(),

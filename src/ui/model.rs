@@ -1,6 +1,8 @@
 use crate::game;
+use crate::game::team::Player;
 use crate::game::Game;
 use crate::ui::{GameModel, SheetEndGeometry, SheetGeometry, SheetModel, StoneModel, Team};
+use crate::unit::{degrees, seconds};
 use crate::vector::Vector2;
 use anyhow::{anyhow, Result};
 use slint::Model;
@@ -69,7 +71,12 @@ impl<'a> GameModel<'a> {
                 let team_model = teams
                     .row_data(row)
                     .ok_or_else(|| anyhow!("Missing info for row {} in View's team models", row))?;
-                let info = game::team::Info { name: team_model.name, color: team_model.color };
+                let info = game::team::Info {
+                    name: team_model.name,
+                    color: team_model.color,
+                    players: [Player { angle_std_dev: degrees(0.5), weight_std_dev: seconds(0.05) };
+                        4],
+                };
                 Ok(info)
             })
             .into()

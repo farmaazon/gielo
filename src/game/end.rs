@@ -1,6 +1,6 @@
 use crate::game::simulation::Simulation;
 use crate::game::stone;
-use crate::game::team::{Team, TEAMS_COUNT};
+use crate::game::team::{player, Team, TEAMS_COUNT};
 use crate::game::{turn, Dirty, Parameters, Score, Sheet};
 use anyhow::{bail, Result};
 use std::time;
@@ -217,8 +217,10 @@ fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
     stone::QUEUE_BY_HAMMER[hammer]
         .iter()
         .take(count)
-        .map(|&played_stone| turn::Finished {
+        .enumerate()
+        .map(|(index, &played_stone)| turn::Finished {
             played_stone,
+            delivering_player: player::who_is_delivering(index),
             snapshot: Stones::default(),
             violations: EnumSet::default(),
         })
@@ -231,8 +233,8 @@ mod tests {
     use crate::game;
     use crate::game::stone::Flag;
     use crate::game::team::teams;
+    use crate::game::tests::PhaseTestSetup;
     use crate::game::turn::delivery;
-    use crate::game::{sheet, simulation};
     use crate::unit::{feet, seconds};
     use enumset::EnumSet;
     use std::time::Duration;
@@ -248,6 +250,7 @@ mod tests {
                 assert_eq!(end.stones_left(Team::B), expected_stones_left);
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
+                    delivering_player: 0,
                     violations: EnumSet::default(),
                     snapshot: Default::default(),
                 });
@@ -255,6 +258,7 @@ mod tests {
                 assert_eq!(end.stones_left(hammer), expected_stones_left);
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
+                    delivering_player: 0,
                     violations: EnumSet::default(),
                     snapshot: Default::default(),
                 });
@@ -264,9 +268,8 @@ mod tests {
 
     #[test]
     fn play_two_turns() {
-        let mut dirty = Dirty::new();
-        let mut sheet = Sheet::new(sheet::Parameters::default());
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
+        let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
+            PhaseTestSetup::new();
         let parameters = game::Parameters {
             speed_factor: 5.0,
             ends: 8,
@@ -295,16 +298,15 @@ mod tests {
             assert_eq!(end.finished_turns.len(), 0);
         };
 
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
-        let delivery_start = time::Instant::now();
-        end.start_delivery(delivery, delivery_start).expect("Error while starting delivery");
+        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
+        end.start_delivery(delivery, time).expect("Error while starting delivery");
         check_still_delivering(&end);
 
-        let still_delivering = delivery_start + time::Duration::from_secs(2);
+        let still_delivering = time + time::Duration::from_secs(2);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, still_delivering);
         check_still_delivering(&end);
 
-        let finished_delivering = delivery_start + time::Duration::from_secs(7);
+        let finished_delivering = time + time::Duration::from_secs(7);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, finished_delivering);
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
         let Some(current_turn) = end.current_turn() else {
@@ -317,7 +319,7 @@ mod tests {
         assert_eq!(end.finished_turns[0].played_stone, stone::QUEUE_BY_HAMMER.a[0]);
         assert_eq!(end.finished_turns[0].snapshot, sheet.stones);
 
-        let second_delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
+        let second_delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
         let second_delivery_start = finished_delivering + time::Duration::from_secs(40);
         end.start_delivery(second_delivery, second_delivery_start)
             .expect("Error while starting second delivery");
@@ -347,9 +349,8 @@ mod tests {
 
     #[test]
     fn restoring_after_violation() {
-        let mut dirty = Dirty::new();
-        let mut sheet = Sheet::new(sheet::Parameters::default());
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
+        let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
+            PhaseTestSetup::new();
         let parameters = game::Parameters {
             speed_factor: 20.0,
             ends: 8,
@@ -377,16 +378,19 @@ mod tests {
             mark: guard_position,
             rotation: stone::Rotation::None,
         };
-        let delivery =
-            delivery::Start { call: take_out_guard, dirty: &mut dirty, sheet: &mut sheet };
-        let delivery_start = time::Instant::now();
-        end.start_delivery(delivery, delivery_start).expect("Error while starting delivery");
+        let delivery = delivery::Start {
+            call: take_out_guard,
+            dirty: &mut dirty,
+            sheet: &mut sheet,
+            teams: &teams,
+        };
+        end.start_delivery(delivery, time).expect("Error while starting delivery");
         end.update(
             &mut dirty,
             &mut sheet,
             &simulation,
             &parameters,
-            delivery_start + time::Duration::from_secs(10),
+            time + time::Duration::from_secs(10),
         );
 
         assert_eq!(end.finished_turns.len(), 1);
@@ -418,18 +422,15 @@ mod tests {
 
     #[test]
     fn finishing_end() {
+        let PhaseTestSetup { mut parameters, mut sheet, simulation, teams, mut dirty, time } =
+            PhaseTestSetup::new();
         let hammer = Team::A;
         let mut end = Current::new_with_turns_finished(hammer, stone::COUNT - 1);
-        let mut sheet = Sheet {
-            stones: end.finished_turns.last().unwrap().snapshot.clone(),
-            parameters: sheet::Parameters::default(),
-        };
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-        let parameters = game::Parameters { speed_factor: 5.0, ..game::Parameters::default() };
-        let mut dirty = Dirty::new();
-        let start_time = time::Instant::now();
-        end.start_delivery(delivery::Start::tee_draw(&mut dirty, &mut sheet), start_time).unwrap();
-        let end_time = start_time + Duration::from_secs(7);
+        sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
+        parameters.speed_factor = 5.0;
+        end.start_delivery(delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams), time)
+            .unwrap();
+        let end_time = time + Duration::from_secs(7);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, end_time);
         assert!(matches!(&end.phase, Phase::Finished { score: Score { a: 1, b: 0 } }));
         assert!(matches!(end.current_turn(), None));
@@ -439,20 +440,18 @@ mod tests {
 
     #[test]
     fn updating_and_starting_in_wrong_stage() {
-        let mut sheet = Sheet::new(sheet::Parameters::default());
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-        let parameters = game::Parameters::default();
-        let mut dirty = Dirty::new();
+        let PhaseTestSetup { parameters, mut sheet, simulation, teams, mut dirty, time } =
+            PhaseTestSetup::new();
         let mut end = Current::new(Team::B);
 
-        end.update(&mut dirty, &mut sheet, &simulation, &parameters, time::Instant::now());
+        end.update(&mut dirty, &mut sheet, &simulation, &parameters, time);
         dirty.check_and_clear(&Dirty::new());
 
         end.phase = Phase::Finished { score: Default::default() };
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
-        assert!(end.start_delivery(delivery, time::Instant::now()).is_err());
+        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
+        assert!(end.start_delivery(delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
-        end.update(&mut dirty, &mut sheet, &simulation, &parameters, time::Instant::now());
+        end.update(&mut dirty, &mut sheet, &simulation, &parameters, time);
         dirty.check_and_clear(&Dirty::new());
     }
 

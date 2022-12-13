@@ -1,7 +1,10 @@
+pub use crate::game::team::player::Player;
 use derive_more::*;
 use slint::{Color, SharedString};
 use std::array;
 use std::ops::{Index, IndexMut};
+
+pub mod player;
 
 pub const TEAMS_COUNT: usize = 2;
 pub const TEAMS: PerTeam<Team> = PerTeam { a: Team::A, b: Team::B };
@@ -86,10 +89,11 @@ pub fn teams() -> PerTeam<Team> {
     PerTeam { a: Team::A, b: Team::B }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Info {
     pub name: SharedString,
     pub color: Color,
+    pub players: [Player; player::PER_TEAM_COUNT],
 }
 
 #[cfg(test)]

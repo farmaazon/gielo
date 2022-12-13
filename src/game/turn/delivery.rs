@@ -1,9 +1,13 @@
 use crate::game::dirty::Dirty;
 use crate::game::sheet::Sheet;
 use crate::game::stone::Rotation;
-use crate::game::{sheet, stone};
-use crate::unit::{Angle, Length, Time};
+use crate::game::team::{player, PerTeam};
+use crate::game::{sheet, stone, team};
+use crate::unit::{degrees, seconds, Angle, Length, Time};
 use crate::vector::Vector2;
+use rand_distr::Distribution;
+use uom::si::angle::degree;
+use uom::si::time::second;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Call {
@@ -20,7 +24,7 @@ impl Call {
 
     #[cfg(test)]
     pub(crate) fn tee_draw(sheet: &sheet::Parameters) -> Self {
-        use crate::unit::{feet, seconds};
+        use crate::unit::feet;
         Call {
             weight: seconds(3.0),
             mark: sheet.geometry.tee() + Vector2 { x: feet(5.0), y: feet(0.0) },
@@ -30,19 +34,28 @@ impl Call {
 }
 
 #[derive(Debug)]
-pub struct Start<'a, 'b> {
+pub struct Start<'a, 'b, 'c> {
     pub call: Call,
     pub sheet: &'a mut Sheet,
-    pub dirty: &'b mut Dirty,
+    pub teams: &'b PerTeam<team::Info>,
+    pub dirty: &'c mut Dirty,
 }
 
-impl<'a, 'b> Start<'a, 'b> {
-    pub fn resolve(self, stone: stone::Id) -> ResolvedStart<'a, 'b> {
+impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
+    pub fn resolve(self, stone: stone::Id, player: player::Id) -> ResolvedStart<'a, 'c> {
         let hack = sheet::Hack::Left;
+        let team = stone::team(stone);
+        let player_data = &self.teams[team].players[player];
+        let angle_dist =
+            rand_distr::Normal::new(0.0, player_data.angle_std_dev.get::<degree>()).unwrap();
+        let angle_error = degrees(angle_dist.sample(&mut rand::thread_rng()));
+        let weight_dist =
+            rand_distr::Normal::new(0.0, player_data.weight_std_dev.get::<second>()).unwrap();
+        let weight_err = seconds(weight_dist.sample(&mut rand::thread_rng()));
         ResolvedStart {
             stone,
-            angle: self.call.angle(hack, &self.sheet.parameters),
-            weight: self.call.weight,
+            angle: self.call.angle(hack, &self.sheet.parameters) + angle_error,
+            weight: self.call.weight + weight_err,
             hack,
             rotation: self.call.rotation,
             sheet: self.sheet,
@@ -51,8 +64,12 @@ impl<'a, 'b> Start<'a, 'b> {
     }
 
     #[cfg(test)]
-    pub(crate) fn tee_draw(dirty: &'b mut Dirty, sheet: &'a mut Sheet) -> Self {
-        Self { call: Call::tee_draw(&sheet.parameters), sheet, dirty }
+    pub(crate) fn tee_draw(
+        dirty: &'c mut Dirty,
+        sheet: &'a mut Sheet,
+        teams: &'b PerTeam<team::Info>,
+    ) -> Self {
+        Self { call: Call::tee_draw(&sheet.parameters), sheet, teams, dirty }
     }
 }
 

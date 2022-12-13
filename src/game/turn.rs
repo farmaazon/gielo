@@ -1,6 +1,6 @@
 use crate::game::simulation::Simulation;
 use crate::game::stone::Stones;
-use crate::game::team::Team;
+use crate::game::team::{player, Team};
 use crate::game::{simulation, stone, Dirty, Parameters, Sheet};
 use crate::unit::{seconds, Time};
 use anyhow::{bail, Result};
@@ -28,6 +28,7 @@ pub enum Phase {
 #[derive(Debug)]
 pub struct Current {
     pub played_stone: stone::Id,
+    pub delivering_player: player::Id,
     pub free_guards: stone::Flag,
     pub free_center_guards: stone::Flag,
     pub phase: Phase,
@@ -36,10 +37,17 @@ pub struct Current {
 impl Current {
     pub fn new(
         played_stone: stone::Id,
+        delivering_player: player::Id,
         free_guards: stone::Flag,
         free_center_guards: stone::Flag,
     ) -> Self {
-        Self { played_stone, free_guards, free_center_guards, phase: Phase::Thinking }
+        Self {
+            played_stone,
+            delivering_player,
+            free_guards,
+            free_center_guards,
+            phase: Phase::Thinking,
+        }
     }
 
     pub fn new_by_index(
@@ -49,7 +57,8 @@ impl Current {
         free_center_guards: stone::Flag,
     ) -> Self {
         let played_stone = stone::QUEUE_BY_HAMMER[hammer][index];
-        Self::new(played_stone, free_guards, free_center_guards)
+        let delivering_player = player::who_is_delivering(index);
+        Self::new(played_stone, delivering_player, free_guards, free_center_guards)
     }
 
     pub fn new_based_on_sheet(
@@ -133,7 +142,7 @@ impl Current {
     pub fn start_delivery(&mut self, delivery: delivery::Start, now: time::Instant) -> Result<()> {
         let new_phase = match &mut self.phase {
             Phase::Thinking => {
-                let mut resolved = delivery.resolve(self.played_stone);
+                let mut resolved = delivery.resolve(self.played_stone, self.delivering_player);
                 resolved.dirty.phase = true;
                 Phase::Delivering {
                     started_at: now,
@@ -150,6 +159,7 @@ impl Current {
 #[derive(Clone, Debug)]
 pub struct Finished {
     pub played_stone: stone::Id,
+    pub delivering_player: player::Id,
     pub violations: EnumSet<Violation>,
     pub snapshot: Stones,
 }
@@ -159,9 +169,12 @@ impl TryFrom<Current> for Finished {
 
     fn try_from(current: Current) -> anyhow::Result<Self> {
         match current.phase {
-            Phase::Finished { snapshot, violations, .. } => {
-                Ok(Self { played_stone: current.played_stone, snapshot, violations })
-            }
+            Phase::Finished { snapshot, violations, .. } => Ok(Self {
+                played_stone: current.played_stone,
+                delivering_player: current.delivering_player,
+                snapshot,
+                violations,
+            }),
             _ => bail!("Trying to get Finished Turn from unfinished Current Turn"),
         }
     }
@@ -172,27 +185,26 @@ mod tests {
     use super::*;
     use crate::game::sheet;
     use crate::game::stone::Rotation;
+    use crate::game::tests::PhaseTestSetup;
     use crate::unit::feet;
     use crate::vector::Vector2;
 
     #[test]
     fn progressing_turn() {
-        let mut sheet = Sheet::new(sheet::Parameters::default());
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-        let mut dirty = Dirty::new();
+        let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
+            PhaseTestSetup::new();
         let stone = 0;
-        let mut turn = Current::new(stone, stone::Flag(0), stone::Flag(0));
+        let mut turn = Current::new(stone, 0, stone::Flag(0), stone::Flag(0));
         assert!(matches!(&turn.phase, Phase::Thinking));
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
 
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
-        let start_time = time::Instant::now();
-        turn.start_delivery(delivery, start_time).expect("Starting delivery failed");
+        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
+        turn.start_delivery(delivery, time).expect("Starting delivery failed");
         let Phase::Delivering {started_at, process} = &turn.phase else {
             panic!("Wrong stage");
         };
-        assert_eq!(started_at, &start_time);
+        assert_eq!(started_at, &time);
         assert!(process.stones[stone].is_moving());
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
@@ -204,19 +216,19 @@ mod tests {
             ..Dirty::default()
         });
 
-        let first_update = start_time + time::Duration::from_secs(2);
+        let first_update = time + time::Duration::from_secs(2);
         turn.update(&mut dirty, &mut sheet, &simulation, first_update, 5.0);
         let Phase::Delivering {started_at, process} = &turn.phase else {
             panic!("Wrong stage");
         };
-        assert_eq!(started_at, &start_time);
+        assert_eq!(started_at, &time);
         assert!(process.stones[stone].is_moving());
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
         assert_eq!(turn.delivery_time(), seconds(10.0));
         dirty.check_and_clear(&Dirty { stones: stone::Flag::stone(stone), ..Dirty::default() });
 
-        let finishing_update = start_time + time::Duration::from_secs(7);
+        let finishing_update = time + time::Duration::from_secs(7);
         turn.update(&mut dirty, &mut sheet, &simulation, finishing_update, 5.0);
         let Phase::Finished {snapshot, delivery_time, violations } = &turn.phase else {
             panic!("Wrong stage")
@@ -249,25 +261,26 @@ mod tests {
         let current_stone = queue[2];
 
         let run_case = |call: delivery::Call, expected: EnumSet<Violation>| {
-            let mut sheet = Sheet::new(sheet);
+            let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
+                PhaseTestSetup::new();
             sheet.stones = Stones::from_iter([
                 (center_guard, center_guard_pos),
                 (corner_guard, corner_guard_pos),
             ]);
-            let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-            let mut dirty = Dirty::new();
             let mut turn = Current::new(
                 current_stone,
+                0,
                 stone::Flag::stone(center_guard) | stone::Flag::stone(corner_guard),
                 stone::Flag::stone(center_guard),
             );
-            let delivery = delivery::Start { call, sheet: &mut sheet, dirty: &mut dirty };
-            turn.start_delivery(delivery, time::Instant::now()).expect("Failed to start delivery");
+            let delivery =
+                delivery::Start { call, sheet: &mut sheet, teams: &teams, dirty: &mut dirty };
+            turn.start_delivery(delivery, time).expect("Failed to start delivery");
             turn.update(
                 &mut dirty,
                 &mut sheet,
                 &simulation,
-                time::Instant::now() + time::Duration::from_secs(10),
+                time + time::Duration::from_secs(10),
                 10.0,
             );
             let Phase::Finished { violations, .. } = turn.phase else {
@@ -303,23 +316,23 @@ mod tests {
 
     #[test]
     fn updating_and_starting_in_wrong_stage() {
-        let mut sheet = Sheet::new(sheet::Parameters::default());
-        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-        let mut dirty = Dirty::new();
+        let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
+            PhaseTestSetup::new();
         let stone = 1;
-        let mut turn = Current::new(stone, stone::Flag(0), stone::Flag(0));
+        let mut turn = Current::new(stone, 0, stone::Flag(0), stone::Flag(0));
 
-        turn.update(&mut dirty, &mut sheet, &simulation, time::Instant::now(), 5.0);
+        turn.update(&mut dirty, &mut sheet, &simulation, time, 5.0);
         dirty.check_and_clear(&Dirty::new());
 
         turn.phase = Phase::Delivering {
-            started_at: time::Instant::now(),
+            started_at: time,
             process: simulation::delivery::Process::new(
-                delivery::Start::tee_draw(&mut Dirty::default(), &mut sheet).resolve(stone),
+                delivery::Start::tee_draw(&mut Dirty::default(), &mut sheet, &teams)
+                    .resolve(stone, 0),
             ),
         };
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
-        assert!(turn.start_delivery(delivery, time::Instant::now()).is_err());
+        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
+        assert!(turn.start_delivery(delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
 
         turn.phase = Phase::Finished {
@@ -327,10 +340,10 @@ mod tests {
             delivery_time: Time::default(),
             violations: EnumSet::default(),
         };
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet);
-        assert!(turn.start_delivery(delivery, time::Instant::now()).is_err());
+        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
+        assert!(turn.start_delivery(delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
-        turn.update(&mut dirty, &mut sheet, &simulation, time::Instant::now(), 5.0);
+        turn.update(&mut dirty, &mut sheet, &simulation, time, 5.0);
         dirty.check_and_clear(&Dirty::new());
     }
 
@@ -340,12 +353,14 @@ mod tests {
         stones.put_stone(&mut Dirty::new(), 10, Vector2 { x: feet(1.0), y: feet(133.0) });
         let unfinished = Current {
             played_stone: 12,
+            delivering_player: 2,
             phase: Phase::Thinking,
             free_guards: stone::Flag::all_before(5),
             free_center_guards: stone::Flag::all_before(3),
         };
         let finished = Current {
             played_stone: 12,
+            delivering_player: 2,
             free_guards: stone::Flag::all_before(5),
             free_center_guards: stone::Flag::all_before(3),
             phase: Phase::Finished {
@@ -358,6 +373,7 @@ mod tests {
         let converted: Finished =
             finished.try_into().expect("Finished turn should convert successfully");
         assert_eq!(converted.played_stone, 12);
+        assert_eq!(converted.delivering_player, 2);
         assert_eq!(converted.snapshot, stones);
         assert_eq!(converted.violations, EnumSet::only(Violation::FreeGuardRule));
     }
