@@ -1,5 +1,5 @@
 use crate::game;
-use crate::game::simulation::delivery::event::Event;
+pub use crate::game::simulation::delivery::event::Event;
 use crate::game::simulation::stone::MovingStone;
 use crate::game::simulation::{stone, Simulation};
 use crate::game::stone::Rotation;
@@ -13,7 +13,7 @@ use std::cmp;
 use uom::si::time::second;
 use uom::ConstZero;
 
-mod event {
+pub mod event {
     use crate::game::simulation::stone;
     use crate::unit::Time;
 
@@ -26,7 +26,7 @@ mod event {
         NextTimeQuantum,
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Copy, Clone, Debug)]
     pub struct Event {
         pub time: Time,
         pub kind: Kind,
@@ -81,6 +81,12 @@ impl Process {
     }
 }
 
+pub enum UpdateResult<'a> {
+    StoppedAtEvent(&'a Event),
+    StoppedAtTime(Time),
+    Finished,
+}
+
 #[derive(Debug, Deref, DerefMut)]
 pub struct Update<'a, 'b, 'c, 'd> {
     #[deref]
@@ -89,27 +95,19 @@ pub struct Update<'a, 'b, 'c, 'd> {
     pub sheet: &'b mut Sheet,
     pub simulation: &'d Simulation,
     pub dirty: &'c mut Dirty,
-    pub until: Option<Time>,
 }
 
 impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
-    pub fn next_event(&mut self) -> Option<Event> {
-        let not_yet_cached_event = self
-            .process
-            .next_event_cached
-            .as_ref()
-            .zip(self.until)
-            .map_or(false, |(event, until)| event.time > until);
-        if not_yet_cached_event {
+    pub fn next_event(&mut self, mut until_predicate: impl FnMut(&Event) -> bool) -> Option<Event> {
+        let not_cached_event =
+            self.process.next_event_cached.as_ref().map_or(false, &mut until_predicate);
+        if not_cached_event {
             None
         } else if let Some(event) = self.process.next_event_cached.take() {
             Some(event)
         } else {
             let next_event = self.compute_next_event();
-            let to_cache = next_event
-                .as_ref()
-                .zip(self.until)
-                .map_or(false, |(event, until)| event.time > until);
+            let to_cache = next_event.as_ref().map_or(false, until_predicate);
             if to_cache {
                 self.process.next_event_cached = next_event;
                 None
@@ -194,13 +192,31 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
     }
 
     /// Returns true when finished.
-    pub fn run(&mut self) -> bool {
-        while let Some(event) = self.next_event() {
+    pub fn run(&mut self, time: Time) -> bool {
+        while let Some(event) = self.next_event(|event| event.time > time) {
             self.apply_event(event);
         }
-        if let Some(current_time) = self.until {
-            self.process.current_time = current_time;
+        self.process.current_time = time;
+        self.update_positions_in_sheet();
+        self.process.next_event_cached.is_none()
+    }
+
+    pub fn trace_until_event(&mut self, mut callback: impl FnMut(&Self)) {
+        while let Some(event) = self.next_event(|event| {
+            !matches!(event.kind, event::Kind::Release | event::Kind::NextTimeQuantum)
+        }) {
+            self.apply_event(event);
+            self.update_positions_in_sheet();
+            callback(self);
         }
+        if let Some(event) = &self.next_event_cached {
+            self.current_time = event.time;
+            self.update_positions_in_sheet();
+            callback(self);
+        }
+    }
+
+    fn update_positions_in_sheet(&mut self) {
         let moving_stones =
             self.process.stones.iter().enumerate().filter(|(_, stone)| stone.is_moving());
         for (id, stone) in moving_stones {
@@ -210,7 +226,6 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
                 stone.position(self.process.current_time),
             );
         }
-        self.process.next_event_cached.is_none()
     }
 }
 
@@ -265,15 +280,14 @@ mod tests {
             Self { sheet, dirty, process, simulation }
         }
 
-        fn run_update(&mut self, until: Option<Time>, expected_result: bool) {
+        fn run_update(&mut self, until: Time, expected_result: bool) {
             let mut update = Update {
                 process: &mut self.process,
                 sheet: &mut self.sheet,
                 simulation: &self.simulation,
                 dirty: &mut self.dirty,
-                until,
             };
-            assert_eq!(update.run(), expected_result);
+            assert_eq!(update.run(until), expected_result);
         }
     }
 
@@ -281,11 +295,11 @@ mod tests {
     fn inaccurate_tee_shot() {
         let mut test =
             DeliveryTest::set_up(radians(6.0 / 132.0), seconds(3.0), Rotation::Clockwise, 0, []);
-        test.run_update(Some(seconds(2.0)), false);
+        test.run_update(seconds(2.0), false);
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(0), ..Dirty::default() });
 
         let mut check_moving = |time: Time, exp_pos: Position| {
-            test.run_update(Some(time), false);
+            test.run_update(time, false);
             let position = test.sheet.stones.positions()[0];
             assert_approx_eq!(position.x, exp_pos.x, epsilon = 2.0);
             assert_approx_eq!(position.y, exp_pos.y, epsilon = 2.0);
@@ -298,7 +312,7 @@ mod tests {
         check_moving(seconds(20.0), Vector2 { x: feet(3.0), y: feet(115.0) });
         check_moving(seconds(30.2), Vector2 { x: feet(1.0), y: feet(130.0) });
 
-        test.run_update(None, true);
+        test.run_update(seconds(100.0), true);
         let position = test.sheet.stones.positions()[0];
         assert_approx_eq!(position.x, feet(0.0), epsilon = 2.0);
         assert_approx_eq!(
@@ -314,7 +328,7 @@ mod tests {
     fn too_strong() {
         let mut test =
             DeliveryTest::set_up(radians(6.0 / 132.0), seconds(2.8), Rotation::Clockwise, 4, []);
-        test.run_update(Some(seconds(60.0)), true);
+        test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
     }
@@ -323,7 +337,7 @@ mod tests {
     fn too_weak() {
         let mut test =
             DeliveryTest::set_up(radians(6.0 / 132.0), seconds(3.4), Rotation::Clockwise, 4, []);
-        test.run_update(Some(seconds(60.0)), true);
+        test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
     }
@@ -341,13 +355,13 @@ mod tests {
             [(taken_out, tee)],
         );
 
-        test.run_update(Some(seconds(15.0)), false);
+        test.run_update(seconds(15.0), false);
         assert!(!test.process.stones[taken_out].is_moving());
         assert_eq!(test.sheet.stones.positions()[taken_out], tee);
         assert!(test.process.stones[delivered].is_moving());
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(delivered), ..Dirty::default() });
 
-        test.run_update(Some(seconds(16.0)), false);
+        test.run_update(seconds(16.0), false);
         assert!(test.process.stones[taken_out].is_moving());
         assert!(test.process.stones[delivered].is_moving());
         test.dirty.check_and_clear(&Dirty {
@@ -355,7 +369,7 @@ mod tests {
             ..Dirty::default()
         });
 
-        test.run_update(Some(seconds(20.0)), true);
+        test.run_update(seconds(20.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
         test.dirty.check_and_clear(&Dirty {
             stones: Flag::stone(taken_out) | Flag::stone(delivered),
@@ -386,7 +400,7 @@ mod tests {
         );
         test.sheet.parameters = sheet_params;
 
-        test.run_update(None, true);
+        test.run_update(seconds(100.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag::stone(frozen) | Flag::stone(delivered));
         assert_approx_eq!(
             test.sheet.stones.positions()[frozen].y,
@@ -417,7 +431,7 @@ mod tests {
             stones,
         );
 
-        test.run_update(None, true);
+        test.run_update(seconds(100.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag::stone(delivered));
         assert!(
             test.sheet.stones.positions()[delivered].y

@@ -1,6 +1,6 @@
 use crate::game::simulation::Simulation;
 use crate::game::stone;
-use crate::game::team::{player, Team, TEAMS_COUNT};
+use crate::game::team::{Team, TEAMS_COUNT};
 use crate::game::{turn, Dirty, Parameters, Score, Sheet};
 use anyhow::{bail, Result};
 use std::time;
@@ -114,6 +114,7 @@ impl Current {
                 if turn_index + 1 >= stone::COUNT {
                     Phase::Finished { score: sheet.count_score() }
                 } else {
+                    dirty.preview = true;
                     Phase::PlayingStones {
                         current_turn: turn::Current::new_based_on_sheet(
                             turn_index + 1,
@@ -212,6 +213,7 @@ impl Finished {
 #[cfg(test)]
 fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
     use crate::game::stone::Stones;
+    use crate::game::team::player;
     use enumset::EnumSet;
 
     stone::QUEUE_BY_HAMMER[hammer]
@@ -416,6 +418,7 @@ mod tests {
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::from_iter([guard, delivered]),
             phase: true,
+            preview: true,
             ..Dirty::default()
         });
     }

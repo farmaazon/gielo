@@ -1,8 +1,8 @@
 use crate::game;
 use crate::game::team::Player;
 use crate::game::Game;
-use crate::ui::{GameModel, SheetEndGeometry, SheetGeometry, SheetModel, StoneModel, Team};
-use crate::unit::{degrees, seconds};
+use crate::ui::{GameModel, SheetEndGeometry, SheetGeometry, SheetModel, Shot, StoneModel, Team};
+use crate::unit::{degrees, feet, seconds};
 use crate::vector::Vector2;
 use anyhow::{anyhow, Result};
 use slint::Model;
@@ -74,8 +74,11 @@ impl<'a> GameModel<'a> {
                 let info = game::team::Info {
                     name: team_model.name,
                     color: team_model.color,
-                    players: [Player { angle_std_dev: degrees(0.5), weight_std_dev: seconds(0.05) };
-                        4],
+                    players: [Player {
+                        angle_std_dev: degrees(0.4),
+                        weight_std_dev: seconds(0.05),
+                        used_hack: game::sheet::Hack::Left,
+                    }; 4],
                 };
                 Ok(info)
             })
@@ -119,5 +122,19 @@ impl Model for Stones {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl<'a> Shot<'a> {
+    pub fn current_call(&self) -> game::turn::delivery::Call {
+        game::turn::delivery::Call {
+            weight: seconds(self.get_weight_sec()),
+            mark: Vector2 { x: feet(self.get_mark_x()), y: feet(self.get_mark_y()) },
+            rotation: if self.get_clockwise() {
+                game::stone::Rotation::Clockwise
+            } else {
+                game::stone::Rotation::CounterClockwise
+            },
+        }
     }
 }

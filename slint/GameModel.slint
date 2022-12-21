@@ -1,4 +1,4 @@
-import { SheetModel } from "./SheetModel.slint";
+import { SheetModel, StoneModel } from "./SheetModel.slint";
 
 export struct Team := {
     name: string,
@@ -13,6 +13,11 @@ export global Shot := {
     property <float> mark-x: 0.0;
     property <float> mark-y: SheetModel.geometry.playing-end.tee-y;
     property <bool> clockwise: true;
+
+    property <string> preview-commands;
+    property <StoneModel> preview-result;
+
+    callback update-preview();
 }
 
 export global GameModel := {

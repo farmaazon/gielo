@@ -1,7 +1,7 @@
 use crate::game::simulation::Simulation;
 use crate::game::stone::Stones;
-use crate::game::team::{player, Team};
-use crate::game::{simulation, stone, Dirty, Parameters, Sheet};
+use crate::game::team::{player, PerTeam, Team};
+use crate::game::{simulation, stone, team, Dirty, Parameters, Sheet};
 use crate::unit::{seconds, Time};
 use anyhow::{bail, Result};
 use enumset::{EnumSet, EnumSetType};
@@ -81,11 +81,7 @@ impl Current {
     }
 
     pub fn playing_team(&self) -> Team {
-        if stone::TEAM_IDS.a.contains(&self.played_stone) {
-            Team::A
-        } else {
-            Team::B
-        }
+        stone::team(self.played_stone)
     }
 
     pub fn delivery_time(&self) -> Time {
@@ -112,9 +108,8 @@ impl Current {
             Phase::Delivering { started_at, process } => {
                 let real_time = seconds((now - *started_at).as_secs_f32());
                 let game_time = real_time * speed_factor;
-                let until = Some(game_time);
-                let finished =
-                    simulation::delivery::Update { dirty, sheet, simulation, process, until }.run();
+                let finished = simulation::delivery::Update { dirty, sheet, simulation, process }
+                    .run(game_time);
                 (finished, process.current_time)
             }
             _ => (false, Time::default()),
@@ -154,6 +149,31 @@ impl Current {
         self.phase = new_phase;
         Ok(())
     }
+
+    pub fn expected_path(
+        &self,
+        sheet: &Sheet,
+        simulation: &Simulation,
+        teams: &PerTeam<team::Info>,
+        call: delivery::Call,
+    ) -> Vec<stone::Position> {
+        let mut sheet_copy = sheet.clone();
+        let mut dirty = Dirty::new();
+        let start = delivery::Start { call, sheet: &mut sheet_copy, teams, dirty: &mut dirty };
+        let resolved = start.resolve_ideal(self.played_stone, self.delivering_player);
+        let mut process = simulation::delivery::Process::new(resolved);
+        let mut result = vec![sheet_copy.stones.positions()[self.played_stone]];
+        let mut update = simulation::delivery::Update {
+            process: &mut process,
+            sheet: &mut sheet_copy,
+            simulation,
+            dirty: &mut dirty,
+        };
+        update.trace_until_event(|update| {
+            result.push(update.sheet.stones.positions()[self.played_stone])
+        });
+        result
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -184,9 +204,10 @@ impl TryFrom<Current> for Finished {
 mod tests {
     use super::*;
     use crate::game::sheet;
+    use crate::game::sheet::Hack;
     use crate::game::stone::Rotation;
     use crate::game::tests::PhaseTestSetup;
-    use crate::unit::feet;
+    use crate::unit::{assert_approx_eq, feet};
     use crate::vector::Vector2;
 
     #[test]
@@ -376,5 +397,38 @@ mod tests {
         assert_eq!(converted.delivering_player, 2);
         assert_eq!(converted.snapshot, stones);
         assert_eq!(converted.violations, EnumSet::only(Violation::FreeGuardRule));
+    }
+
+    #[test]
+    fn shot_preview() {
+        let sheet = Sheet::new(sheet::Parameters::default());
+        let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
+        let teams = PerTeam::default();
+        let turn = Current {
+            played_stone: 0,
+            delivering_player: 0,
+            phase: Phase::Thinking,
+            free_guards: stone::Flag::default(),
+            free_center_guards: stone::Flag::default(),
+        };
+        let path = turn.expected_path(
+            &sheet,
+            &simulation,
+            &teams,
+            delivery::Call::tee_draw(&sheet.parameters),
+        );
+        let hack = sheet.parameters.geometry.hack_pos(Hack::Left);
+        assert_approx_eq!(path.first().unwrap().x, hack.x);
+        assert_approx_eq!(path.first().unwrap().y, hack.y);
+        assert_approx_eq!(path[path.len() / 4].x, feet(2.0), epsilon = 2.0);
+        assert_approx_eq!(path[path.len() / 4].y, feet(81.0), epsilon = 2.0);
+        assert_approx_eq!(path[path.len() / 2].x, feet(3.0), epsilon = 2.0);
+        assert_approx_eq!(path[path.len() / 2].y, feet(110.0), epsilon = 2.0);
+        assert_approx_eq!(path.last().unwrap().x, feet(0.0), epsilon = 2.0);
+        assert_approx_eq!(
+            path.last().unwrap().y,
+            sheet.parameters.geometry.playing_end.tee_line_y,
+            epsilon = 2.0
+        );
     }
 }

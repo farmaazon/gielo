@@ -38,7 +38,7 @@ impl Default for Geometry {
     fn default() -> Self {
         let length = feet(150.0);
         Self {
-            width: feet(15.0) + inches(7.0),
+            width: feet(15.0), // + inches(7.0),
             length,
             center_line_x: feet(0.0),
             hack_x_offset: inches(6.0),
@@ -112,7 +112,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Sheet {
     pub stones: Stones,
     pub parameters: Parameters,

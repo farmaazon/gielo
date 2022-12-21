@@ -1,6 +1,6 @@
 import { Functions } from "./Functions.slint";
-import { Shot } from "./GameModel.slint";
-import { SheetModel } from "./SheetModel.slint";
+import { GameModel, Shot } from "./GameModel.slint";
+import { StoneModel, SheetModel } from "./SheetModel.slint";
 import { Ice } from "./Ice.slint";
 import { ScrollView, Slider } from "std-widgets.slint";
 
@@ -43,28 +43,63 @@ Mark := Rectangle {
     }
 }
 
+Stone := Rectangle {
+    property <StoneModel> model;
+    property <bool> preview: false;
+
+    x: model.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - border-radius;
+    y: model.y * SheetModel.pixels-per-foot - border-radius;
+    border-radius: SheetModel.stone-radius * SheetModel.pixels-per-foot;
+    width: border-radius * 2.0;
+    height: border-radius * 2.0;
+    background: preview ? transparent : model.color;
+    border-width: 2px;
+    border-color: preview ? model.color.darker(0.3) : black;
+}
+
+Preview := Rectangle {
+    width: 100%;
+    height: 100%;
+
+    Path {
+
+        x: -1px;
+        y: -1px;
+        stroke: Shot.preview-result.color.darker(0.5);
+        stroke-width: 2px;
+        viewbox-x: -SheetModel.geometry.tee-x;
+        viewbox-y: 0.0;
+        viewbox-width: SheetModel.geometry.width;
+        viewbox-height: SheetModel.geometry.height;
+        width: SheetModel.geometry-px.width + 2px;
+        height: SheetModel.geometry-px.height + 2px;
+
+        commands: Shot.preview-commands;
+    }
+
+    Stone {
+        model: Shot.preview-result;
+        preview: true;
+    }
+}
+
 export Sheet := ScrollView {
     width: ice.width + 20px;
     viewport-width: ice.width;
     viewport-height: ice.height;
     viewport-y: height - SheetModel.geometry-px.playing-end.back-y - 60.px;
 
-    ice := Ice {}
+    ice := Ice {
+        Preview {}
+    }
 
-    for stone in SheetModel.stones: Rectangle {
-        x: stone.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - border-radius;
-        y: stone.y * SheetModel.pixels-per-foot - border-radius;
-        border-radius: SheetModel.stone-radius * SheetModel.pixels-per-foot;
-        width: border-radius * 2.0;
-        height: border-radius * 2.0;
-        background: stone.color;
-        border-width: 2px;
-        border-color: black;
+    for stone in SheetModel.stones: Stone {
+        model: stone;
     }
 
     Mark {}
 
-    TouchArea {
+    if GameModel.thinking: TouchArea {
         pointer-event(event) => {
             if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
                 Shot.mark-x = (pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
@@ -72,6 +107,7 @@ export Sheet := ScrollView {
             } else if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
                 Shot.clockwise = !Shot.clockwise;
             }
+            Shot.update-preview();
         }
     }
 }

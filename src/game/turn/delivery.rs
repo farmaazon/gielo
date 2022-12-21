@@ -1,13 +1,11 @@
 use crate::game::dirty::Dirty;
 use crate::game::sheet::Sheet;
 use crate::game::stone::Rotation;
-use crate::game::team::{player, PerTeam};
+use crate::game::team::{player, PerTeam, Player};
 use crate::game::{sheet, stone, team};
-use crate::unit::{degrees, seconds, Angle, Length, Time};
+use crate::unit::{Angle, Length, Time};
 use crate::vector::Vector2;
-use rand_distr::Distribution;
-use uom::si::angle::degree;
-use uom::si::time::second;
+use uom::ConstZero;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Call {
@@ -25,6 +23,7 @@ impl Call {
     #[cfg(test)]
     pub(crate) fn tee_draw(sheet: &sheet::Parameters) -> Self {
         use crate::unit::feet;
+        use crate::unit::seconds;
         Call {
             weight: seconds(3.0),
             mark: sheet.geometry.tee() + Vector2 { x: feet(5.0), y: feet(0.0) },
@@ -43,19 +42,27 @@ pub struct Start<'a, 'b, 'c> {
 
 impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
     pub fn resolve(self, stone: stone::Id, player: player::Id) -> ResolvedStart<'a, 'c> {
+        self.resolve_template(stone, player, Player::rand_angle_error, Player::rand_weight_error)
+    }
+
+    pub fn resolve_ideal(self, stone: stone::Id, player: player::Id) -> ResolvedStart<'a, 'c> {
+        self.resolve_template(stone, player, |_| Angle::ZERO, |_| Time::ZERO)
+    }
+
+    pub fn resolve_template(
+        self,
+        stone: stone::Id,
+        player: player::Id,
+        angle_error: impl FnOnce(&Player) -> Angle,
+        weight_error: impl FnOnce(&Player) -> Time,
+    ) -> ResolvedStart<'a, 'c> {
         let hack = sheet::Hack::Left;
         let team = stone::team(stone);
         let player_data = &self.teams[team].players[player];
-        let angle_dist =
-            rand_distr::Normal::new(0.0, player_data.angle_std_dev.get::<degree>()).unwrap();
-        let angle_error = degrees(angle_dist.sample(&mut rand::thread_rng()));
-        let weight_dist =
-            rand_distr::Normal::new(0.0, player_data.weight_std_dev.get::<second>()).unwrap();
-        let weight_err = seconds(weight_dist.sample(&mut rand::thread_rng()));
         ResolvedStart {
             stone,
-            angle: self.call.angle(hack, &self.sheet.parameters) + angle_error,
-            weight: self.call.weight + weight_err,
+            angle: self.call.angle(hack, &self.sheet.parameters) + angle_error(player_data),
+            weight: self.call.weight + weight_error(player_data),
             hack,
             rotation: self.call.rotation,
             sheet: self.sheet,

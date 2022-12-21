@@ -2,15 +2,16 @@ use crate::game::stone::Flag;
 use crate::game::turn::Phase;
 use crate::game::{end, turn};
 use crate::ui::handler::{make_callback, stone, team};
-use crate::unit::{feet, seconds};
-use crate::vector::Vector2;
+use crate::ui::StoneModel;
 use crate::{game, ui, Game};
 use anyhow::Result;
+use itertools::Itertools;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time;
 use std::time::Duration;
+use uom::si::length::foot;
 
 pub struct Handler {
     ui: ui::Main,
@@ -37,11 +38,17 @@ impl Handler {
             team_handler,
             update_timer,
         });
-        let to_initialize =
-            game::Dirty { finished_ends_count: 0, stones: Flag::ALL, score: true, phase: true };
+        let to_initialize = game::Dirty {
+            finished_ends_count: 0,
+            stones: Flag::ALL,
+            score: true,
+            phase: true,
+            preview: true,
+        };
         this.synchronize(to_initialize);
         game_model.on_deliver(make_callback!(this.on_deliver()));
         game_model.on_proceed(make_callback!(this.on_proceed()));
+        ui.global::<ui::Shot>().on_update_preview(make_callback!(this.on_shot_update()));
         this
     }
 
@@ -52,6 +59,9 @@ impl Handler {
         self.stone_handler.synchronize(&dirty);
         self.team_handler.synchronize_score(&dirty, &game);
         self.team_handler.synchronize_teams(&dirty, &game);
+        if dirty.preview {
+            self.update_shot_preview(&game);
+        }
     }
 
     fn synchronize_phase(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
@@ -61,7 +71,7 @@ impl Handler {
             game_model.set_end_finished(game.is_end_finished());
             game_model.set_thinking(game.is_thinking());
             game_model.set_delivering(game.is_delivering());
-            let playing_team = game.current_turn().map(|turn| turn.playing_team());
+            let playing_team = game.playing_team();
             game_model.set_current_team(match playing_team {
                 Some(game::team::Team::A) => 0,
                 Some(game::team::Team::B) => 1,
@@ -112,6 +122,31 @@ impl Handler {
         }
     }
 
+    pub fn update_shot_preview(self: &Rc<Self>, game: &Game) {
+        let shot = self.ui.global::<ui::Shot>();
+        let call = shot.current_call();
+        let current_team_color = game.playing_team().map(|team| game.teams[team].color);
+        let preview = game.expected_path(call).unwrap_or_default();
+        let commands = format!(
+            "{}",
+            preview.iter().enumerate().format_with(" ", |(index, pos), f| {
+                f(&format_args!(
+                    "{} {} {}",
+                    if index % 2 == 1 { "L" } else { "M" },
+                    pos.x.get::<foot>(),
+                    pos.y.get::<foot>()
+                ))
+            })
+        );
+        shot.set_preview_commands(commands.into());
+        let last = preview.last().copied().unwrap_or_default();
+        shot.set_preview_result(StoneModel {
+            color: current_team_color.unwrap_or_default(),
+            x: last.x.get::<foot>(),
+            y: last.y.get::<foot>(),
+        });
+    }
+
     pub fn update(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().update(&mut dirty, time::Instant::now());
@@ -122,15 +157,7 @@ impl Handler {
     pub fn on_deliver(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         let shot = self.ui.global::<ui::Shot>();
-        let call = game::turn::delivery::Call {
-            weight: seconds(shot.get_weight_sec()),
-            mark: Vector2 { x: feet(shot.get_mark_x()), y: feet(shot.get_mark_y()) },
-            rotation: if shot.get_clockwise() {
-                game::stone::Rotation::Clockwise
-            } else {
-                game::stone::Rotation::CounterClockwise
-            },
-        };
+        let call = shot.current_call();
         self.game.borrow_mut().start_delivery(&mut dirty, call, time::Instant::now())?;
         self.synchronize(dirty);
 
@@ -141,6 +168,11 @@ impl Handler {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().proceed(&mut dirty)?;
         self.synchronize(dirty);
+        Ok(())
+    }
+
+    pub fn on_shot_update(self: &Rc<Self>) -> Result<()> {
+        self.update_shot_preview(&self.game.borrow());
         Ok(())
     }
 }

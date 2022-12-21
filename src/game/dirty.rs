@@ -6,6 +6,7 @@ pub struct Dirty {
     pub stones: stone::Flag,
     pub score: bool,
     pub phase: bool,
+    pub preview: bool,
 }
 
 impl Dirty {

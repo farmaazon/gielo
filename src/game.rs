@@ -102,6 +102,10 @@ impl Game {
         self.current_end().and_then(|end| end.current_turn())
     }
 
+    pub fn playing_team(&self) -> Option<Team> {
+        self.current_turn().map(|turn| turn.playing_team())
+    }
+
     pub fn is_finished(&self) -> bool {
         matches!(&self.phase, Phase::GameConcluded)
     }
@@ -174,6 +178,7 @@ impl Game {
                         Ordering::Equal => *hammer,
                         Ordering::Greater => Team::B,
                     };
+                    dirty.preview = true;
                     Some(Phase::End(end::Current::new(new_hammer)))
                 } else {
                     Some(Phase::GameConcluded)
@@ -193,6 +198,11 @@ impl Game {
             dirty.finished_ends_count += 1;
         }
         Ok(())
+    }
+
+    pub fn expected_path(&self, call: turn::delivery::Call) -> Option<Vec<stone::Position>> {
+        self.current_turn()
+            .map(|turn| turn.expected_path(&self.sheet, &self.simulation, &self.teams, call))
     }
 
     #[cfg(test)]
@@ -328,6 +338,7 @@ pub(crate) mod tests {
             finished_ends_count: 1,
             phase: true,
             score: true,
+            preview: true,
         });
     }
 
@@ -346,6 +357,7 @@ pub(crate) mod tests {
             finished_ends_count: 1,
             phase: true,
             score: true,
+            preview: true,
         });
     }
 
@@ -458,6 +470,7 @@ pub(crate) mod tests {
             finished_ends_count: 1,
             phase: true,
             score: true,
+            preview: true,
         });
     }
 }
