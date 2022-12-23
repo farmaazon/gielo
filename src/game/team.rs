@@ -79,6 +79,12 @@ impl<T> From<(T, T)> for PerTeam<T> {
     }
 }
 
+impl<T> From<[T; TEAMS_COUNT]> for PerTeam<T> {
+    fn from([a, b]: [T; TEAMS_COUNT]) -> Self {
+        Self { a, b }
+    }
+}
+
 impl<T, E> From<PerTeam<Result<T, E>>> for Result<PerTeam<T>, E> {
     fn from(from: PerTeam<Result<T, E>>) -> Self {
         Ok(PerTeam { a: from.a?, b: from.b? })

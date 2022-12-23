@@ -18,16 +18,27 @@ use std::time;
 pub type Score = PerTeam<u8>;
 
 #[derive(Copy, Clone, Debug)]
-pub struct Parameters {
-    pub speed_factor: f32,
-    pub ends: u8,
+pub struct Rules {
     pub free_guard_rule_stones: usize,
     pub no_tick_rule_stones: usize,
 }
 
+impl Default for Rules {
+    fn default() -> Self {
+        Self { free_guard_rule_stones: 5, no_tick_rule_stones: 5 }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Parameters {
+    pub speed_factor: f32,
+    pub ends: u8,
+    pub rules: Rules,
+}
+
 impl Default for Parameters {
     fn default() -> Self {
-        Self { speed_factor: 10.0, ends: 8, free_guard_rule_stones: 5, no_tick_rule_stones: 5 }
+        Self { speed_factor: 10.0, ends: 8, rules: Rules::default() }
     }
 }
 

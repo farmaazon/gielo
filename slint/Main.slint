@@ -1,18 +1,37 @@
 import { Functions } from "./Functions.slint";
 import { Game } from "./Game.slint";
-import { Team, Shot, GameModel } from "./GameModel.slint";
+import { Team, Shot, NewGameTeam, NewGameParameters, GameModel, Player } from "./GameModel.slint";
 import { Ice } from "./Ice.slint";
+import { Profiles } from "./Profiles.slint";
 import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
+import { NewGame } from "./NewGame.slint";
 
-export { Functions, GameModel, SheetModel, SheetEndGeometry, SheetGeometry, Shot, StoneModel }
+export {
+    Functions,
+    GameModel,
+    NewGameParameters,
+    NewGameTeam,
+    Player,
+    Profiles,
+    SheetModel,
+    SheetEndGeometry,
+    SheetGeometry,
+    Shot,
+    StoneModel
+}
 
 export Main := Window {
     property <bool> blinking-stone-visible;
+    property <NewGameParameters> default-game-parameters;
 
     preferred-width: 800px;
     preferred-height: 600px;
 
-    Game {
+    if GameModel.game-running: Game {
         blinking-stone-visible: root.blinking-stone-visible;
+    }
+
+    if !GameModel.game-running: NewGame {
+        parameters: default-game-parameters;
     }
 }

@@ -1,0 +1,159 @@
+import { Button, CheckBox, ComboBox, LineEdit, SpinBox } from "std-widgets.slint";
+import { GameModel, NewGameParameters, NewGameTeam, Player } from "./GameModel.slint";
+import { Profiles } from "./Profiles.slint";
+
+TeamLineOut := Rectangle {
+    property <NewGameTeam> team;
+    property <[string]> player-titles: ["Lead", "Second", "Third", "Fourth"];
+
+    callback changed(NewGameTeam);
+
+    VerticalLayout {
+        HorizontalLayout {
+            spacing: 5px;
+            Rectangle {
+                width: height;
+                horizontal-stretch: 0;
+                background: team.color;
+                border-width: 2px;
+                border-color: black;
+            }
+
+            Text {
+                vertical-alignment: center;
+                text: "Team";
+            }
+
+            LineEdit {
+                text: team.name;
+                edited => {
+                    team.name = text;
+                    changed(team);
+                }
+            }
+        }
+
+        for player[player-index] in team.players: HorizontalLayout {
+            spacing: 5px;
+
+            Text {
+                vertical-alignment: center;
+                text: player-titles[player-index] + ":";
+            }
+
+            ComboBox {
+                model: Profiles.player-skill;
+                current-index: player.skill-profile;
+
+                selected(profile) => {
+                    team.players[player-index].skill-profile = current-index;
+                    changed(team)
+                }
+            }
+
+            CheckBox {
+                text: "left-handed";
+                checked: player.left-handed;
+
+                toggled => {
+                    team.players[player-index].left-handed = checked;
+                    changed(team)
+                }
+            }
+        }
+    }
+}
+
+export NewGame := Rectangle {
+    property <NewGameParameters> parameters: {
+        ends: 8,
+        teams: [],
+        ice-profile: 0,
+        rules-profile: 0,
+    };
+    background: #519ee8;
+
+    HorizontalLayout {
+        alignment: center;
+
+        VerticalLayout {
+            padding: 10px;
+            spacing: 10px;
+            horizontal-stretch: 0;
+            width: 400px;
+
+            TeamLineOut {
+                team: parameters.teams[0];
+
+                changed(team) => {
+                    parameters.teams[0] = team;
+                }
+            }
+
+            Text {
+                text: "Ice profile:";
+            }
+
+            ComboBox {
+                model: Profiles.ice;
+                current-index: parameters.ice-profile;
+
+                selected(profile) => {
+                    parameters.ice-profile = current-index;
+                }
+            }
+
+            Rectangle {}
+        }
+
+        VerticalLayout {
+            padding: 10px;
+            spacing: 10px;
+            horizontal-stretch: 0;
+            width: 400px;
+
+            TeamLineOut {
+                team: parameters.teams[1];
+
+                changed(team) => {
+                    parameters.teams[1] = team;
+                }
+            }
+
+            Text {
+                text: "Rule set:";
+            }
+
+            ComboBox {
+                model: Profiles.rules;
+                current-index: parameters.rules-profile;
+
+                selected(profile) => {
+                    parameters.rules-profile = current-index;
+                }
+            }
+
+            Text {
+                text: "Ends:";
+            }
+
+            ends := SpinBox {
+                minimum: 1;
+                maximum: 20;
+                value: parameters.ends;
+            }
+
+            Rectangle {}
+
+            Button {
+                text: "Start!";
+
+                clicked => {
+                    // SpinBox, for some reason, does not have "changed" callback;
+                    parameters.ends = ends.value;
+                    GameModel.start-new-game(parameters);
+                }
+            }
+        }
+    }
+}

@@ -56,9 +56,9 @@ impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
         angle_error: impl FnOnce(&Player) -> Angle,
         weight_error: impl FnOnce(&Player) -> Time,
     ) -> ResolvedStart<'a, 'c> {
-        let hack = sheet::Hack::Left;
         let team = stone::team(stone);
         let player_data = &self.teams[team].players[player];
+        let hack = player_data.used_hack;
         ResolvedStart {
             stone,
             angle: self.call.angle(hack, &self.sheet.parameters) + angle_error(player_data),

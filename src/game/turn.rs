@@ -67,12 +67,12 @@ impl Current {
         parameters: &Parameters,
         hammer: Team,
     ) -> Self {
-        let free_guards = if index < parameters.free_guard_rule_stones {
+        let free_guards = if index < parameters.rules.free_guard_rule_stones {
             sheet.guards()
         } else {
             stone::Flag::default()
         };
-        let free_center_guards = if index < parameters.no_tick_rule_stones {
+        let free_center_guards = if index < parameters.rules.no_tick_rule_stones {
             sheet.center_guards()
         } else {
             stone::Flag::default()

@@ -1,5 +1,23 @@
 import { SheetModel, StoneModel } from "./SheetModel.slint";
 
+export struct Player := {
+    skill-profile: int,
+    left-handed: bool,
+}
+
+export struct NewGameTeam := {
+    name: string,
+    color: color,
+    players: [Player],
+}
+
+export struct NewGameParameters := {
+    ends: int,
+    teams: [NewGameTeam],
+    ice-profile: int,
+    rules-profile: int,
+}
+
 export struct Team := {
     name: string,
     color: color,
@@ -24,6 +42,7 @@ export global GameModel := {
     property <[Team]> teams;
     property <int> end;
     property <int> current-team;
+    property <bool> game-running;
     property <bool> thinking;
     property <bool> delivering;
     property <bool> fgz-rule-violated;
@@ -32,7 +51,8 @@ export global GameModel := {
     property <int> end-score;
     property <bool> game-finished;
 
-    callback start-new-game();
+    callback start-new-game(NewGameParameters);
+    callback finish-game();
     callback deliver();
     callback proceed();
 }

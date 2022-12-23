@@ -1,7 +1,7 @@
 import { Functions } from "./Functions.slint";
 import { GameModel, Shot, Team } from "GameModel.slint";
 import { Sheet } from "Sheet.slint";
-import { Button, ComboBox, Slider } from "std-widgets.slint";
+import { Button, Slider } from "std-widgets.slint";
 
 StoneWaiting := Rectangle {
     property <Team> team;
@@ -114,6 +114,13 @@ LeftPane := Rectangle {
             clicked => { GameModel.proceed() }
         }
 
+        if GameModel.game-finished: Button {
+            text: "Finish";
+            vertical-stretch: 0;
+
+            clicked => { GameModel.finish-game() }
+        }
+
         Rectangle {
             vertical-stretch: 3;
         }
@@ -153,20 +160,17 @@ LeftPane := Rectangle {
 
 export Game := Rectangle {
     property <bool> blinking-stone-visible;
+    background: left-pane.background;
 
     HorizontalLayout {
-        Rectangle {
-            background: left-pane.background;
-        }
+        Rectangle {}
 
         left-pane := LeftPane {
             blinking-stone-visible: root.blinking-stone-visible;
             horizontal-stretch: 0;
         }
 
-        Rectangle {
-            background: left-pane.background;
-        }
+        Rectangle {}
 
         sheet := Sheet {
             horizontal-stretch: 0;

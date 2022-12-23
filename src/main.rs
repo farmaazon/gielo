@@ -3,6 +3,7 @@ extern crate uom;
 extern crate core;
 
 pub mod game;
+pub mod profiles;
 pub mod ui;
 pub mod unit;
 pub mod vector;
@@ -24,7 +25,6 @@ fn main() {
         }
     });
     ui.global::<ui::Functions>().initialize();
-    let handler = Handler::initialize(ui.clone_strong());
-    handler.on_game_start().unwrap();
+    let _handler = Handler::initialize(ui.clone_strong());
     ui.run();
 }

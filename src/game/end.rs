@@ -275,8 +275,7 @@ mod tests {
         let parameters = game::Parameters {
             speed_factor: 5.0,
             ends: 8,
-            free_guard_rule_stones: 0,
-            no_tick_rule_stones: 0,
+            rules: game::Rules { free_guard_rule_stones: 0, no_tick_rule_stones: 0 },
         };
         let mut end = Current::new(Team::A);
 
@@ -356,8 +355,7 @@ mod tests {
         let parameters = game::Parameters {
             speed_factor: 20.0,
             ends: 8,
-            free_guard_rule_stones: 5,
-            no_tick_rule_stones: 5,
+            rules: game::Rules { free_guard_rule_stones: 5, no_tick_rule_stones: 5 },
         };
         let mut end = Current::new_with_turns_finished(Team::B, 1);
         let guard = stone::QUEUE_BY_HAMMER.b[0];
