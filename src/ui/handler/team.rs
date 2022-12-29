@@ -73,6 +73,7 @@ impl Handler {
                 as i32,
             end_score: score.into(),
             score: game.score[team] as i32,
+            first_hammer: game.first_hammer() == team,
         }
     }
 }

@@ -24,6 +24,7 @@ pub struct Handler {
 impl Handler {
     pub fn initialize(ui: ui::Main, game: Game) -> Rc<Self> {
         let game_model = ui.global::<ui::GameModel>();
+        game_model.set_ends(game.params.ends as i32);
         let sheet_model = ui.global::<ui::SheetModel>();
         let team_handler = team::Handler::new(&game, &game_model);
         let game = Rc::new(RefCell::new(game));
@@ -31,6 +32,7 @@ impl Handler {
         let stone_handler = stone::Handler::new(stones_model.clone());
         let update_timer = RefCell::new(None);
         sheet_model.set_stones(stones_model.into());
+
         let this = Rc::new(Self {
             ui: ui.clone_strong(),
             game,

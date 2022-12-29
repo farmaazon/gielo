@@ -102,6 +102,12 @@ impl Game {
         )
     }
 
+    pub fn first_hammer(&self) -> Team {
+        self.finished_ends
+            .first()
+            .map_or_else(|| self.current_end().map_or(Team::A, |end| end.hammer), |end| end.hammer)
+    }
+
     pub fn current_end(&self) -> Option<&end::Current> {
         match &self.phase {
             Phase::End(end) => Some(end),

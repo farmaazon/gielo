@@ -21,6 +21,7 @@ export struct NewGameParameters := {
 export struct Team := {
     name: string,
     color: color,
+    first-hammer: bool,
     stones-left: int,
     end-score: [int],
     score: int,
@@ -41,6 +42,7 @@ export global Shot := {
 export global GameModel := {
     property <[Team]> teams;
     property <int> end;
+    property <int> ends;
     property <int> current-team;
     property <bool> game-running;
     property <bool> thinking;

@@ -83,10 +83,11 @@ impl Handler {
         let teams = parameters.teams(&self.profiles)?;
         let simulation_params = crate::game::simulation::Parameters::default();
         let first_hammer = crate::game::team::Team::A;
+        // Sheet needs to be updated before game.
+        sheet_model.set_parameters(sheet_params);
         let game = Game::new(teams, game_params, sheet_params, simulation_params, first_hammer);
         let game_handler = game::Handler::initialize(self.ui.clone_strong(), game);
         *self.game.borrow_mut() = Some(game_handler);
-        sheet_model.set_parameters(sheet_params);
         game_model.set_game_running(true);
         Ok(())
     }

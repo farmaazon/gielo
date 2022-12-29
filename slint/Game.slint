@@ -28,12 +28,76 @@ TeamStonesWaiting := Rectangle {
     }
 }
 
+ScoreCell := Rectangle {
+    property <string> text: "";
+    property <int> font-weight: 400;
+
+    width: 30px;
+    height: 30px;
+    border-width: 1px;
+    border-color: black;
+    background: white;
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        font-size: 16px;
+        font-weight: root.font-weight;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+ScoreBoard := VerticalLayout {
+    HorizontalLayout {
+        alignment: start;
+
+        ScoreCell {}
+
+        ScoreCell {
+            text: "H";
+        }
+
+        for end in GameModel.ends: ScoreCell {
+            text: end + 1;
+        }
+
+        ScoreCell {}
+    }
+
+
+    for team[index] in GameModel.teams: HorizontalLayout {
+
+        ScoreCell {
+            background: team.color;
+        }
+
+        ScoreCell {
+            text: team.first_hammer ? "X" : "";
+        }
+
+        for end in GameModel.ends: ScoreCell {
+            text: team.end-score.length > end ? team.end-score[end] : "";
+            font-weight: 600;
+        }
+
+        ScoreCell {
+            text: team.score;
+            font-weight: 600;
+        }
+    }
+}
+
 LeftPane := Rectangle {
     property <bool> blinking-stone-visible;
 
     background: #519ee8;
 
     VerticalLayout {
+        spacing: 10px;
+        alignment: start;
+
         Text {
             text: "End " + GameModel.end;
             vertical-stretch: 0;
@@ -48,110 +112,85 @@ LeftPane := Rectangle {
             vertical-stretch: 0;
         }
 
-        Text {
-            text: "Strength: " + weight.value;
-            vertical-stretch: 0;
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: "Target time tee-hog: " + weight.value;
+            }
+
+            weight := Slider {
+                minimum: 2.2;
+                maximum: 3.6;
+                height: 24px;
+                vertical-stretch: 0;
+                enabled: GameModel.thinking;
+                value <=> Shot.weight-sec;
+
+                changed(v) => {
+                    value = Functions.round(v, 2);
+                    Shot.update-preview();
+                }
+            }
         }
 
-        weight := Slider {
-            minimum: 2.2;
-            maximum: 3.6;
-            height: 24px;
-            vertical-stretch: 0;
+        rotation := Button {
+            width: 160px;
+            height: 32px;
+            text: Shot.clockwise ? "Clockwise" : "Counter Clockwise";
             enabled: GameModel.thinking;
-            value <=> Shot.weight-sec;
 
-            changed(v) => {
-                value = Functions.round(v, 2);
+            clicked => {
+                Shot.clockwise = !Shot.clockwise;
                 Shot.update-preview();
             }
         }
 
-        Text {
-            text: "Rotation:";
-            vertical-stretch: 0;
-        }
-
-        rotation := Button {
-            text: Shot.clockwise ? "Clockwise" : "Counter Clockwise";
-            enabled: GameModel.thinking;
-            vertical-stretch: 0;
-
-            clicked => { Shot.clockwise = !Shot.clockwise }
-        }
-
         Rectangle {
-            vertical-stretch: 1;
+            width: 160px;
+            height: 32px;
+            if GameModel.thinking: Button {
+                text: "Play";
+
+                clicked => { GameModel.deliver() }
+            }
         }
 
-        if GameModel.thinking: Button {
-            text: "Play";
-            vertical-stretch: 0;
+        VerticalLayout {
+            width: 160px;
+            height: 80px;
 
-            clicked => { GameModel.deliver() }
-        }
-
-        if GameModel.fgz-rule-violated: Text {
-            text: "Free Guard Zone rule violated.";
-        }
-
-        if GameModel.no-tick-rule-violated: Text {
-            text: "No Tick rule violated.";
-        }
-
-        if GameModel.end-finished: Text {
-            text: "End Finished. " + (GameModel.end-score > 0 ?
-                GameModel.teams[0].name + " scored " + GameModel.end-score + " points."
-            : GameModel.end-score < 0 ?
-                GameModel.teams[1].name + " scored " + (-GameModel.end-score) + " points."
-            : "");
-        }
-
-        if GameModel.end-finished || GameModel.fgz-rule-violated || GameModel.no-tick-rule-violated: Button {
-            text: "Proceed";
-            vertical-stretch: 0;
-
-            clicked => { GameModel.proceed() }
-        }
-
-        if GameModel.game-finished: Button {
-            text: "Finish";
-            vertical-stretch: 0;
-
-            clicked => { GameModel.finish-game() }
-        }
-
-        Rectangle {
-            vertical-stretch: 3;
-        }
-
-        for team[index] in GameModel.teams: HorizontalLayout {
-            vertical-stretch: 0;
-            height: 20px;
-
-            Rectangle {
-                border-width: 1px;
-                border-color: black;
-                background: team.color;
+            if GameModel.fgz-rule-violated: Text {
+                text: "Free Guard Zone rule violated.";
+                wrap: word-wrap;
             }
 
-            for score in team.end-score: Rectangle {
-                border-width: 1px;
-                border-color: black;
-                background: white;
+            if GameModel.no-tick-rule-violated: Text {
+                text: "No Tick rule violated.";
+                wrap: word-wrap;
+            }
 
-                Text {
-                    text: score;
+            if GameModel.end-finished: Text {
+                text: "End Finished. " + (GameModel.end-score > 0 ?
+                    GameModel.teams[0].name + " scored " + GameModel.end-score + " points."
+                : GameModel.end-score < 0 ?
+                    GameModel.teams[1].name + " scored " + (-GameModel.end-score) + " points."
+                : "");
+                wrap: word-wrap;
+            }
+
+            Rectangle {
+                height: 32px;
+
+                if GameModel.end-finished || GameModel.fgz-rule-violated || GameModel.no-tick-rule-violated: Button {
+                    text: "Proceed";
+
+                    clicked => { GameModel.proceed() }
                 }
-            }
 
-            Rectangle {
-                border-width: 1px;
-                border-color: black;
-                background: white;
+                if GameModel.game-finished: Button {
+                    text: "Finish";
 
-                Text {
-                    text: team.score;
+                    clicked => { GameModel.finish-game() }
                 }
             }
         }
@@ -163,14 +202,21 @@ export Game := Rectangle {
     background: left-pane.background;
 
     HorizontalLayout {
-        Rectangle {}
+        VerticalLayout {
+            HorizontalLayout {
+                alignment: center;
 
-        left-pane := LeftPane {
-            blinking-stone-visible: root.blinking-stone-visible;
-            horizontal-stretch: 0;
+                left-pane := LeftPane {
+                    blinking-stone-visible: root.blinking-stone-visible;
+                    horizontal-stretch: 0;
+                }
+            }
+
+            HorizontalLayout {
+                alignment: center;
+                ScoreBoard {}
+            }
         }
-
-        Rectangle {}
 
         sheet := Sheet {
             horizontal-stretch: 0;
