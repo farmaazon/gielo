@@ -86,7 +86,7 @@ impl Current {
                 current_turn.update(dirty, sheet, simulation, now, parameters.speed_factor);
                 matches!(
                     &current_turn.phase,
-                    turn::Phase::Finished{violations, ..} if violations.is_empty()
+                    turn::Phase::Finished{violation, ..} if violation.is_none()
                 )
             }
             _ => false,
@@ -105,9 +105,9 @@ impl Current {
     ) -> Result<()> {
         let new_phase = match &self.phase {
             Phase::PlayingStones {
-                current_turn: turn::Current { phase: turn::Phase::Finished { violations, .. }, .. },
+                current_turn: turn::Current { phase: turn::Phase::Finished { violation, .. }, .. },
             } => {
-                if !violations.is_empty() {
+                if violation.is_some() {
                     self.restore_last_valid_snapshot(dirty, sheet);
                 }
                 let turn_index = self.finished_turns.len();
@@ -140,9 +140,7 @@ impl Current {
             .finished_turns
             .iter()
             .rev()
-            .find_map(|prev_turn| {
-                prev_turn.violations.is_empty().then(|| prev_turn.snapshot.clone())
-            })
+            .find_map(|prev_turn| prev_turn.violation.is_none().then(|| prev_turn.snapshot.clone()))
             .unwrap_or_default();
         sheet.stones.restore(dirty, prior_situation);
     }
@@ -214,7 +212,6 @@ impl Finished {
 fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
     use crate::game::stone::Stones;
     use crate::game::team::player;
-    use enumset::EnumSet;
 
     stone::QUEUE_BY_HAMMER[hammer]
         .iter()
@@ -224,7 +221,7 @@ fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
             played_stone,
             delivering_player: player::who_is_delivering(index),
             snapshot: Stones::default(),
-            violations: EnumSet::default(),
+            violation: None,
         })
         .collect()
 }
@@ -237,8 +234,8 @@ mod tests {
     use crate::game::team::teams;
     use crate::game::tests::PhaseTestSetup;
     use crate::game::turn::delivery;
+    use crate::game::turn::Violation::FreeGuardRule;
     use crate::unit::{feet, seconds};
-    use enumset::EnumSet;
     use std::time::Duration;
 
     #[test]
@@ -253,7 +250,7 @@ mod tests {
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
                     delivering_player: 0,
-                    violations: EnumSet::default(),
+                    violation: None,
                     snapshot: Default::default(),
                 });
                 assert_eq!(end.stones_left(first_team), expected_stones_left - 1);
@@ -261,7 +258,7 @@ mod tests {
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
                     delivering_player: 0,
-                    violations: EnumSet::default(),
+                    violation: None,
                     snapshot: Default::default(),
                 });
             }
@@ -395,10 +392,10 @@ mod tests {
 
         assert_eq!(end.finished_turns.len(), 1);
         assert!(!sheet.stones.in_play().contains(guard));
-        let Phase::PlayingStones {current_turn: turn::Current {phase: turn::Phase::Finished { violations, .. }, ..}} = &end.phase else {
+        let Phase::PlayingStones {current_turn: turn::Current {phase: turn::Phase::Finished { violation, .. }, ..}} = &end.phase else {
             panic!("Expected Rule Violation");
         };
-        assert!(!violations.is_empty());
+        assert_eq!(*violation, Some(FreeGuardRule));
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::from_iter([guard, delivered]),
             phase: true,

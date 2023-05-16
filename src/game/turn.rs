@@ -4,14 +4,13 @@ use crate::game::team::{player, PerTeam, Team};
 use crate::game::{simulation, stone, team, Dirty, Parameters, Sheet};
 use crate::unit::{seconds, Time};
 use anyhow::{bail, Result};
-use enumset::{EnumSet, EnumSetType};
 use std::time;
 
 pub mod delivery;
 
 pub type Index = usize;
 
-#[derive(Debug, EnumSetType)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Violation {
     FreeGuardRule,
     NoTickRule,
@@ -22,7 +21,7 @@ pub enum Violation {
 pub enum Phase {
     Thinking,
     Delivering { started_at: time::Instant, process: simulation::delivery::Process },
-    Finished { snapshot: Stones, delivery_time: Time, violations: EnumSet<Violation> },
+    Finished { snapshot: Stones, delivery_time: Time, violation: Option<Violation> },
 }
 
 #[derive(Debug)]
@@ -118,20 +117,27 @@ impl Current {
             self.phase = Phase::Finished {
                 snapshot: sheet.stones.clone(),
                 delivery_time,
-                violations: self.check_violations(sheet),
+                violation: self.check_violations(sheet),
             };
             dirty.phase = true;
         }
     }
 
-    fn check_violations(&self, sheet: &Sheet) -> EnumSet<Violation> {
+    fn check_violations(&self, sheet: &Sheet) -> Option<Violation> {
+        let opponent = stone::team(self.played_stone).opponent();
+        let opposition_stones = stone::Flag::TEAM[opponent];
         let out_of_play = !sheet.stones.in_play();
         let not_center_guard = !sheet.center_guards();
-        let free_guards_rule =
-            (out_of_play & self.free_guards != stone::Flag(0)).then_some(Violation::FreeGuardRule);
-        let no_tick_rule = (not_center_guard & self.free_center_guards != stone::Flag(0))
-            .then_some(Violation::NoTickRule);
-        free_guards_rule.into_iter().chain(no_tick_rule).collect()
+        let free_guards_removed = out_of_play & self.free_guards & opposition_stones;
+        let free_center_guards_ticked =
+            not_center_guard & self.free_center_guards & opposition_stones;
+        if free_guards_removed != stone::Flag(0) {
+            Some(Violation::FreeGuardRule)
+        } else if free_center_guards_ticked != stone::Flag(0) {
+            Some(Violation::NoTickRule)
+        } else {
+            None
+        }
     }
 
     pub fn start_delivery(&mut self, delivery: delivery::Start, now: time::Instant) -> Result<()> {
@@ -180,7 +186,7 @@ impl Current {
 pub struct Finished {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
-    pub violations: EnumSet<Violation>,
+    pub violation: Option<Violation>,
     pub snapshot: Stones,
 }
 
@@ -189,11 +195,11 @@ impl TryFrom<Current> for Finished {
 
     fn try_from(current: Current) -> anyhow::Result<Self> {
         match current.phase {
-            Phase::Finished { snapshot, violations, .. } => Ok(Self {
+            Phase::Finished { snapshot, violation, .. } => Ok(Self {
                 played_stone: current.played_stone,
                 delivering_player: current.delivering_player,
                 snapshot,
-                violations,
+                violation,
             }),
             _ => bail!("Trying to get Finished Turn from unfinished Current Turn"),
         }
@@ -251,13 +257,13 @@ mod tests {
 
         let finishing_update = time + time::Duration::from_secs(7);
         turn.update(&mut dirty, &mut sheet, &simulation, finishing_update, 5.0);
-        let Phase::Finished {snapshot, delivery_time, violations } = &turn.phase else {
+        let Phase::Finished {snapshot, delivery_time, violation } = &turn.phase else {
             panic!("Wrong stage")
         };
         assert!(turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
         assert_eq!(snapshot, &sheet.stones);
-        assert_eq!(*violations, EnumSet::default());
+        assert_eq!(*violation, None);
         assert_eq!(turn.delivery_time(), *delivery_time);
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::stone(stone),
@@ -278,10 +284,11 @@ mod tests {
                 y: -sheet.geometry.house_radius - feet(4.0),
             };
         let center_guard = queue[0];
-        let corner_guard = queue[1];
-        let current_stone = queue[2];
+        let corner_guard = queue[2];
+        let opponent_stone = queue[3];
+        let same_team_stone = queue[4];
 
-        let run_case = |call: delivery::Call, expected: EnumSet<Violation>| {
+        let run_case = |stone: stone::Id, call: delivery::Call, expected: Option<Violation>| {
             let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
                 PhaseTestSetup::new();
             sheet.stones = Stones::from_iter([
@@ -289,8 +296,8 @@ mod tests {
                 (corner_guard, corner_guard_pos),
             ]);
             let mut turn = Current::new(
-                current_stone,
-                0,
+                stone,
+                1,
                 stone::Flag::stone(center_guard) | stone::Flag::stone(corner_guard),
                 stone::Flag::stone(center_guard),
             );
@@ -304,10 +311,10 @@ mod tests {
                 time + time::Duration::from_secs(10),
                 10.0,
             );
-            let Phase::Finished { violations, .. } = turn.phase else {
+            let Phase::Finished { violation, .. } = turn.phase else {
                 panic!("Wrong phase after update");
             };
-            assert_eq!(violations, expected);
+            assert_eq!(violation, expected);
         };
 
         let corner_take_out = delivery::Call {
@@ -315,24 +322,24 @@ mod tests {
             mark: corner_guard_pos,
             rotation: Rotation::None,
         };
-        run_case(corner_take_out, EnumSet::only(Violation::FreeGuardRule));
+        run_case(opponent_stone, corner_take_out, Some(Violation::FreeGuardRule));
+        run_case(same_team_stone, corner_take_out, None);
 
         let center_push = delivery::Call {
             weight: seconds(3.0),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };
-        run_case(center_push, EnumSet::only(Violation::NoTickRule));
+        run_case(opponent_stone, center_push, Some(Violation::NoTickRule));
+        run_case(same_team_stone, center_push, None);
 
         let center_take_out = delivery::Call {
             weight: seconds(2.5),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };
-        run_case(
-            center_take_out,
-            [Violation::FreeGuardRule, Violation::NoTickRule].into_iter().collect(),
-        );
+        run_case(opponent_stone, center_take_out, Some(Violation::FreeGuardRule));
+        run_case(same_team_stone, center_take_out, None);
     }
 
     #[test]
@@ -359,7 +366,7 @@ mod tests {
         turn.phase = Phase::Finished {
             snapshot: Stones::default(),
             delivery_time: Time::default(),
-            violations: EnumSet::default(),
+            violation: None,
         };
         let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
         assert!(turn.start_delivery(delivery, time).is_err());
@@ -387,7 +394,7 @@ mod tests {
             phase: Phase::Finished {
                 delivery_time: seconds(20.0),
                 snapshot: stones.clone(),
-                violations: EnumSet::only(Violation::FreeGuardRule),
+                violation: Some(Violation::FreeGuardRule),
             },
         };
         assert!(TryInto::<Finished>::try_into(unfinished).is_err());
@@ -396,7 +403,7 @@ mod tests {
         assert_eq!(converted.played_stone, 12);
         assert_eq!(converted.delivering_player, 2);
         assert_eq!(converted.snapshot, stones);
-        assert_eq!(converted.violations, EnumSet::only(Violation::FreeGuardRule));
+        assert_eq!(converted.violation, Some(Violation::FreeGuardRule));
     }
 
     #[test]

@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-enumset = "1.0"
 decorum = "0.3"
 derive_more = "0.99"
 float-cmp = "0.9"

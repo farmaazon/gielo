@@ -112,15 +112,12 @@ impl Handler {
     fn synchronize_violations(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
         let game_model = self.ui.global::<ui::GameModel>();
         if dirty.phase {
-            let violations = game
-                .current_turn()
-                .and_then(|turn| match &turn.phase {
-                    Phase::Finished { violations, .. } => Some(*violations),
-                    _ => None,
-                })
-                .unwrap_or_default();
-            game_model.set_fgz_rule_violated(violations.contains(turn::Violation::FreeGuardRule));
-            game_model.set_no_tick_rule_violated(violations.contains(turn::Violation::NoTickRule));
+            let violation = game.current_turn().and_then(|turn| match &turn.phase {
+                Phase::Finished { violation, .. } => *violation,
+                _ => None,
+            });
+            game_model.set_fgz_rule_violated(violation == Some(turn::Violation::FreeGuardRule));
+            game_model.set_no_tick_rule_violated(violation == Some(turn::Violation::NoTickRule));
         }
     }
 
