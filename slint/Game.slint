@@ -178,11 +178,17 @@ LeftPane := Rectangle {
                 wrap: word-wrap;
             }
 
-            Rectangle {
+            VerticalLayout {
                 height: 32px;
 
+                if GameModel.no-tick-rule-violated: Button {
+                    text: "Replace Stones";
+
+                    clicked => { GameModel.replace-stones() }
+                }
+
                 if GameModel.end-finished || GameModel.fgz-rule-violated || GameModel.no-tick-rule-violated: Button {
-                    text: "Proceed";
+                    text: GameModel.no-tick-rule-violated ? "Leave Stones" : "Proceed";
 
                     clicked => { GameModel.proceed() }
                 }

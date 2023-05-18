@@ -10,10 +10,24 @@ pub mod delivery;
 
 pub type Index = usize;
 
+pub enum NoTickRuleDecision {
+    ReplaceStones,
+    LeaveStones,
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Violation {
     FreeGuardRule,
     NoTickRule,
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+pub enum ResolvedViolation {
+    #[default]
+    None,
+    FreeGuardRule,
+    NoTickRuleStonesReplaced,
+    NoTickRuleStonesLeft,
 }
 
 #[derive(Debug)]
@@ -21,30 +35,50 @@ pub enum Violation {
 pub enum Phase {
     Thinking,
     Delivering { started_at: time::Instant, process: simulation::delivery::Process },
-    Finished { snapshot: Stones, delivery_time: Time, violation: Option<Violation> },
+    Violation { violation: Violation },
+    Finished { snapshot: Stones, violation: ResolvedViolation },
 }
 
 #[derive(Debug)]
 pub struct Current {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
+    pub stones_before: Stones,
     pub free_guards: stone::Flag,
     pub free_center_guards: stone::Flag,
+    pub delivery_time: Time,
     pub phase: Phase,
 }
 
 impl Current {
+    pub fn new_first(hammer: Team) -> Self {
+        Self {
+            played_stone: stone::QUEUE_BY_HAMMER[hammer][0],
+            delivering_player: player::who_is_delivering(0),
+            stones_before: Stones::default(),
+            free_guards: stone::Flag(0),
+            free_center_guards: stone::Flag(0),
+            delivery_time: Time::default(),
+            phase: Phase::Thinking,
+        }
+    }
+
     pub fn new(
         played_stone: stone::Id,
         delivering_player: player::Id,
-        free_guards: stone::Flag,
-        free_center_guards: stone::Flag,
+        sheet: &Sheet,
+        free_guards: bool,
+        free_center_guards: bool,
     ) -> Self {
         Self {
             played_stone,
             delivering_player,
-            free_guards,
-            free_center_guards,
+            stones_before: sheet.stones.clone(),
+            free_guards: free_guards.then(|| sheet.guards()).unwrap_or_default(),
+            free_center_guards: free_center_guards
+                .then(|| sheet.center_guards())
+                .unwrap_or_default(),
+            delivery_time: Time::default(),
             phase: Phase::Thinking,
         }
     }
@@ -52,47 +86,29 @@ impl Current {
     pub fn new_by_index(
         index: Index,
         hammer: Team,
-        free_guards: stone::Flag,
-        free_center_guards: stone::Flag,
+        sheet: &Sheet,
+        parameters: &Parameters,
     ) -> Self {
         let played_stone = stone::QUEUE_BY_HAMMER[hammer][index];
         let delivering_player = player::who_is_delivering(index);
-        Self::new(played_stone, delivering_player, free_guards, free_center_guards)
-    }
-
-    pub fn new_based_on_sheet(
-        index: Index,
-        sheet: &Sheet,
-        parameters: &Parameters,
-        hammer: Team,
-    ) -> Self {
-        let free_guards = if index < parameters.rules.free_guard_rule_stones {
-            sheet.guards()
-        } else {
-            stone::Flag::default()
-        };
-        let free_center_guards = if index < parameters.rules.no_tick_rule_stones {
-            sheet.center_guards()
-        } else {
-            stone::Flag::default()
-        };
-        Self::new_by_index(index, hammer, free_guards, free_center_guards)
+        let free_guards = index < parameters.rules.free_guard_rule_stones;
+        let free_center_guards = index < parameters.rules.no_tick_rule_stones;
+        Self::new(played_stone, delivering_player, sheet, free_guards, free_center_guards)
     }
 
     pub fn playing_team(&self) -> Team {
         stone::team(self.played_stone)
     }
 
-    pub fn delivery_time(&self) -> Time {
-        match &self.phase {
-            Phase::Thinking => Time::default(),
-            Phase::Delivering { process, .. } => process.current_time,
-            Phase::Finished { delivery_time, .. } => *delivery_time,
-        }
-    }
-
     pub fn is_finished(&self) -> bool {
         matches!(self.phase, Phase::Finished { .. })
+    }
+
+    pub fn violation(&self) -> Option<Violation> {
+        match &self.phase {
+            Phase::Violation { violation } => Some(*violation),
+            _ => None,
+        }
     }
 
     pub fn update(
@@ -103,21 +119,24 @@ impl Current {
         now: time::Instant,
         speed_factor: f32,
     ) {
-        let (finished, delivery_time) = match &mut self.phase {
+        let finished = match &mut self.phase {
             Phase::Delivering { started_at, process } => {
                 let real_time = seconds((now - *started_at).as_secs_f32());
                 let game_time = real_time * speed_factor;
                 let finished = simulation::delivery::Update { dirty, sheet, simulation, process }
                     .run(game_time);
-                (finished, process.current_time)
+                self.delivery_time = process.current_time;
+                finished
             }
-            _ => (false, Time::default()),
+            _ => false,
         };
         if finished {
-            self.phase = Phase::Finished {
-                snapshot: sheet.stones.clone(),
-                delivery_time,
-                violation: self.check_violations(sheet),
+            self.phase = match self.check_violations(sheet) {
+                Some(violation) => Phase::Violation { violation },
+                None => Phase::Finished {
+                    snapshot: sheet.stones.clone(),
+                    violation: ResolvedViolation::None,
+                },
             };
             dirty.phase = true;
         }
@@ -131,12 +150,10 @@ impl Current {
         let free_guards_removed = out_of_play & self.free_guards & opposition_stones;
         let free_center_guards_ticked =
             not_center_guard & self.free_center_guards & opposition_stones;
-        if free_guards_removed != stone::Flag(0) {
-            Some(Violation::FreeGuardRule)
-        } else if free_center_guards_ticked != stone::Flag(0) {
-            Some(Violation::NoTickRule)
-        } else {
-            None
+        match (free_guards_removed, free_center_guards_ticked) {
+            (stone::Flag(0), stone::Flag(0)) => None,
+            (stone::Flag(0), stone::Flag(_)) => Some(Violation::NoTickRule),
+            (stone::Flag(_), stone::Flag(_)) => Some(Violation::FreeGuardRule),
         }
     }
 
@@ -153,6 +170,38 @@ impl Current {
             _ => bail!("Starting delivery not on thinking phase"),
         };
         self.phase = new_phase;
+        Ok(())
+    }
+
+    pub fn proceed(&mut self, dirty: &mut Dirty, sheet: &mut Sheet) -> Result<()> {
+        let snapshot = sheet.stones.clone();
+        let violation = match &mut self.phase {
+            Phase::Violation { violation: Violation::FreeGuardRule } => {
+                sheet.stones.restore(dirty, self.stones_before.clone());
+                ResolvedViolation::FreeGuardRule
+            }
+            Phase::Violation { violation: Violation::NoTickRule } => {
+                ResolvedViolation::NoTickRuleStonesLeft
+            }
+            _ => bail!("Cannot replace stones at current phase"),
+        };
+        self.phase = Phase::Finished { snapshot, violation };
+        Ok(())
+    }
+
+    pub fn replace_stones(&mut self, dirty: &mut Dirty, sheet: &mut Sheet) -> Result<()> {
+        let violation = match &mut self.phase {
+            Phase::Violation { violation: Violation::FreeGuardRule } => {
+                ResolvedViolation::FreeGuardRule
+            }
+            Phase::Violation { violation: Violation::NoTickRule } => {
+                ResolvedViolation::NoTickRuleStonesReplaced
+            }
+            _ => bail!("Cannot replace stones at current phase"),
+        };
+        let snapshot = sheet.stones.clone();
+        sheet.stones.restore(dirty, self.stones_before.clone());
+        self.phase = Phase::Finished { snapshot, violation };
         Ok(())
     }
 
@@ -186,7 +235,7 @@ impl Current {
 pub struct Finished {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
-    pub violation: Option<Violation>,
+    pub violation: ResolvedViolation,
     pub snapshot: Stones,
 }
 
@@ -221,7 +270,7 @@ mod tests {
         let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
             PhaseTestSetup::new();
         let stone = 0;
-        let mut turn = Current::new(stone, 0, stone::Flag(0), stone::Flag(0));
+        let mut turn = Current::new(stone, 0, &sheet, true, true);
         assert!(matches!(&turn.phase, Phase::Thinking));
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
@@ -235,7 +284,7 @@ mod tests {
         assert!(process.stones[stone].is_moving());
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
-        assert_eq!(turn.delivery_time(), seconds(0.0));
+        assert_eq!(turn.delivery_time, seconds(0.0));
         assert_eq!(sheet.stones.in_play(), stone::Flag::stone(stone));
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::stone(stone),
@@ -252,19 +301,18 @@ mod tests {
         assert!(process.stones[stone].is_moving());
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
-        assert_eq!(turn.delivery_time(), seconds(10.0));
+        assert_eq!(turn.delivery_time, seconds(10.0));
         dirty.check_and_clear(&Dirty { stones: stone::Flag::stone(stone), ..Dirty::default() });
 
         let finishing_update = time + time::Duration::from_secs(7);
         turn.update(&mut dirty, &mut sheet, &simulation, finishing_update, 5.0);
-        let Phase::Finished {snapshot, delivery_time, violation } = &turn.phase else {
+        let Phase::Finished {snapshot, violation } = &turn.phase else {
             panic!("Wrong stage")
         };
         assert!(turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
         assert_eq!(snapshot, &sheet.stones);
-        assert_eq!(*violation, None);
-        assert_eq!(turn.delivery_time(), *delivery_time);
+        assert_eq!(*violation, ResolvedViolation::None);
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::stone(stone),
             phase: true,
@@ -295,12 +343,7 @@ mod tests {
                 (center_guard, center_guard_pos),
                 (corner_guard, corner_guard_pos),
             ]);
-            let mut turn = Current::new(
-                stone,
-                1,
-                stone::Flag::stone(center_guard) | stone::Flag::stone(corner_guard),
-                stone::Flag::stone(center_guard),
-            );
+            let mut turn = Current::new(stone, 1, &sheet, true, true);
             let delivery =
                 delivery::Start { call, sheet: &mut sheet, teams: &teams, dirty: &mut dirty };
             turn.start_delivery(delivery, time).expect("Failed to start delivery");
@@ -311,8 +354,13 @@ mod tests {
                 time + time::Duration::from_secs(10),
                 10.0,
             );
-            let Phase::Finished { violation, .. } = turn.phase else {
-                panic!("Wrong phase after update");
+            let violation = match turn.phase {
+                Phase::Violation { violation } => Some(violation),
+                Phase::Finished { violation, .. } => {
+                    assert_eq!(violation, ResolvedViolation::None);
+                    None
+                }
+                _ => panic!("Wrong phase after update"),
             };
             assert_eq!(violation, expected);
         };
@@ -343,11 +391,82 @@ mod tests {
     }
 
     #[test]
+    fn proceeding_after_violation() {
+        let sheet_params = sheet::Parameters::default();
+
+        let stones_before = Stones::from_iter([(0, sheet_params.geometry.tee())]);
+        let stones_after = Stones::from_iter([(8, sheet_params.geometry.tee())]);
+        let mut sheet = Sheet::new(sheet_params);
+        sheet.stones = stones_after.clone();
+
+        let fgz_violation = || Current {
+            played_stone: 8,
+            delivering_player: 0,
+            stones_before: stones_before.clone(),
+            free_guards: Default::default(),
+            free_center_guards: Default::default(),
+            delivery_time: Default::default(),
+            phase: Phase::Violation { violation: Violation::FreeGuardRule },
+        };
+        let no_tick_rule_violation = || Current {
+            phase: Phase::Violation { violation: Violation::NoTickRule },
+            ..fgz_violation()
+        };
+
+        let mut dirty = Dirty::new();
+        let expected_dirty_after_replacing =
+            Dirty { stones: stone::Flag::stone(0) | stone::Flag::stone(8), ..Default::default() };
+
+        let mut turn = fgz_violation();
+        assert!(turn.replace_stones(&mut dirty, &mut sheet).is_ok());
+        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+            panic!("Wrong phase");
+        };
+        assert_eq!(*violation, ResolvedViolation::FreeGuardRule);
+        assert_eq!(snapshot, &stones_after);
+        assert_eq!(sheet.stones, stones_before);
+        dirty.check_and_clear(&expected_dirty_after_replacing);
+
+        sheet.stones = stones_after.clone();
+        let mut turn = fgz_violation();
+        assert!(turn.proceed(&mut dirty, &mut sheet).is_ok());
+        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+            panic!("Wrong phase");
+        };
+        assert_eq!(*violation, ResolvedViolation::FreeGuardRule);
+        assert_eq!(snapshot, &stones_after);
+        assert_eq!(sheet.stones, stones_before);
+        dirty.check_and_clear(&expected_dirty_after_replacing);
+
+        sheet.stones = stones_after.clone();
+        let mut turn = no_tick_rule_violation();
+        assert!(turn.replace_stones(&mut dirty, &mut sheet).is_ok());
+        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+            panic!("Wrong phase");
+        };
+        assert_eq!(*violation, ResolvedViolation::NoTickRuleStonesReplaced);
+        assert_eq!(snapshot, &stones_after);
+        assert_eq!(sheet.stones, stones_before);
+        dirty.check_and_clear(&expected_dirty_after_replacing);
+
+        sheet.stones = stones_after.clone();
+        let mut turn = no_tick_rule_violation();
+        assert!(turn.proceed(&mut dirty, &mut sheet).is_ok());
+        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+            panic!("Wrong phase");
+        };
+        assert_eq!(*violation, ResolvedViolation::NoTickRuleStonesLeft);
+        assert_eq!(snapshot, &stones_after);
+        assert_eq!(sheet.stones, stones_after);
+        assert_eq!(dirty, Dirty::default());
+    }
+
+    #[test]
     fn updating_and_starting_in_wrong_stage() {
         let PhaseTestSetup { mut sheet, simulation, teams, mut dirty, time, .. } =
             PhaseTestSetup::new();
         let stone = 1;
-        let mut turn = Current::new(stone, 0, stone::Flag(0), stone::Flag(0));
+        let mut turn = Current::new(stone, 0, &sheet, false, false);
 
         turn.update(&mut dirty, &mut sheet, &simulation, time, 5.0);
         dirty.check_and_clear(&Dirty::new());
@@ -363,11 +482,8 @@ mod tests {
         assert!(turn.start_delivery(delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
 
-        turn.phase = Phase::Finished {
-            snapshot: Stones::default(),
-            delivery_time: Time::default(),
-            violation: None,
-        };
+        turn.phase =
+            Phase::Finished { snapshot: Stones::default(), violation: ResolvedViolation::None };
         let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
         assert!(turn.start_delivery(delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
@@ -385,16 +501,19 @@ mod tests {
             phase: Phase::Thinking,
             free_guards: stone::Flag::all_before(5),
             free_center_guards: stone::Flag::all_before(3),
+            stones_before: Stones::new(),
+            delivery_time: Default::default(),
         };
         let finished = Current {
             played_stone: 12,
             delivering_player: 2,
             free_guards: stone::Flag::all_before(5),
             free_center_guards: stone::Flag::all_before(3),
+            delivery_time: seconds(20.0),
+            stones_before: Stones::new(),
             phase: Phase::Finished {
-                delivery_time: seconds(20.0),
                 snapshot: stones.clone(),
-                violation: Some(Violation::FreeGuardRule),
+                violation: ResolvedViolation::FreeGuardRule,
             },
         };
         assert!(TryInto::<Finished>::try_into(unfinished).is_err());
@@ -403,7 +522,7 @@ mod tests {
         assert_eq!(converted.played_stone, 12);
         assert_eq!(converted.delivering_player, 2);
         assert_eq!(converted.snapshot, stones);
-        assert_eq!(converted.violation, Some(Violation::FreeGuardRule));
+        assert_eq!(converted.violation, ResolvedViolation::FreeGuardRule);
     }
 
     #[test]
@@ -417,6 +536,8 @@ mod tests {
             phase: Phase::Thinking,
             free_guards: stone::Flag::default(),
             free_center_guards: stone::Flag::default(),
+            stones_before: Default::default(),
+            delivery_time: Default::default(),
         };
         let path = turn.expected_path(
             &sheet,

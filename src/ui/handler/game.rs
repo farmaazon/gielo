@@ -1,5 +1,4 @@
 use crate::game::stone::Flag;
-use crate::game::turn::Phase;
 use crate::game::{end, turn};
 use crate::ui::handler::{make_callback, stone, team};
 use crate::ui::StoneModel;
@@ -50,6 +49,7 @@ impl Handler {
         this.synchronize(to_initialize);
         game_model.on_deliver(make_callback!(this.on_deliver()));
         game_model.on_proceed(make_callback!(this.on_proceed()));
+        game_model.on_replace_stones(make_callback!(this.on_replace_stones()));
         ui.global::<ui::Shot>().on_update_preview(make_callback!(this.on_shot_update()));
         this
     }
@@ -112,10 +112,7 @@ impl Handler {
     fn synchronize_violations(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
         let game_model = self.ui.global::<ui::GameModel>();
         if dirty.phase {
-            let violation = game.current_turn().and_then(|turn| match &turn.phase {
-                Phase::Finished { violation, .. } => *violation,
-                _ => None,
-            });
+            let violation = game.current_turn().and_then(turn::Current::violation);
             game_model.set_fgz_rule_violated(violation == Some(turn::Violation::FreeGuardRule));
             game_model.set_no_tick_rule_violated(violation == Some(turn::Violation::NoTickRule));
         }
@@ -166,6 +163,13 @@ impl Handler {
     pub fn on_proceed(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().proceed(&mut dirty)?;
+        self.synchronize(dirty);
+        Ok(())
+    }
+
+    pub fn on_replace_stones(self: &Rc<Self>) -> Result<()> {
+        let mut dirty = game::Dirty::new();
+        self.game.borrow_mut().replace_stones(&mut dirty)?;
         self.synchronize(dirty);
         Ok(())
     }

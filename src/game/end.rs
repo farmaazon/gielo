@@ -2,7 +2,7 @@ use crate::game::simulation::Simulation;
 use crate::game::stone;
 use crate::game::team::{Team, TEAMS_COUNT};
 use crate::game::{turn, Dirty, Parameters, Score, Sheet};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use std::time;
 
 #[derive(Debug)]
@@ -34,14 +34,7 @@ impl Current {
         Self {
             hammer,
             finished_turns: vec![],
-            phase: Phase::PlayingStones {
-                current_turn: turn::Current::new_by_index(
-                    0,
-                    hammer,
-                    stone::Flag::default(),
-                    stone::Flag::default(),
-                ),
-            },
+            phase: Phase::PlayingStones { current_turn: turn::Current::new_first(hammer) },
         }
     }
 
@@ -81,20 +74,29 @@ impl Current {
         parameters: &Parameters,
         now: time::Instant,
     ) {
-        let shall_proceed = match &mut self.phase {
+        let next_turn = match &mut self.phase {
             Phase::PlayingStones { current_turn } => {
                 current_turn.update(dirty, sheet, simulation, now, parameters.speed_factor);
-                matches!(
-                    &current_turn.phase,
-                    turn::Phase::Finished{violation, ..} if violation.is_none()
-                )
+                matches!(&current_turn.phase, turn::Phase::Finished { .. })
             }
             _ => false,
         };
-        if shall_proceed {
-            self.proceed(dirty, sheet, parameters)
+        if next_turn {
+            self.start_next_turn(dirty, sheet, parameters)
                 .expect("If update resulted in finished state we should be able to proceed");
         }
+    }
+
+    pub fn replace_stones(
+        &mut self,
+        dirty: &mut Dirty,
+        sheet: &mut Sheet,
+        parameters: &Parameters,
+    ) -> Result<()> {
+        if let Phase::PlayingStones { current_turn } = &mut self.phase {
+            current_turn.replace_stones(dirty, sheet)?
+        }
+        self.start_next_turn(dirty, sheet, parameters)
     }
 
     pub fn proceed(
@@ -103,46 +105,41 @@ impl Current {
         sheet: &mut Sheet,
         parameters: &Parameters,
     ) -> Result<()> {
-        let new_phase = match &self.phase {
+        if let Phase::PlayingStones { current_turn } = &mut self.phase {
+            current_turn.proceed(dirty, sheet)?
+        }
+        self.start_next_turn(dirty, sheet, parameters)
+    }
+
+    pub fn start_next_turn(
+        &mut self,
+        dirty: &mut Dirty,
+        sheet: &mut Sheet,
+        parameters: &Parameters,
+    ) -> Result<()> {
+        let turn_index = self.finished_turns.len();
+        let new_phase = if turn_index + 1 >= stone::COUNT {
+            Phase::Finished { score: sheet.count_score() }
+        } else {
+            dirty.preview = true;
             Phase::PlayingStones {
-                current_turn: turn::Current { phase: turn::Phase::Finished { violation, .. }, .. },
-            } => {
-                if violation.is_some() {
-                    self.restore_last_valid_snapshot(dirty, sheet);
-                }
-                let turn_index = self.finished_turns.len();
-                if turn_index + 1 >= stone::COUNT {
-                    Phase::Finished { score: sheet.count_score() }
-                } else {
-                    dirty.preview = true;
-                    Phase::PlayingStones {
-                        current_turn: turn::Current::new_based_on_sheet(
-                            turn_index + 1,
-                            sheet,
-                            parameters,
-                            self.hammer,
-                        ),
-                    }
-                }
+                current_turn: turn::Current::new_by_index(
+                    turn_index + 1,
+                    self.hammer,
+                    sheet,
+                    parameters,
+                ),
             }
-            _ => bail!("Proceeding at wrong end phase"),
         };
         let previous_phase = std::mem::replace(&mut self.phase, new_phase);
-        let turn: turn::Current = previous_phase.try_into().unwrap();
-        let finished_turn: turn::Finished = turn.try_into().unwrap();
+        let turn: turn::Current =
+            previous_phase.try_into().map_err(|_| anyhow!("Starting next turn at wrong phase"))?;
+        let finished_turn: turn::Finished = turn
+            .try_into()
+            .map_err(|_| anyhow!("Starting next turn before previous one is finished"))?;
         self.finished_turns.push(finished_turn);
         dirty.phase = true;
         Ok(())
-    }
-
-    fn restore_last_valid_snapshot(&self, dirty: &mut Dirty, sheet: &mut Sheet) {
-        let prior_situation = self
-            .finished_turns
-            .iter()
-            .rev()
-            .find_map(|prev_turn| prev_turn.violation.is_none().then(|| prev_turn.snapshot.clone()))
-            .unwrap_or_default();
-        sheet.stones.restore(dirty, prior_situation);
     }
 
     pub fn start_delivery(
@@ -157,7 +154,11 @@ impl Current {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_with_turns_finished(hammer: Team, finished_turns: usize) -> Self {
+    pub(crate) fn new_with_turns_finished(
+        sheet: &Sheet,
+        hammer: Team,
+        finished_turns: usize,
+    ) -> Self {
         Self {
             hammer,
             finished_turns: make_finished_turns(hammer, finished_turns),
@@ -166,8 +167,8 @@ impl Current {
                     current_turn: turn::Current::new_by_index(
                         finished_turns,
                         hammer,
-                        stone::Flag::default(),
-                        stone::Flag::default(),
+                        sheet,
+                        &Parameters::default(),
                     ),
                 }
             } else {
@@ -221,7 +222,7 @@ fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
             played_stone,
             delivering_player: player::who_is_delivering(index),
             snapshot: Stones::default(),
-            violation: None,
+            violation: turn::ResolvedViolation::None,
         })
         .collect()
 }
@@ -230,11 +231,11 @@ fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
 mod tests {
     use super::*;
     use crate::game;
+    use crate::game::sheet;
     use crate::game::stone::Flag;
     use crate::game::team::teams;
     use crate::game::tests::PhaseTestSetup;
     use crate::game::turn::delivery;
-    use crate::game::turn::Violation::FreeGuardRule;
     use crate::unit::{feet, seconds};
     use std::time::Duration;
 
@@ -250,7 +251,7 @@ mod tests {
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
                     delivering_player: 0,
-                    violation: None,
+                    violation: turn::ResolvedViolation::None,
                     snapshot: Default::default(),
                 });
                 assert_eq!(end.stones_left(first_team), expected_stones_left - 1);
@@ -258,7 +259,7 @@ mod tests {
                 end.finished_turns.push(turn::Finished {
                     played_stone: stones.next().unwrap(),
                     delivering_player: 0,
-                    violation: None,
+                    violation: turn::ResolvedViolation::None,
                     snapshot: Default::default(),
                 });
             }
@@ -354,7 +355,6 @@ mod tests {
             ends: 8,
             rules: game::Rules { free_guard_rule_stones: 5, no_tick_rule_stones: 5 },
         };
-        let mut end = Current::new_with_turns_finished(Team::B, 1);
         let guard = stone::QUEUE_BY_HAMMER.b[0];
         let delivered = stone::QUEUE_BY_HAMMER.b[1];
         let guard_position = sheet.parameters.geometry.tee()
@@ -363,6 +363,7 @@ mod tests {
                 y: sheet.parameters.geometry.house_radius + feet(4.0),
             };
         sheet.stones.put_stone(&mut Dirty::new(), guard, guard_position);
+        let mut end = Current::new_with_turns_finished(&sheet, Team::B, 1);
         end.finished_turns[0].snapshot = sheet.stones.clone();
         let Phase::PlayingStones {current_turn: turn::Current {free_guards, free_center_guards, ..}} = &mut end.phase else {
             panic!("Wrong phase");
@@ -392,10 +393,10 @@ mod tests {
 
         assert_eq!(end.finished_turns.len(), 1);
         assert!(!sheet.stones.in_play().contains(guard));
-        let Phase::PlayingStones {current_turn: turn::Current {phase: turn::Phase::Finished { violation, .. }, ..}} = &end.phase else {
+        let Phase::PlayingStones {current_turn: turn::Current {phase: turn::Phase::Violation { violation, .. }, ..}} = &end.phase else {
             panic!("Expected Rule Violation");
         };
-        assert_eq!(*violation, Some(FreeGuardRule));
+        assert_eq!(*violation, turn::Violation::FreeGuardRule);
         dirty.check_and_clear(&Dirty {
             stones: stone::Flag::from_iter([guard, delivered]),
             phase: true,
@@ -423,7 +424,7 @@ mod tests {
         let PhaseTestSetup { mut parameters, mut sheet, simulation, teams, mut dirty, time } =
             PhaseTestSetup::new();
         let hammer = Team::A;
-        let mut end = Current::new_with_turns_finished(hammer, stone::COUNT - 1);
+        let mut end = Current::new_with_turns_finished(&sheet, hammer, stone::COUNT - 1);
         sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
         parameters.speed_factor = 5.0;
         end.start_delivery(delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams), time)
@@ -456,9 +457,10 @@ mod tests {
     #[test]
     fn finished_turn_conversion() {
         let unfinished = Current::new(Team::A);
+        let sheet = Sheet::new(sheet::Parameters::default());
         let finished = Current {
             phase: Phase::Finished { score: Score { a: 2, b: 0 } },
-            ..Current::new_with_turns_finished(Team::A, stone::COUNT)
+            ..Current::new_with_turns_finished(&sheet, Team::A, stone::COUNT)
         };
         assert!(TryInto::<Finished>::try_into(unfinished).is_err());
         let converted: Finished =

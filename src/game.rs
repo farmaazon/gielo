@@ -151,7 +151,7 @@ impl Game {
 
     pub fn delivery_time(&self) -> Time {
         match &self.phase {
-            Phase::End(end) => end.current_turn().map_or_else(Time::default, |t| t.delivery_time()),
+            Phase::End(end) => end.current_turn().map_or_else(Time::default, |t| t.delivery_time),
             _ => Time::default(),
         }
     }
@@ -215,6 +215,13 @@ impl Game {
             dirty.finished_ends_count += 1;
         }
         Ok(())
+    }
+
+    pub fn replace_stones(&mut self, dirty: &mut Dirty) -> Result<()> {
+        match &mut self.phase {
+            Phase::End(end) => end.replace_stones(dirty, &mut self.sheet, &self.params),
+            _ => bail!("Replacing stones at wrong game phase"),
+        }
     }
 
     pub fn expected_path(&self, call: turn::delivery::Call) -> Option<Vec<stone::Position>> {
@@ -297,7 +304,7 @@ pub(crate) mod tests {
         let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let stone = *stone::QUEUE_BY_HAMMER.b.last().unwrap();
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT - 1);
+        *end = end::Current::new_with_turns_finished(&game.sheet, Team::B, stone::COUNT - 1);
         assert!(game.is_thinking());
         assert!(!game.is_delivering());
         assert!(!game.is_finished());
@@ -363,7 +370,7 @@ pub(crate) mod tests {
     fn proceeding_after_blank() {
         let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::B, stone::COUNT);
+        *end = end::Current::new_with_turns_finished(&game.sheet, Team::B, stone::COUNT);
         assert!(game.is_end_finished());
 
         let mut dirty = Dirty::new();
@@ -397,7 +404,7 @@ pub(crate) mod tests {
             ],
         );
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::A, stone::COUNT - 1);
+        *end = end::Current::new_with_turns_finished(&game.sheet, Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 
         let delivery_time = time::Instant::now();
@@ -459,7 +466,7 @@ pub(crate) mod tests {
             ],
         );
         let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
-        *end = end::Current::new_with_turns_finished(Team::A, stone::COUNT - 1);
+        *end = end::Current::new_with_turns_finished(&game.sheet, Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 
         let delivery_time = time::Instant::now();
