@@ -3,7 +3,7 @@ use crate::game::sheet::Sheet;
 use crate::game::stone::Rotation;
 use crate::game::team::{player, PerTeam, Player};
 use crate::game::{sheet, stone, team};
-use crate::unit::{Angle, Length, Time};
+use crate::unit::{Angle, Length, Time, Velocity};
 use crate::vector::Vector2;
 use uom::ConstZero;
 
@@ -25,7 +25,7 @@ impl Call {
         use crate::unit::feet;
         use crate::unit::seconds;
         Call {
-            weight: seconds(3.0),
+            weight: seconds(14.5),
             mark: sheet.geometry.tee() + Vector2 { x: feet(5.0), y: feet(0.0) },
             rotation: Rotation::Clockwise,
         }
@@ -42,11 +42,11 @@ pub struct Start<'a, 'b, 'c> {
 
 impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
     pub fn resolve(self, stone: stone::Id, player: player::Id) -> ResolvedStart<'a, 'c> {
-        self.resolve_template(stone, player, Player::rand_angle_error, Player::rand_weight_error)
+        self.resolve_template(stone, player, Player::rand_angle_error, Player::rand_velocity_error)
     }
 
     pub fn resolve_ideal(self, stone: stone::Id, player: player::Id) -> ResolvedStart<'a, 'c> {
-        self.resolve_template(stone, player, |_| Angle::ZERO, |_| Time::ZERO)
+        self.resolve_template(stone, player, |_| Angle::ZERO, |_| Velocity::ZERO)
     }
 
     pub fn resolve_template(
@@ -54,15 +54,20 @@ impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
         stone: stone::Id,
         player: player::Id,
         angle_error: impl FnOnce(&Player) -> Angle,
-        weight_error: impl FnOnce(&Player) -> Time,
+        velocity_error: impl FnOnce(&Player) -> Velocity,
     ) -> ResolvedStart<'a, 'c> {
         let team = stone::team(stone);
         let player_data = &self.teams[team].players[player];
         let hack = player_data.used_hack;
+
+        let measure_dist = self.sheet.parameters.geometry.measure_dist();
+        let velocity = measure_dist / self.call.weight
+            + self.sheet.parameters.friction * self.call.weight / 2.0;
+
         ResolvedStart {
             stone,
             angle: self.call.angle(hack, &self.sheet.parameters) + angle_error(player_data),
-            weight: self.call.weight + weight_error(player_data),
+            velocity: velocity + velocity_error(player_data),
             hack,
             rotation: self.call.rotation,
             sheet: self.sheet,
@@ -83,7 +88,7 @@ impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
 pub struct ResolvedStart<'a, 'b> {
     pub stone: stone::Id,
     pub angle: Angle,
-    pub weight: Time,
+    pub velocity: Velocity,
     pub hack: sheet::Hack,
     pub rotation: Rotation,
     pub sheet: &'a mut Sheet,

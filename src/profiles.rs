@@ -1,5 +1,5 @@
 use crate::game;
-use crate::unit::{degrees, feet_per_second_squared, seconds};
+use crate::unit::{degrees, feet_per_second, feet_per_second_squared};
 use slint::SharedString;
 
 pub mod builtin {
@@ -11,28 +11,28 @@ pub mod builtin {
                 "Medicore",
                 game::team::player::Skills {
                     angle_std_dev: degrees(0.4),
-                    weight_std_dev: seconds(0.05),
+                    velocity_std_dev: feet_per_second(0.15),
                 },
             ),
             (
                 "Beginner",
                 game::team::player::Skills {
                     angle_std_dev: degrees(1.0),
-                    weight_std_dev: seconds(0.2),
+                    velocity_std_dev: feet_per_second(0.5),
                 },
             ),
             (
                 "Top Player",
                 game::team::player::Skills {
                     angle_std_dev: degrees(0.1),
-                    weight_std_dev: seconds(0.02),
+                    velocity_std_dev: feet_per_second(0.05),
                 },
             ),
             (
                 "Ideal",
                 game::team::player::Skills {
                     angle_std_dev: degrees(0.0),
-                    weight_std_dev: seconds(0.0),
+                    velocity_std_dev: feet_per_second(0.0),
                 },
             ),
         ]

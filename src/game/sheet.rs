@@ -38,7 +38,7 @@ impl Default for Geometry {
     fn default() -> Self {
         let length = feet(150.0);
         Self {
-            width: feet(15.0), // + inches(7.0),
+            width: feet(15.0) + inches(7.0),
             length,
             center_line_x: feet(0.0),
             hack_x_offset: inches(6.0),
@@ -87,7 +87,7 @@ impl Geometry {
     }
 
     pub fn measure_dist(&self) -> Length {
-        self.delivery_end.hog_line_y - self.delivery_end.tee_line_y
+        self.playing_end.hog_line_y - self.delivery_end.hog_line_y
     }
 }
 
@@ -104,8 +104,8 @@ impl Default for Parameters {
     fn default() -> Self {
         Self {
             geometry: Geometry::default(),
-            friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
-            rotation_acc: feet_per_second_squared(245.0 / 8649.0),
+            friction: feet_per_second_squared(0.24),
+            rotation_acc: feet_per_second_squared(0.025),
             stone_radius: inches(18.0 / PI),
             static_friction: feet_squared_per_second_squared(0.25),
         }

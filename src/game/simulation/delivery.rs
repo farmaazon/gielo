@@ -56,16 +56,14 @@ pub struct Process {
 
 impl Process {
     pub fn new(
-        ResolvedStart { stone, angle, weight, hack, rotation, sheet, dirty }: ResolvedStart,
+        ResolvedStart { stone, angle, velocity, hack, rotation, sheet, dirty }: ResolvedStart,
     ) -> Self {
         let delivered_initial_pos = sheet.parameters.geometry.hack_pos(hack);
         sheet.stones.put_stone(dirty, stone, delivered_initial_pos);
         let mut stones = sheet.stones.positions().map(MovingStone::new_stationary);
         let delivering_dist = sheet.parameters.geometry.delivery_dist();
-        let measure_dist = sheet.parameters.geometry.measure_dist();
-        let release_time = weight * delivering_dist / measure_dist;
-        let v = measure_dist / weight;
-        stones[stone].motion.v0 = Vector2 { x: v * angle.sin(), y: v * angle.cos() };
+        let release_time = delivering_dist / velocity;
+        stones[stone].motion.v0 = Vector2 { x: velocity * angle.sin(), y: velocity * angle.cos() };
         Self {
             stones,
             delivered_stone: stone,
@@ -232,15 +230,16 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::game::sheet::Hack;
     use crate::game::stone::Flag;
     use crate::game::stone::{Position, Rotation};
     use crate::game::{sheet, simulation};
     use crate::unit::{
-        assert_approx_eq, feet, feet_squared_per_second_squared, inches, radians, seconds, Angle,
+        assert_approx_eq, feet, feet_per_second, feet_per_second_squared,
+        feet_squared_per_second_squared, inches, radians, seconds, Angle, Velocity,
     };
     use crate::vector::Vector2;
+    use std::f32::consts::PI;
 
     struct DeliveryTest {
         sheet: Sheet,
@@ -252,19 +251,26 @@ mod tests {
     impl DeliveryTest {
         fn set_up(
             angle: Angle,
-            weight: Time,
+            velocity: Velocity,
             rotation: Rotation,
             delivered_stone: stone::Id,
             other_stones: impl IntoIterator<Item = (stone::Id, Position)>,
         ) -> Self {
-            let mut sheet = Sheet::new(sheet::Parameters::default());
+            let sheet_params = sheet::Parameters {
+                geometry: sheet::Geometry::default(),
+                friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
+                rotation_acc: feet_per_second_squared(245.0 / 8649.0),
+                stone_radius: inches(18.0 / PI),
+                static_friction: feet_squared_per_second_squared(0.25),
+            };
+            let mut sheet = Sheet::new(sheet_params);
             sheet.stones = other_stones.into_iter().collect();
             let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
             let mut dirty = Dirty::new();
             let start = ResolvedStart {
                 stone: delivered_stone,
                 angle,
-                weight,
+                velocity,
                 hack: Hack::Left,
                 rotation,
                 sheet: &mut sheet,
@@ -293,8 +299,13 @@ mod tests {
 
     #[test]
     fn inaccurate_tee_shot() {
-        let mut test =
-            DeliveryTest::set_up(radians(6.0 / 132.0), seconds(3.0), Rotation::Clockwise, 0, []);
+        let mut test = DeliveryTest::set_up(
+            radians(6.0 / 132.0),
+            feet_per_second(7.0),
+            Rotation::Clockwise,
+            0,
+            [],
+        );
         test.run_update(seconds(2.0), false);
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(0), ..Dirty::default() });
 
@@ -326,8 +337,13 @@ mod tests {
 
     #[test]
     fn too_strong() {
-        let mut test =
-            DeliveryTest::set_up(radians(6.0 / 132.0), seconds(2.8), Rotation::Clockwise, 4, []);
+        let mut test = DeliveryTest::set_up(
+            radians(6.0 / 132.0),
+            feet_per_second(7.5),
+            Rotation::Clockwise,
+            4,
+            [],
+        );
         test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
@@ -335,8 +351,13 @@ mod tests {
 
     #[test]
     fn too_weak() {
-        let mut test =
-            DeliveryTest::set_up(radians(6.0 / 132.0), seconds(3.4), Rotation::Clockwise, 4, []);
+        let mut test = DeliveryTest::set_up(
+            radians(6.0 / 132.0),
+            feet_per_second(6.15),
+            Rotation::Clockwise,
+            4,
+            [],
+        );
         test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
         test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
@@ -349,7 +370,7 @@ mod tests {
         let taken_out = game::stone::TEAM_IDS.b.start;
         let mut test = DeliveryTest::set_up(
             radians(-2.0 / 132.0),
-            seconds(2.3),
+            feet_per_second(9.13),
             Rotation::CounterClockwise,
             delivered,
             [(taken_out, tee)],
@@ -381,7 +402,10 @@ mod tests {
     fn take_out_through_frozen_stone() {
         let sheet_params = sheet::Parameters {
             static_friction: feet_squared_per_second_squared(0.0),
-            ..sheet::Parameters::default()
+            geometry: sheet::Geometry::default(),
+            friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
+            rotation_acc: feet_per_second_squared(245.0 / 8649.0),
+            stone_radius: inches(18.0 / PI),
         };
         let tee = sheet_params.geometry.tee();
         let frozen = game::stone::TEAM_IDS.a.start;
@@ -393,7 +417,7 @@ mod tests {
         ];
         let mut test = DeliveryTest::set_up(
             radians(3.0 / 132.0),
-            seconds(2.7),
+            feet_per_second(7.7777),
             Rotation::Clockwise,
             delivered,
             stones,
@@ -425,7 +449,7 @@ mod tests {
         )];
         let mut test = DeliveryTest::set_up(
             radians(1.5 / 132.0),
-            seconds(2.7),
+            feet_per_second(7.7),
             Rotation::Clockwise,
             delivered,
             stones,

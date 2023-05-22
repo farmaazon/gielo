@@ -115,12 +115,12 @@ LeftPane := Rectangle {
         VerticalLayout {
             alignment: center;
             Text {
-                text: "Target time tee-hog: " + weight.value;
+                text: "Weight (hog to hog): " + weight.value;
             }
 
             weight := Slider {
-                minimum: 2.2;
-                maximum: 3.6;
+                minimum: 6.0;
+                maximum: 24.0;
                 height: 24px;
                 vertical-stretch: 0;
                 enabled: GameModel.thinking;

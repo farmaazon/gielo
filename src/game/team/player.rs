@@ -2,10 +2,10 @@ use crate::game::sheet::Hack;
 use crate::game::team::TEAMS_COUNT;
 use crate::game::{stone, turn};
 use crate::unit;
-use crate::unit::{degrees, seconds};
+use crate::unit::{degrees, feet_per_second};
 use rand::distributions::Distribution;
 use uom::si::angle::degree;
-use uom::si::time::second;
+use uom::si::velocity::foot_per_second;
 
 pub const PER_TEAM_COUNT: usize = 4;
 pub const STONES_PER_PLAYER: usize = stone::COUNT_PER_TEAM / PER_TEAM_COUNT;
@@ -19,7 +19,7 @@ pub fn who_is_delivering(turn: turn::Index) -> Id {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Skills {
     pub angle_std_dev: unit::Angle,
-    pub weight_std_dev: unit::Time,
+    pub velocity_std_dev: unit::Velocity,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -41,10 +41,11 @@ impl Player {
         degrees(angle_dist.sample(&mut rand::thread_rng()))
     }
 
-    pub fn rand_weight_error(&self) -> unit::Time {
-        let weight_dist =
-            rand_distr::Normal::new(0.0, self.skills.weight_std_dev.get::<second>()).unwrap();
-        seconds(weight_dist.sample(&mut rand::thread_rng()))
+    pub fn rand_velocity_error(&self) -> unit::Velocity {
+        let velocity_dist =
+            rand_distr::Normal::new(0.0, self.skills.velocity_std_dev.get::<foot_per_second>())
+                .unwrap();
+        feet_per_second(velocity_dist.sample(&mut rand::thread_rng()))
     }
 }
 

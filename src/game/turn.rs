@@ -366,7 +366,7 @@ mod tests {
         };
 
         let corner_take_out = delivery::Call {
-            weight: seconds(2.5),
+            weight: seconds(9.0),
             mark: corner_guard_pos,
             rotation: Rotation::None,
         };
@@ -374,7 +374,7 @@ mod tests {
         run_case(same_team_stone, corner_take_out, None);
 
         let center_push = delivery::Call {
-            weight: seconds(3.0),
+            weight: seconds(14.0),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };
@@ -382,7 +382,7 @@ mod tests {
         run_case(same_team_stone, center_push, None);
 
         let center_take_out = delivery::Call {
-            weight: seconds(2.5),
+            weight: seconds(9.0),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };
@@ -549,9 +549,9 @@ mod tests {
         assert_approx_eq!(path.first().unwrap().x, hack.x);
         assert_approx_eq!(path.first().unwrap().y, hack.y);
         assert_approx_eq!(path[path.len() / 4].x, feet(2.0), epsilon = 2.0);
-        assert_approx_eq!(path[path.len() / 4].y, feet(81.0), epsilon = 2.0);
+        assert_approx_eq!(path[path.len() / 4].y, feet(87.0), epsilon = 2.0);
         assert_approx_eq!(path[path.len() / 2].x, feet(3.0), epsilon = 2.0);
-        assert_approx_eq!(path[path.len() / 2].y, feet(110.0), epsilon = 2.0);
+        assert_approx_eq!(path[path.len() / 2].y, feet(113.0), epsilon = 2.0);
         assert_approx_eq!(path.last().unwrap().x, feet(0.0), epsilon = 2.0);
         assert_approx_eq!(
             path.last().unwrap().y,
