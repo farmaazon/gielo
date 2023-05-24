@@ -1,7 +1,7 @@
 use crate::game::stone;
 use crate::game::stone::Stones;
 use crate::game::team::{PerTeam, Team};
-use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy};
+use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy, Velocity};
 use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
 use crate::vector::{EuclideanNorm, Vector2};
 use decorum::NotNan;
@@ -98,6 +98,13 @@ pub struct Parameters {
     pub friction: Acceleration,
     pub rotation_acc: Acceleration,
     pub static_friction: AvailableEnergy,
+}
+
+impl Parameters {
+    pub fn velocity_for_y(&self, y: Length) -> Velocity {
+        let s = y - self.geometry.delivery_end.hog_line_y;
+        (2.0 * self.friction * s).sqrt()
+    }
 }
 
 impl Default for Parameters {

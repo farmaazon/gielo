@@ -1,4 +1,5 @@
 use crate::game;
+use crate::game::team::player::Skills;
 use crate::game::team::PerTeam;
 use crate::game::Game;
 use crate::profiles::Profiles;
@@ -23,7 +24,7 @@ impl<'a> ui::Profiles<'a> {
         let player = ModelRc::new(VecModel::from(profiles.player_skills_names().collect_vec()));
         let rules = ModelRc::new(VecModel::from(profiles.rule_set_names().collect_vec()));
         let ice = ModelRc::new(VecModel::from(profiles.ice_profile_names().collect_vec()));
-        self.set_player_skill(player);
+        self.set_player_skills(player);
         self.set_rules(rules);
         self.set_ice(ice);
     }
@@ -53,13 +54,13 @@ impl<'a> SheetModel<'a> {
 }
 
 impl ui::Player {
-    pub fn player_info(self, profiles: &Profiles) -> Result<game::team::Player> {
+    pub fn player_info(self) -> Result<game::team::Player> {
         Ok(game::team::Player {
-            skills: profiles
-                .player_skills
-                .get(self.skill_profile as usize)
-                .ok_or_else(|| anyhow!("Unknown player profile: \"{}\"", self.skill_profile))?
-                .data,
+            skills: Skills::from_tee_shot_std_dev(
+                feet(self.skills.x_std_dev),
+                feet(self.skills.y_std_dev),
+                game::sheet::Parameters::default(),
+            ),
             used_hack: match self.left_handed {
                 true => game::sheet::Hack::Right,
                 false => game::sheet::Hack::Left,
@@ -69,9 +70,9 @@ impl ui::Player {
 }
 
 impl NewGameTeam {
-    pub fn team_info(self, profiles: &Profiles) -> Result<game::team::Info> {
+    pub fn team_info(self) -> Result<game::team::Info> {
         let players: Result<Vec<_>> =
-            self.players.iter().map(|ui_player| ui_player.player_info(profiles)).collect();
+            self.players.iter().map(|ui_player| ui_player.player_info()).collect();
         Ok(game::team::Info {
             name: self.name,
             color: self.color,
@@ -101,9 +102,8 @@ impl NewGameParameters {
             .data)
     }
 
-    pub fn teams(&self, profiles: &Profiles) -> Result<PerTeam<game::team::Info>> {
-        let teams: Result<Vec<_>> =
-            self.teams.iter().map(|team| team.team_info(profiles)).collect();
+    pub fn teams(&self) -> Result<PerTeam<game::team::Info>> {
+        let teams: Result<Vec<_>> = self.teams.iter().map(|team| team.team_info()).collect();
         let array: [_; game::team::TEAMS_COUNT] =
             teams?.try_into().map_err(|_| anyhow!("Wrong number of teams"))?;
         Ok(array.into())

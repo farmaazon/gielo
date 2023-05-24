@@ -23,7 +23,7 @@ default-features = false
 features = ["compat-0-3-0", "std", "backend-winit", "renderer-winit-femtovg"]
 
 [dependencies.uom]
-version = "0.33"
+version = "0.34"
 default-features = false
 features = ["f32", "si", "std"]
 

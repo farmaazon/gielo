@@ -1,8 +1,8 @@
 use crate::game::sheet::Hack;
 use crate::game::team::TEAMS_COUNT;
-use crate::game::{stone, turn};
+use crate::game::{sheet, stone, turn};
 use crate::unit;
-use crate::unit::{degrees, feet_per_second};
+use crate::unit::{degrees, feet_per_second, radians};
 use rand::distributions::Distribution;
 use uom::si::angle::degree;
 use uom::si::velocity::foot_per_second;
@@ -20,6 +20,22 @@ pub fn who_is_delivering(turn: turn::Index) -> Id {
 pub struct Skills {
     pub angle_std_dev: unit::Angle,
     pub velocity_std_dev: unit::Velocity,
+}
+
+impl Skills {
+    pub fn from_tee_shot_std_dev(
+        x: unit::Length,
+        y: unit::Length,
+        sheet: sheet::Parameters,
+    ) -> Self {
+        let tee_shot_y = sheet.geometry.playing_end.tee_line_y;
+        let tee_shot_v = sheet.velocity_for_y(tee_shot_y);
+        let tangent_dev = (x / (tee_shot_y - sheet.geometry.delivery_end.hack_line_y)).value;
+        Self {
+            angle_std_dev: radians(tangent_dev),
+            velocity_std_dev: sheet.velocity_for_y(tee_shot_y + y) - tee_shot_v,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

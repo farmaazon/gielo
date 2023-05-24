@@ -1,5 +1,6 @@
-import { Button, CheckBox, ComboBox, LineEdit, SpinBox } from "std-widgets.slint";
-import { GameModel, NewGameParameters, NewGameTeam, Player } from "./GameModel.slint";
+import { Button, CheckBox, ComboBox, LineEdit, SpinBox, Slider } from "std-widgets.slint";
+import { Functions } from "./Functions.slint";
+import { GameModel, NewGameParameters, NewGameTeam, Player, PlayerSkills } from "./GameModel.slint";
 import { Profiles } from "./Profiles.slint";
 
 TeamLineOut := Rectangle {
@@ -9,6 +10,8 @@ TeamLineOut := Rectangle {
     callback changed(NewGameTeam);
 
     VerticalLayout {
+        spacing: 5px;
+
         HorizontalLayout {
             spacing: 5px;
             Rectangle {
@@ -34,20 +37,62 @@ TeamLineOut := Rectangle {
         }
 
         for player[player-index] in team.players: HorizontalLayout {
+            property <PlayerSkills> skills: player.skills;
+
             spacing: 5px;
 
             Text {
+                width: 50px;
                 vertical-alignment: center;
                 text: player-titles[player-index] + ":";
             }
 
-            ComboBox {
-                model: Profiles.player-skill;
-                current-index: player.skill-profile;
+            VerticalLayout {
+                player-profile := ComboBox {
+                    model: Profiles.player-skills;
+                    current-value: Profiles.custom-player-skills-label(skills);
 
-                selected(profile) => {
-                    team.players[player-index].skill-profile = current-index;
-                    changed(team)
+                    selected(profile) => {
+                        if (current-index != 0) {
+                            skills = Profiles.load-player-skills(current-index);
+                            team.players[player-index].skills = skills;
+                            x-std-dev-slider.value = skills.x-std-dev;
+                            y-std-dev-slider.value = skills.y-std-dev;
+                            changed(team)
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    y-std-dev-slider := Slider {
+                        value: skills.y-std-dev;
+                        minimum: 0.0;
+                        maximum: 12.0;
+
+                        changed(value) => {
+                            self.value = Functions.round(value, 1);
+                            skills.y-std-dev = self.value;
+                            team.players[player-index].skills.y-std-dev = self.value;
+                            player-profile.current-index = 0;
+                            player-profile.current-value = Profiles.custom-player-skills-label(skills);
+                            root.changed(team)
+                        }
+                    }
+
+                    x-std-dev-slider := Slider {
+                        value: skills.x-std-dev;
+                        minimum: 0.0;
+                        maximum: 6.0;
+
+                        changed(value) => {
+                            self.value = Functions.round(value, 1);
+                            skills.x-std-dev = self.value;
+                            team.players[player-index].skills.x-std-dev = self.value;
+                            player-profile.current-index = 0;
+                            player-profile.current-value = Profiles.custom-player-skills-label(skills);
+                            root.changed(team)
+                        }
+                    }
                 }
             }
 

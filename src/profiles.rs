@@ -1,40 +1,21 @@
 use crate::game;
-use crate::unit::{degrees, feet_per_second, feet_per_second_squared};
+use crate::unit::{feet, feet_per_second_squared, Length};
 use slint::SharedString;
+
+pub struct PlayerSkills {
+    pub x_std_dev: Length,
+    pub y_std_dev: Length,
+}
 
 pub mod builtin {
     use super::*;
 
-    pub fn players() -> impl IntoIterator<Item = (&'static str, game::team::player::Skills)> {
+    pub fn players() -> impl IntoIterator<Item = (&'static str, PlayerSkills)> {
         [
-            (
-                "Medicore",
-                game::team::player::Skills {
-                    angle_std_dev: degrees(0.4),
-                    velocity_std_dev: feet_per_second(0.15),
-                },
-            ),
-            (
-                "Beginner",
-                game::team::player::Skills {
-                    angle_std_dev: degrees(1.0),
-                    velocity_std_dev: feet_per_second(0.5),
-                },
-            ),
-            (
-                "Top Player",
-                game::team::player::Skills {
-                    angle_std_dev: degrees(0.1),
-                    velocity_std_dev: feet_per_second(0.05),
-                },
-            ),
-            (
-                "Ideal",
-                game::team::player::Skills {
-                    angle_std_dev: degrees(0.0),
-                    velocity_std_dev: feet_per_second(0.0),
-                },
-            ),
+            ("Custom", PlayerSkills { x_std_dev: feet(0.0), y_std_dev: feet(0.0) }),
+            ("Beginner", PlayerSkills { x_std_dev: feet(4.0), y_std_dev: feet(8.0) }),
+            ("Top Player", PlayerSkills { x_std_dev: feet(0.5), y_std_dev: feet(1.0) }),
+            ("Ideal", PlayerSkills { x_std_dev: feet(0.0), y_std_dev: feet(0.0) }),
         ]
     }
 
@@ -70,7 +51,7 @@ pub struct Profile<T> {
 }
 
 pub struct Profiles {
-    pub player_skills: Vec<Profile<game::team::player::Skills>>,
+    pub player_skills: Vec<Profile<PlayerSkills>>,
     pub ice_profile: Vec<Profile<game::sheet::Parameters>>,
     pub rule_set: Vec<Profile<game::Rules>>,
 }

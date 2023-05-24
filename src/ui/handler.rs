@@ -4,11 +4,12 @@ pub mod team;
 
 use crate::profiles::Profiles;
 use crate::{ui, Game};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
+use uom::si::length::foot;
 
 macro_rules! make_callback {
     ($this:ident.$method:ident($($arg:ident),*)) => {
@@ -42,13 +43,20 @@ impl Handler {
         profiles_ui.initialize(&profiles);
         let game = RefCell::new(None);
         let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles });
+        profiles_ui.on_load_player_skills(make_callback!(this.load_player_skills(index)));
+        profiles_ui.on_custom_player_skills_label(|skills| {
+            format!("Weight: ±{} ft, angle ±{} ft", skills.y_std_dev, skills.x_std_dev).into()
+        });
         game_model.on_start_new_game(make_callback!(this.on_game_start(parameters)));
         game_model.on_finish_game(make_callback!(this.on_game_finish()));
         this
     }
 
     fn default_new_game_parameters() -> ui::NewGameParameters {
-        let default_player = ui::Player { left_handed: false, skill_profile: 0 };
+        let default_player = ui::Player {
+            left_handed: false,
+            skills: ui::PlayerSkills { x_std_dev: 1.0, y_std_dev: 2.0 },
+        };
         let default_players = move || {
             ModelRc::new(VecModel::from(
                 std::iter::repeat(default_player.clone())
@@ -80,7 +88,7 @@ impl Handler {
         let sheet_model = self.ui.global::<ui::SheetModel>();
         let game_params = parameters.game_parameters(&self.profiles)?;
         let sheet_params = parameters.sheet_parameters(&self.profiles)?;
-        let teams = parameters.teams(&self.profiles)?;
+        let teams = parameters.teams()?;
         let simulation_params = crate::game::simulation::Parameters::default();
         let first_hammer = crate::game::team::Team::A;
         // Sheet needs to be updated before game.
@@ -97,5 +105,17 @@ impl Handler {
         let game_model = self.ui.global::<ui::GameModel>();
         game_model.set_game_running(false);
         Ok(())
+    }
+
+    pub fn load_player_skills(&self, index: i32) -> Result<ui::PlayerSkills> {
+        let profile = self
+            .profiles
+            .player_skills
+            .get(index as usize)
+            .ok_or(anyhow!("Wrong index of player skill profile: {index}"))?;
+        Ok(ui::PlayerSkills {
+            x_std_dev: profile.data.x_std_dev.get::<foot>(),
+            y_std_dev: profile.data.y_std_dev.get::<foot>(),
+        })
     }
 }
