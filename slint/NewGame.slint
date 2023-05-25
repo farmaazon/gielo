@@ -3,8 +3,8 @@ import { Functions } from "./Functions.slint";
 import { GameModel, NewGameParameters, NewGameTeam, Player, PlayerSkills } from "./GameModel.slint";
 import { Profiles } from "./Profiles.slint";
 
-TeamLineOut := Rectangle {
-    property <NewGameTeam> team;
+component TeamLineOut inherits Rectangle {
+    in-out property <NewGameTeam> team;
     property <[string]> player-titles: ["Lead", "Second", "Third", "Fourth"];
 
     callback changed(NewGameTeam);
@@ -15,7 +15,7 @@ TeamLineOut := Rectangle {
         HorizontalLayout {
             spacing: 5px;
             Rectangle {
-                width: height;
+                width: self.height;
                 horizontal-stretch: 0;
                 background: team.color;
                 border-width: 2px;
@@ -30,13 +30,13 @@ TeamLineOut := Rectangle {
             LineEdit {
                 text: team.name;
                 edited => {
-                    team.name = text;
+                    team.name = self.text;
                     changed(team);
                 }
             }
         }
 
-        for player[player-index] in team.players: HorizontalLayout {
+        for player[player-index] in team.players: player-form := HorizontalLayout {
             property <PlayerSkills> skills: player.skills;
 
             spacing: 5px;
@@ -53,8 +53,8 @@ TeamLineOut := Rectangle {
                     current-value: Profiles.custom-player-skills-label(skills);
 
                     selected(profile) => {
-                        if (current-index != 0) {
-                            skills = Profiles.load-player-skills(current-index);
+                        if (self.current-index != 0) {
+                            player-form.skills = Profiles.load-player-skills(self.current-index);
                             team.players[player-index].skills = skills;
                             x-std-dev-slider.value = skills.x-std-dev;
                             y-std-dev-slider.value = skills.y-std-dev;
@@ -101,7 +101,7 @@ TeamLineOut := Rectangle {
                 checked: player.left-handed;
 
                 toggled => {
-                    team.players[player-index].left-handed = checked;
+                    team.players[player-index].left-handed = self.checked;
                     changed(team)
                 }
             }
@@ -109,8 +109,8 @@ TeamLineOut := Rectangle {
     }
 }
 
-export NewGame := Rectangle {
-    property <NewGameParameters> parameters: {
+export component NewGame inherits Rectangle {
+    in-out property <NewGameParameters> parameters: {
         ends: 8,
         teams: [],
         ice-profile: 0,
@@ -131,7 +131,7 @@ export NewGame := Rectangle {
                 team: parameters.teams[0];
 
                 changed(team) => {
-                    parameters.teams[0] = team;
+                    root.parameters.teams[0] = team;
                 }
             }
 
@@ -141,10 +141,10 @@ export NewGame := Rectangle {
 
             ComboBox {
                 model: Profiles.ice;
-                current-index: parameters.ice-profile;
+                current-index: root.parameters.ice-profile;
 
                 selected(profile) => {
-                    parameters.ice-profile = current-index;
+                    root.parameters.ice-profile = self.current-index;
                 }
             }
 
@@ -161,7 +161,7 @@ export NewGame := Rectangle {
                 team: parameters.teams[1];
 
                 changed(team) => {
-                    parameters.teams[1] = team;
+                    root.parameters.teams[1] = team;
                 }
             }
 
@@ -171,10 +171,10 @@ export NewGame := Rectangle {
 
             ComboBox {
                 model: Profiles.rules;
-                current-index: parameters.rules-profile;
+                current-index: root.parameters.rules-profile;
 
                 selected(profile) => {
-                    parameters.rules-profile = current-index;
+                    parameters.rules-profile = self.current-index;
                 }
             }
 
@@ -186,6 +186,7 @@ export NewGame := Rectangle {
                 minimum: 1;
                 maximum: 20;
                 value: parameters.ends;
+                vertical-stretch: 0;
             }
 
             Rectangle {}
@@ -195,8 +196,8 @@ export NewGame := Rectangle {
 
                 clicked => {
                     // SpinBox, for some reason, does not have "changed" callback;
-                    parameters.ends = ends.value;
-                    GameModel.start-new-game(parameters);
+                    root.parameters.ends = ends.value;
+                    GameModel.start-new-game(root.parameters);
                 }
             }
         }

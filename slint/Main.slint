@@ -21,9 +21,9 @@ export {
     StoneModel
 }
 
-export Main := Window {
-    property <bool> blinking-stone-visible;
-    property <NewGameParameters> default-game-parameters;
+export component Main inherits Window {
+    in property <bool> blinking-stone-visible;
+    in property <NewGameParameters> default-game-parameters;
 
     preferred-width: 800px;
     preferred-height: 600px;

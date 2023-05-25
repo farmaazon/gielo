@@ -12,6 +12,12 @@ use std::time;
 use std::time::Duration;
 use uom::si::length::foot;
 
+#[cfg(debug_assertions)]
+const PREVIEW_STEPS: usize = 4;
+
+#[cfg(not(debug_assertions))]
+const PREVIEW_STEPS: usize = 2;
+
 pub struct Handler {
     ui: ui::Main,
     stone_handler: stone::Handler,
@@ -125,14 +131,17 @@ impl Handler {
         let preview = game.expected_path(call).unwrap_or_default();
         let commands = format!(
             "{}",
-            preview.iter().enumerate().format_with(" ", |(index, pos), f| {
-                f(&format_args!(
-                    "{} {} {}",
-                    if index % 2 == 1 { "L" } else { "M" },
-                    pos.x.get::<foot>(),
-                    pos.y.get::<foot>()
-                ))
-            })
+            preview.iter().step_by(PREVIEW_STEPS).enumerate().format_with(
+                " ",
+                |(index, pos), f| {
+                    f(&format_args!(
+                        "{} {} {}",
+                        if index % 2 == 1 { "L" } else { "M" },
+                        pos.x.get::<foot>(),
+                        pos.y.get::<foot>()
+                    ))
+                }
+            )
         );
         shot.set_preview_commands(commands.into());
         let last = preview.last().copied().unwrap_or_default();

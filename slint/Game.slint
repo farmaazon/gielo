@@ -3,22 +3,22 @@ import { GameModel, Shot, Team } from "GameModel.slint";
 import { Sheet } from "Sheet.slint";
 import { Button, Slider } from "std-widgets.slint";
 
-StoneWaiting := Rectangle {
-    property <Team> team;
+component StoneWaiting inherits Rectangle {
+    in property <Team> team;
 
-    height: width;
+    height: self.width;
     background: team.color;
     border-width: 2px;
     border-color: black;
-    border-radius: width / 2.0;
+    border-radius: self.width / 2.0;
 }
 
-TeamStonesWaiting := Rectangle {
-    property <Team> team;
-    property <int> stones;
+component TeamStonesWaiting inherits Rectangle {
+    in property <Team> team;
+    in property <int> stones;
 
     height: 20px;
-    min-width: height * 8;
+    min-width: self.height * 8;
 
     HorizontalLayout {
         for i in stones: StoneWaiting {
@@ -28,9 +28,9 @@ TeamStonesWaiting := Rectangle {
     }
 }
 
-ScoreCell := Rectangle {
-    property <string> text: "";
-    property <int> font-weight: 400;
+component ScoreCell inherits Rectangle {
+    in property <string> text: "";
+    in property <int> font-weight: 400;
 
     width: 30px;
     height: 30px;
@@ -49,7 +49,7 @@ ScoreCell := Rectangle {
     }
 }
 
-ScoreBoard := VerticalLayout {
+component ScoreBoard inherits VerticalLayout {
     HorizontalLayout {
         alignment: start;
 
@@ -89,8 +89,8 @@ ScoreBoard := VerticalLayout {
     }
 }
 
-LeftPane := Rectangle {
-    property <bool> blinking-stone-visible;
+component LeftPane inherits Rectangle {
+    in property <bool> blinking-stone-visible;
 
     background: #519ee8;
 
@@ -127,7 +127,7 @@ LeftPane := Rectangle {
                 value <=> Shot.weight-sec;
 
                 changed(v) => {
-                    value = Functions.round(v, 2);
+                    self.value = Functions.round(v, 2);
                     Shot.update-preview();
                 }
             }
@@ -203,8 +203,8 @@ LeftPane := Rectangle {
     }
 }
 
-export Game := Rectangle {
-    property <bool> blinking-stone-visible;
+export component Game inherits Rectangle {
+    in property <bool> blinking-stone-visible;
     background: left-pane.background;
 
     HorizontalLayout {

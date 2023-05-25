@@ -1,29 +1,29 @@
 import { SheetModel, StoneModel } from "./SheetModel.slint";
 
-export struct PlayerSkills := {
+export struct PlayerSkills {
     x-std-dev: float,
     y-std-dev: float,
 }
 
-export struct Player := {
+export struct Player {
     skills: PlayerSkills,
     left-handed: bool,
 }
 
-export struct NewGameTeam := {
+export struct NewGameTeam {
     name: string,
     color: color,
     players: [Player],
 }
 
-export struct NewGameParameters := {
+export struct NewGameParameters {
     ends: int,
     teams: [NewGameTeam],
     ice-profile: int,
     rules-profile: int,
 }
 
-export struct Team := {
+export struct Team {
     name: string,
     color: color,
     first-hammer: bool,
@@ -32,31 +32,31 @@ export struct Team := {
     score: int,
 }
 
-export global Shot := {
-    property <float> weight-sec: 14.5;
-    property <float> mark-x: 0.0;
-    property <float> mark-y: SheetModel.geometry.playing-end.tee-y;
-    property <bool> clockwise: true;
+export global Shot {
+    in-out property <float> weight-sec: 14.5;
+    in-out property <float> mark-x: 0.0;
+    in-out property <float> mark-y: SheetModel.geometry.playing-end.tee-y;
+    in-out property <bool> clockwise: true;
 
-    property <string> preview-commands;
-    property <StoneModel> preview-result;
+    in-out property <string> preview-commands;
+    in-out property <StoneModel> preview-result;
 
     callback update-preview();
 }
 
-export global GameModel := {
-    property <[Team]> teams;
-    property <int> end;
-    property <int> ends;
-    property <int> current-team;
-    property <bool> game-running;
-    property <bool> thinking;
-    property <bool> delivering;
-    property <bool> fgz-rule-violated;
-    property <bool> no-tick-rule-violated;
-    property <bool> end-finished;
-    property <int> end-score;
-    property <bool> game-finished;
+export global GameModel {
+    in-out property <[Team]> teams;
+    in-out property <int> end;
+    in-out property <int> ends;
+    in-out property <int> current-team;
+    in-out property <bool> game-running;
+    in-out property <bool> thinking;
+    in-out property <bool> delivering;
+    in-out property <bool> fgz-rule-violated;
+    in-out property <bool> no-tick-rule-violated;
+    in-out property <bool> end-finished;
+    in-out property <int> end-score;
+    in-out property <bool> game-finished;
 
     callback start-new-game(NewGameParameters);
     callback finish-game();

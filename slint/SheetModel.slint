@@ -1,16 +1,16 @@
-export struct StoneModel := {
+export struct StoneModel {
     x: float,
     y: float,
     color: color,
 }
 
-export struct SheetEndGeometry := {
+export struct SheetEndGeometry {
     back-y: float,
     tee-y: float,
     hog-y: float,
 }
 
-export struct SheetGeometry := {
+export struct SheetGeometry {
     width : float,
     height : float,
     house-radius : float,
@@ -20,13 +20,13 @@ export struct SheetGeometry := {
     playing-end : SheetEndGeometry,
 }
 
-export struct SheetEndGeometryPx := {
+export struct SheetEndGeometryPx {
     back-y: length,
     tee-y: length,
     hog-y: length,
 }
 
-export struct SheetGeometryPx := {
+export struct SheetGeometryPx {
     width : length,
     height : length,
     house-radius : length,
@@ -36,15 +36,15 @@ export struct SheetGeometryPx := {
     playing-end : SheetEndGeometryPx,
 }
 
-export global SheetModel := {
-    property <SheetGeometry> geometry;
-    property <float> friction;
-    property <float> rotation-acc;
-    property <float> stone-radius;
-    property <[StoneModel]> stones;
-    property <length> pixels_per_foot: 24px;
+export global SheetModel {
+    in-out property <SheetGeometry> geometry;
+    in-out property <float> friction;
+    in-out property <float> rotation-acc;
+    in-out property <float> stone-radius;
+    in-out property <[StoneModel]> stones;
+    out property <length> pixels_per_foot: 24px;
 
-    property <SheetGeometryPx> geometry-px: {
+    out property <SheetGeometryPx> geometry-px: {
         width: geometry.width * pixels_per_foot,
         height: geometry.height * pixels_per_foot,
         house-radius: geometry.house-radius * pixels_per_foot,

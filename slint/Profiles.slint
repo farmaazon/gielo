@@ -1,10 +1,10 @@
 import { PlayerSkills } from "./GameModel.slint";
 
-export global Profiles := {
-    property <[string]> player-skills: ["Custom"];
-    property <[string]> rules: ["Default"];
-    property <[string]> ice: ["Default"];
+export global Profiles {
+    in-out property <[string]> player-skills: ["Custom"];
+    in-out property <[string]> rules: ["Default"];
+    in-out property <[string]> ice: ["Default"];
 
-    callback load-player-skills(int) -> PlayerSkills;
-    callback custom-player-skills-label(PlayerSkills) -> string;
+    pure callback load-player-skills(int) -> PlayerSkills;
+    pure callback custom-player-skills-label(PlayerSkills) -> string;
 }

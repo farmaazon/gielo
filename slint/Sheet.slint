@@ -4,38 +4,38 @@ import { StoneModel, SheetModel } from "./SheetModel.slint";
 import { Ice } from "./Ice.slint";
 import { ScrollView, Slider } from "std-widgets.slint";
 
-Mark := Rectangle {
-    x: Shot.mark-x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - width / 2.0;
+component Mark inherits Rectangle {
+    x: Shot.mark-x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - self.width / 2.0;
     y: Shot.mark-y * SheetModel.pixels-per-foot;
     width: 18px;
-    height: 1.8 * width;
+    height: 1.8 * self.width;
     background: orange;
-    border-radius: width / 2.0;
+    border-radius: self.width / 2.0;
     border-color: black;
     border-width: 2px;
 
     Rectangle {
-        x: (parent.width - width) / 2.0;
+        x: (parent.width - self.width) / 2.0;
         y: parent.height;
         width: 8px;
         height: 80px;
         background: black;
 
         Rectangle {
-            x: (Shot.clockwise ? 10px : -width - 10px) + parent.width / 2.0;
-            y: parent.height - height;
+            x: (Shot.clockwise ? 10px : -self.width - 10px) + parent.width / 2.0;
+            y: parent.height - self.height;
             width: 40px;
             height: 8px;
-            border-radius: height / 2.0;
+            border-radius: self.height / 2.0;
             background: gray;
 
             Rectangle {
-                x: (Shot.clockwise ? parent.width : 0.0) - width / 2.0;
-                y: (parent.height - height) / 2.0;
+                x: (Shot.clockwise ? parent.width : 0.0) - self.width / 2.0;
+                y: (parent.height - self.height) / 2.0;
                 width: 18px;
-                height: width;
+                height: self.width;
                 background: white;
-                border-radius: width / 2.0;
+                border-radius: self.width / 2.0;
                 border-color: gray;
                 border-width: 2px;
             }
@@ -43,21 +43,21 @@ Mark := Rectangle {
     }
 }
 
-Stone := Rectangle {
-    property <StoneModel> model;
-    property <bool> preview: false;
+component Stone inherits Rectangle {
+    in property <StoneModel> model;
+    in property <bool> preview: false;
 
-    x: model.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - border-radius;
-    y: model.y * SheetModel.pixels-per-foot - border-radius;
+    x: model.x * SheetModel.pixels-per-foot + SheetModel.geometry-px.tee-x - self.border-radius;
+    y: model.y * SheetModel.pixels-per-foot - self.border-radius;
     border-radius: SheetModel.stone-radius * SheetModel.pixels-per-foot;
-    width: border-radius * 2.0;
-    height: border-radius * 2.0;
+    width: self.border-radius * 2.0;
+    height: self.border-radius * 2.0;
     background: preview ? transparent : model.color;
     border-width: 2px;
     border-color: preview ? model.color.darker(0.3) : black;
 }
 
-Preview := Rectangle {
+component Preview inherits Rectangle {
     width: 100%;
     height: 100%;
 
@@ -83,11 +83,11 @@ Preview := Rectangle {
     }
 }
 
-export Sheet := ScrollView {
+export component Sheet inherits ScrollView {
     width: ice.width + 20px;
     viewport-width: ice.width;
     viewport-height: ice.height;
-    viewport-y: height - SheetModel.geometry-px.playing-end.back-y - 60.px;
+    viewport-y: self.height - SheetModel.geometry-px.playing-end.back-y - 60.px;
 
     ice := Ice {
         Preview {}
@@ -102,8 +102,8 @@ export Sheet := ScrollView {
     if GameModel.thinking: TouchArea {
         pointer-event(event) => {
             if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
-                Shot.mark-x = (pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
-                Shot.mark-y = pressed-y / SheetModel.pixels-per-foot;
+                Shot.mark-x = (self.pressed-x - SheetModel.geometry-px.tee-x) / SheetModel.pixels-per-foot;
+                Shot.mark-y = self.pressed-y / SheetModel.pixels-per-foot;
             } else if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
                 Shot.clockwise = !Shot.clockwise;
             }

@@ -16,7 +16,7 @@ use std::time::Duration;
 fn main() {
     simple_logger::SimpleLogger::new().init().unwrap();
 
-    let ui = ui::Main::new();
+    let ui = ui::Main::new().unwrap();
     let weak_ui = ui.as_weak();
     let blinking = slint::Timer::default();
     blinking.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {
@@ -26,5 +26,5 @@ fn main() {
     });
     ui.global::<ui::Functions>().initialize();
     let _handler = Handler::initialize(ui.clone_strong());
-    ui.run();
+    ui.run().unwrap();
 }

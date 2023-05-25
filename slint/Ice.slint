@@ -1,63 +1,60 @@
 import { SheetModel, SheetEndGeometryPx } from "./SheetModel.slint";
 
-House := Rectangle {
+component Circle inherits Rectangle {
+    width: self.border-radius * 2.0;
+    height: self.border-radius * 2.0;
+}
+
+component House inherits Circle {
     border-radius: SheetModel.geometry-px.house-radius;
-    width:  border-radius * 2.0;
-    height: border-radius * 2.0;
     background: red;
 
-    eight-foot := Rectangle {
+    eight-foot := Circle {
         x: (root.width - self.width) / 2.0;
         y: (root.height - self.height) / 2.0;
         border-radius: root.border_radius * 2.0 / 3.0;
-        width: border-radius * 2.0;
-        height: border-radius * 2.0;
         background: white;
     }
 
-    four-foot := Rectangle {
+    four-foot := Circle {
         x: (root.width - self.width) / 2.0;
         y: (root.height - self.height) / 2.0;
         border-radius: root.border_radius / 3.0;
-        width: border-radius * 2.0;
-        height: border-radius * 2.0;
         background: blue;
     }
 
-    button := Rectangle {
+    button := Circle {
         x: (root.width - self.width) / 2.0;
         y: (root.height - self.height) / 2.0;
         border-radius: root.border_radius / 12.0;
-        width: border-radius * 2.0;
-        height: border-radius * 2.0;
         background: white;
     }
 }
 
-CenterLine := Rectangle {
-    x: SheetModel.geometry-px.tee-x - width / 2.0;
+component CenterLine inherits Rectangle {
+    x: SheetModel.geometry-px.tee-x - self.width / 2.0;
     y: 0px;
     width: 1px;
     height: SheetModel.geometry-px.height;
     background: black;
 }
 
-TransverseLine := Rectangle {
+component TransverseLine inherits Rectangle {
     x: 0px;
     width: SheetModel.geometry-px.width;
     height: 1px;
     background: black;
 }
 
-HogLine := TransverseLine {
+component HogLine inherits TransverseLine {
     height: 4px;
     background: red;
 }
 
-SheetEnd := Rectangle {
-    property <SheetEndGeometryPx> positions;
-    property <bool> is-playing-end;
-    property <bool> is-delivery-end: !is-playing-end;
+component SheetEnd inherits Rectangle {
+    in property <SheetEndGeometryPx> positions;
+    in property <bool> is-playing-end;
+    in property <bool> is-delivery-end: !is-playing-end;
 
     house := House {
         x: SheetModel.geometry-px.tee-x - self.width / 2.0;
@@ -78,7 +75,7 @@ SheetEnd := Rectangle {
 }
 
 
-export Ice := Rectangle {
+export component Ice inherits Rectangle {
     background: white;
     width: SheetModel.geometry-px.width;
     height: SheetModel.geometry-px.height;

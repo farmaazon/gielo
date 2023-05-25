@@ -15,12 +15,15 @@ rand_distr = "0.4"
 roots = { git = "https://github.com/vorot/roots.git", rev="cb13f4fec62809883304b6d36a005c4a92ba6079" }
 simple_logger = "4.0"
 itertools = "0.10"
-log = "0.4"
+
+[dependencies.log]
+version = "0.4"
+features = ["max_level_debug", "release_max_level_warn"]
 
 [dependencies.slint]
-version = "0.3"
-default-features = false
-features = ["compat-0-3-0", "std", "backend-winit", "renderer-winit-femtovg"]
+version = "1.0.2"
+default_features = false
+features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-femtovg"]
 
 [dependencies.uom]
 version = "0.34"
@@ -28,4 +31,4 @@ default-features = false
 features = ["f32", "si", "std"]
 
 [build-dependencies]
-slint-build = "0.3.1"
+slint-build = "1.0.2"
