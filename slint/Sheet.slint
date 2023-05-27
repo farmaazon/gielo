@@ -107,7 +107,7 @@ export component Sheet inherits ScrollView {
             } else if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
                 Shot.clockwise = !Shot.clockwise;
             }
-            Shot.update-preview();
+            Shot.update();
         }
     }
 }

@@ -29,11 +29,11 @@ impl Skills {
         sheet: sheet::Parameters,
     ) -> Self {
         let tee_shot_y = sheet.geometry.playing_end.tee_line_y;
-        let tee_shot_v = sheet.velocity_for_y(tee_shot_y);
+        let tee_shot_v = sheet.velocity_for_target_y(tee_shot_y);
         let tangent_dev = (x / (tee_shot_y - sheet.geometry.delivery_end.hack_line_y)).value;
         Self {
             angle_std_dev: radians(tangent_dev),
-            velocity_std_dev: sheet.velocity_for_y(tee_shot_y + y) - tee_shot_v,
+            velocity_std_dev: sheet.velocity_for_target_y(tee_shot_y + y) - tee_shot_v,
         }
     }
 }

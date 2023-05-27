@@ -3,9 +3,7 @@ use crate::game::team::PerTeam;
 use crate::game::Game;
 use crate::profiles::Profiles;
 use crate::ui;
-use crate::ui::{
-    NewGameParameters, NewGameTeam, SheetEndGeometry, SheetGeometry, SheetModel, Shot, StoneModel,
-};
+use crate::ui::{SheetEndGeometry, SheetGeometry, StoneModel};
 use crate::unit::{feet, seconds};
 use crate::vector::Vector2;
 use anyhow::{anyhow, Result};
@@ -18,6 +16,12 @@ use std::rc::Rc;
 use uom::si::acceleration::foot_per_second_squared;
 use uom::si::length::foot;
 
+#[cfg(debug_assertions)]
+const PREVIEW_STEPS: usize = 4;
+
+#[cfg(not(debug_assertions))]
+const PREVIEW_STEPS: usize = 2;
+
 impl<'a> ui::Profiles<'a> {
     pub fn initialize(&self, profiles: &Profiles) {
         let player = ModelRc::new(VecModel::from(profiles.player_skills_names().collect_vec()));
@@ -29,9 +33,9 @@ impl<'a> ui::Profiles<'a> {
     }
 }
 
-impl<'a> SheetModel<'a> {
+impl<'a> ui::SheetModel<'a> {
     pub fn set_parameters(&self, params: game::sheet::Parameters) {
-        let make_end_geometry = |geom: game::sheet::EndGeometry| SheetEndGeometry {
+        let make_end_geometry = |geom: game::sheet::parameters::EndGeometry| SheetEndGeometry {
             back_y: geom.back_line_y.get::<foot>(),
             tee_y: geom.tee_line_y.get::<foot>(),
             hog_y: geom.hog_line_y.get::<foot>(),
@@ -74,7 +78,7 @@ impl ui::Player {
     }
 }
 
-impl NewGameTeam {
+impl ui::NewGameTeam {
     pub fn team_info(self) -> Result<game::team::Info> {
         let players: Vec<_> =
             self.players.iter().map(|ui_player| ui_player.player_info()).collect();
@@ -86,7 +90,7 @@ impl NewGameTeam {
     }
 }
 
-impl NewGameParameters {
+impl ui::NewGameParameters {
     pub fn game_parameters(&self, profiles: &Profiles) -> Result<game::Parameters> {
         Ok(game::Parameters {
             ends: self.ends as u8,
@@ -154,10 +158,14 @@ impl Model for Stones {
     }
 }
 
-impl<'a> Shot<'a> {
-    pub fn current_call(&self) -> game::turn::delivery::Call {
+impl<'a> ui::Shot<'a> {
+    pub fn current_call(&self, sheet: &game::sheet::Parameters) -> game::turn::delivery::Call {
         game::turn::delivery::Call {
-            weight: seconds(self.get_weight_sec()),
+            weight: if self.get_automatic_weight() {
+                sheet.velocity_for_target_y(feet(self.get_mark_y()))
+            } else {
+                sheet.velocity_for_hog_to_hog_time(seconds(self.get_hog_to_hog_time()))
+            },
             mark: Vector2 { x: feet(self.get_mark_x()), y: feet(self.get_mark_y()) },
             rotation: if self.get_clockwise() {
                 game::stone::Rotation::Clockwise
@@ -165,5 +173,32 @@ impl<'a> Shot<'a> {
                 game::stone::Rotation::CounterClockwise
             },
         }
+    }
+
+    pub fn update_shot_preview(&self, game: &Game) {
+        let call = self.current_call(&game.sheet.parameters);
+        let current_team_color = game.playing_team().map(|team| game.teams[team].color);
+        let preview = game.expected_path(call).unwrap_or_default();
+        let commands = format!(
+            "{}",
+            preview.iter().step_by(PREVIEW_STEPS).enumerate().format_with(
+                " ",
+                |(index, pos), f| {
+                    f(&format_args!(
+                        "{} {} {}",
+                        if index % 2 == 1 { "L" } else { "M" },
+                        pos.x.get::<foot>(),
+                        pos.y.get::<foot>()
+                    ))
+                }
+            )
+        );
+        self.set_preview_commands(commands.into());
+        let last = preview.last().copied().unwrap_or_default();
+        self.set_preview_result(StoneModel {
+            color: current_team_color.unwrap_or_default(),
+            x: last.x.get::<foot>(),
+            y: last.y.get::<foot>(),
+        });
     }
 }

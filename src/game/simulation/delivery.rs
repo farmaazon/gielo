@@ -257,7 +257,7 @@ mod tests {
             other_stones: impl IntoIterator<Item = (stone::Id, Position)>,
         ) -> Self {
             let sheet_params = sheet::Parameters {
-                geometry: sheet::Geometry::default(),
+                geometry: sheet::parameters::Geometry::default(),
                 friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
                 rotation_acc: feet_per_second_squared(245.0 / 8649.0),
                 stone_radius: inches(18.0 / PI),
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn clear_stone() {
-        let tee = sheet::Geometry::default().tee();
+        let tee = sheet::parameters::Geometry::default().tee();
         let delivered = game::stone::TEAM_IDS.a.start;
         let taken_out = game::stone::TEAM_IDS.b.start;
         let mut test = DeliveryTest::set_up(
@@ -402,7 +402,7 @@ mod tests {
     fn take_out_through_frozen_stone() {
         let sheet_params = sheet::Parameters {
             static_friction: feet_squared_per_second_squared(0.0),
-            geometry: sheet::Geometry::default(),
+            geometry: sheet::parameters::Geometry::default(),
             friction: feet_per_second_squared(49.0 / 93.0 / 2.0),
             rotation_acc: feet_per_second_squared(245.0 / 8649.0),
             stone_radius: inches(18.0 / PI),

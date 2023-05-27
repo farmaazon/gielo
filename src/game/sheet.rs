@@ -1,122 +1,20 @@
 use crate::game::stone;
 use crate::game::stone::Stones;
 use crate::game::team::{PerTeam, Team};
-use crate::unit::{approx_eq, feet_squared_per_second_squared, AvailableEnergy, Velocity};
-use crate::unit::{feet, feet_per_second_squared, inches, Acceleration, Length};
-use crate::vector::{EuclideanNorm, Vector2};
+use crate::unit::approx_eq;
+use crate::unit::Length;
+use crate::vector::EuclideanNorm;
 use decorum::NotNan;
 use itertools::Itertools;
-use std::f32::consts::PI;
+pub use parameters::Parameters;
 use uom::si::length::foot;
+
+pub mod parameters;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
     Left,
     Right,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct EndGeometry {
-    pub hack_line_y: Length,
-    pub back_line_y: Length,
-    pub tee_line_y: Length,
-    pub hog_line_y: Length,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Geometry {
-    pub width: Length,
-    pub length: Length,
-    pub center_line_x: Length,
-    pub hack_x_offset: Length,
-    pub house_radius: Length,
-    pub delivery_end: EndGeometry,
-    pub playing_end: EndGeometry,
-}
-
-impl Default for Geometry {
-    fn default() -> Self {
-        let length = feet(150.0);
-        Self {
-            width: feet(15.0) + inches(7.0),
-            length,
-            center_line_x: feet(0.0),
-            hack_x_offset: inches(6.0),
-            house_radius: feet(6.0),
-            delivery_end: EndGeometry {
-                hack_line_y: feet(6.0),
-                back_line_y: feet(12.0),
-                tee_line_y: feet(18.0),
-                hog_line_y: feet(39.0),
-            },
-            playing_end: EndGeometry {
-                hack_line_y: length - feet(6.0),
-                back_line_y: length - feet(12.0),
-                tee_line_y: length - feet(18.0),
-                hog_line_y: length - feet(39.0),
-            },
-        }
-    }
-}
-
-impl Geometry {
-    pub fn hack_pos(&self, hack: Hack) -> Vector2<Length> {
-        Vector2 {
-            x: match hack {
-                Hack::Left => self.center_line_x + self.hack_x_offset,
-                Hack::Right => self.center_line_x - self.hack_x_offset,
-            },
-            y: self.delivery_end.hack_line_y,
-        }
-    }
-
-    pub fn tee(&self) -> Vector2<Length> {
-        Vector2 { x: self.center_line_x, y: self.playing_end.tee_line_y }
-    }
-
-    pub fn left_bound(&self) -> Length {
-        self.center_line_x - self.width / 2.0
-    }
-
-    pub fn right_bound(&self) -> Length {
-        self.center_line_x + self.width / 2.0
-    }
-
-    pub fn delivery_dist(&self) -> Length {
-        self.delivery_end.hog_line_y - self.delivery_end.hack_line_y
-    }
-
-    pub fn measure_dist(&self) -> Length {
-        self.playing_end.hog_line_y - self.delivery_end.hog_line_y
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Parameters {
-    pub geometry: Geometry,
-    pub stone_radius: Length,
-    pub friction: Acceleration,
-    pub rotation_acc: Acceleration,
-    pub static_friction: AvailableEnergy,
-}
-
-impl Parameters {
-    pub fn velocity_for_y(&self, y: Length) -> Velocity {
-        let s = y - self.geometry.delivery_end.hog_line_y;
-        (2.0 * self.friction * s).sqrt()
-    }
-}
-
-impl Default for Parameters {
-    fn default() -> Self {
-        Self {
-            geometry: Geometry::default(),
-            friction: feet_per_second_squared(0.24),
-            rotation_acc: feet_per_second_squared(0.025),
-            stone_radius: inches(18.0 / PI),
-            static_friction: feet_squared_per_second_squared(0.25),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -200,8 +98,12 @@ impl Sheet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::sheet::stone;
     use crate::game::team::Team::{A, B};
+    use crate::{
+        game::sheet::{parameters::Geometry, stone},
+        unit::feet,
+        vector::Vector2,
+    };
 
     #[derive(Debug)]
     struct FlagTest {

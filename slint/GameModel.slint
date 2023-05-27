@@ -33,7 +33,8 @@ export struct Team {
 }
 
 export global Shot {
-    in-out property <float> weight-sec: 14.5;
+    in-out property <float> hog-to-hog-time: 14.5;
+    in-out property <bool> automatic-weight: false;
     in-out property <float> mark-x: 0.0;
     in-out property <float> mark-y: SheetModel.geometry.playing-end.tee-y;
     in-out property <bool> clockwise: true;
@@ -41,7 +42,7 @@ export global Shot {
     in-out property <string> preview-commands;
     in-out property <StoneModel> preview-result;
 
-    callback update-preview();
+    callback update();
 }
 
 export global GameModel {

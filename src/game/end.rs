@@ -372,7 +372,7 @@ mod tests {
         *free_center_guards = Flag::stone(guard);
 
         let take_out_guard = delivery::Call {
-            weight: seconds(2.5),
+            weight: sheet.parameters.velocity_for_hog_to_hog_time(seconds(10.0)),
             mark: guard_position,
             rotation: stone::Rotation::None,
         };

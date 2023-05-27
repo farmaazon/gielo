@@ -1,22 +1,14 @@
-use crate::game::stone::Flag;
 use crate::game::{end, turn};
 use crate::ui::handler::{make_callback, stone, team};
-use crate::ui::StoneModel;
 use crate::{game, ui, Game};
+use crate::{game::stone::Flag, unit::feet};
 use anyhow::Result;
-use itertools::Itertools;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time;
 use std::time::Duration;
-use uom::si::length::foot;
-
-#[cfg(debug_assertions)]
-const PREVIEW_STEPS: usize = 4;
-
-#[cfg(not(debug_assertions))]
-const PREVIEW_STEPS: usize = 2;
+use uom::si::time::second;
 
 pub struct Handler {
     ui: ui::Main,
@@ -56,7 +48,7 @@ impl Handler {
         game_model.on_deliver(make_callback!(this.on_deliver()));
         game_model.on_proceed(make_callback!(this.on_proceed()));
         game_model.on_replace_stones(make_callback!(this.on_replace_stones()));
-        ui.global::<ui::Shot>().on_update_preview(make_callback!(this.on_shot_update()));
+        ui.global::<ui::Shot>().on_update(make_callback!(this.on_shot_update()));
         this
     }
 
@@ -68,7 +60,7 @@ impl Handler {
         self.team_handler.synchronize_score(&dirty, &game);
         self.team_handler.synchronize_teams(&dirty, &game);
         if dirty.preview {
-            self.update_shot_preview(&game);
+            self.ui.global::<ui::Shot>().update_shot_preview(&game);
         }
     }
 
@@ -124,34 +116,6 @@ impl Handler {
         }
     }
 
-    pub fn update_shot_preview(self: &Rc<Self>, game: &Game) {
-        let shot = self.ui.global::<ui::Shot>();
-        let call = shot.current_call();
-        let current_team_color = game.playing_team().map(|team| game.teams[team].color);
-        let preview = game.expected_path(call).unwrap_or_default();
-        let commands = format!(
-            "{}",
-            preview.iter().step_by(PREVIEW_STEPS).enumerate().format_with(
-                " ",
-                |(index, pos), f| {
-                    f(&format_args!(
-                        "{} {} {}",
-                        if index % 2 == 1 { "L" } else { "M" },
-                        pos.x.get::<foot>(),
-                        pos.y.get::<foot>()
-                    ))
-                }
-            )
-        );
-        shot.set_preview_commands(commands.into());
-        let last = preview.last().copied().unwrap_or_default();
-        shot.set_preview_result(StoneModel {
-            color: current_team_color.unwrap_or_default(),
-            x: last.x.get::<foot>(),
-            y: last.y.get::<foot>(),
-        });
-    }
-
     pub fn update(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().update(&mut dirty, time::Instant::now());
@@ -162,8 +126,11 @@ impl Handler {
     pub fn on_deliver(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         let shot = self.ui.global::<ui::Shot>();
-        let call = shot.current_call();
-        self.game.borrow_mut().start_delivery(&mut dirty, call, time::Instant::now())?;
+        {
+            let mut game = self.game.borrow_mut();
+            let call = shot.current_call(&game.sheet.parameters);
+            game.start_delivery(&mut dirty, call, time::Instant::now())?;
+        }
         self.synchronize(dirty);
 
         Ok(())
@@ -184,7 +151,16 @@ impl Handler {
     }
 
     pub fn on_shot_update(self: &Rc<Self>) -> Result<()> {
-        self.update_shot_preview(&self.game.borrow());
+        let game = self.game.borrow();
+        let shot = self.ui.global::<ui::Shot>();
+        if shot.get_automatic_weight() {
+            let target_y = feet(shot.get_mark_y());
+            let velocity = game.sheet.parameters.velocity_for_target_y(target_y);
+            if let Some(hog_to_hog) = game.sheet.parameters.hot_to_hog_time_from_velocity(velocity) {
+                shot.set_hog_to_hog_time(hog_to_hog.get::<second>());
+            }
+        }
+        shot.update_shot_preview(&game);
         Ok(())
     }
 }

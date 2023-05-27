@@ -12,7 +12,7 @@ lazy_static = "1.4"
 local_vec = "0.5"
 rand = "0.8"
 rand_distr = "0.4"
-roots = { git = "https://github.com/vorot/roots.git", rev="cb13f4fec62809883304b6d36a005c4a92ba6079" }
+roots = "0.0.8"
 simple_logger = "4.0"
 itertools = "0.10"
 

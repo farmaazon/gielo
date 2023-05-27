@@ -2200,8 +2200,9 @@ dependencies = [
 
 [[package]]
 name = "roots"
-version = "0.0.7"
-source = "git+https://github.com/vorot/roots.git?rev=cb13f4fec62809883304b6d36a005c4a92ba6079#cb13f4fec62809883304b6d36a005c4a92ba6079"
+version = "0.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "082f11ffa03bbef6c2c6ea6bea1acafaade2fd9050ae0234ab44a2153742b058"
 
 [[package]]
 name = "rosvgtree"

@@ -366,7 +366,7 @@ mod tests {
         };
 
         let corner_take_out = delivery::Call {
-            weight: seconds(9.0),
+            weight: sheet.velocity_for_hog_to_hog_time(seconds(9.0)),
             mark: corner_guard_pos,
             rotation: Rotation::None,
         };
@@ -374,7 +374,7 @@ mod tests {
         run_case(same_team_stone, corner_take_out, None);
 
         let center_push = delivery::Call {
-            weight: seconds(14.0),
+            weight: sheet.velocity_for_hog_to_hog_time(seconds(14.0)),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };
@@ -382,7 +382,7 @@ mod tests {
         run_case(same_team_stone, center_push, None);
 
         let center_take_out = delivery::Call {
-            weight: seconds(9.0),
+            weight: sheet.velocity_for_hog_to_hog_time(seconds(9.0)),
             mark: center_guard_pos,
             rotation: Rotation::None,
         };

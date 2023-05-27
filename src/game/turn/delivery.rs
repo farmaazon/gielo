@@ -3,13 +3,13 @@ use crate::game::sheet::Sheet;
 use crate::game::stone::Rotation;
 use crate::game::team::{player, PerTeam, Player};
 use crate::game::{sheet, stone, team};
-use crate::unit::{Angle, Length, Time, Velocity};
+use crate::unit::{Angle, Length, Velocity};
 use crate::vector::Vector2;
 use uom::ConstZero;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Call {
-    pub weight: Time,
+    pub weight: Velocity,
     pub mark: Vector2<Length>,
     pub rotation: Rotation,
 }
@@ -23,9 +23,8 @@ impl Call {
     #[cfg(test)]
     pub(crate) fn tee_draw(sheet: &sheet::Parameters) -> Self {
         use crate::unit::feet;
-        use crate::unit::seconds;
         Call {
-            weight: seconds(14.5),
+            weight: sheet.velocity_for_target_y(sheet.geometry.playing_end.tee_line_y),
             mark: sheet.geometry.tee() + Vector2 { x: feet(5.0), y: feet(0.0) },
             rotation: Rotation::Clockwise,
         }
@@ -59,15 +58,10 @@ impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
         let team = stone::team(stone);
         let player_data = &self.teams[team].players[player];
         let hack = player_data.used_hack;
-
-        let measure_dist = self.sheet.parameters.geometry.measure_dist();
-        let velocity = measure_dist / self.call.weight
-            + self.sheet.parameters.friction * self.call.weight / 2.0;
-
         ResolvedStart {
             stone,
             angle: self.call.angle(hack, &self.sheet.parameters) + angle_error(player_data),
-            velocity: velocity + velocity_error(player_data),
+            velocity: self.call.weight + velocity_error(player_data),
             hack,
             rotation: self.call.rotation,
             sheet: self.sheet,
@@ -107,7 +101,8 @@ mod tests {
             let sheet = sheet::Parameters::default();
             for hack in [Hack::Left, Hack::Right] {
                 let mark = sheet.geometry.hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
-                let call = Call { mark, weight: Time::default(), rotation: Rotation::Clockwise };
+                let call =
+                    Call { mark, weight: Velocity::default(), rotation: Rotation::Clockwise };
                 assert_approx_eq!(call.angle(hack, &sheet), expected);
             }
         }

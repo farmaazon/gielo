@@ -1,7 +1,7 @@
 import { Functions } from "./Functions.slint";
 import { GameModel, Shot, Team } from "GameModel.slint";
 import { Sheet } from "Sheet.slint";
-import { Button, Slider } from "std-widgets.slint";
+import { Button, Slider , CheckBox} from "std-widgets.slint";
 
 component StoneWaiting inherits Rectangle {
     in property <Team> team;
@@ -115,7 +115,7 @@ component LeftPane inherits Rectangle {
         VerticalLayout {
             alignment: center;
             Text {
-                text: "Weight (hog to hog): " + weight.value;
+                text: "Weight (hog to hog): " + Functions.round(weight.value, 2);
             }
 
             weight := Slider {
@@ -124,11 +124,20 @@ component LeftPane inherits Rectangle {
                 height: 24px;
                 vertical-stretch: 0;
                 enabled: GameModel.thinking;
-                value <=> Shot.weight-sec;
+                value <=> Shot.hog-to-hog-time;
 
                 changed(v) => {
-                    self.value = Functions.round(v, 2);
-                    Shot.update-preview();
+                    Shot.automatic-weight = false;
+                    Shot.update();
+                }
+            }
+
+            automatic := CheckBox {
+                text: "Automatic";
+                checked <=> Shot.automatic-weight;
+
+                toggled => {
+                    Shot.update();
                 }
             }
         }
@@ -141,7 +150,7 @@ component LeftPane inherits Rectangle {
 
             clicked => {
                 Shot.clockwise = !Shot.clockwise;
-                Shot.update-preview();
+                Shot.update();
             }
         }
 
