@@ -7,13 +7,16 @@ pub mod team;
 pub mod turn;
 
 pub use crate::game::dirty::Dirty;
-use crate::game::simulation::Simulation;
-use crate::game::team::{PerTeam, Team};
-use crate::unit::Time;
+use crate::{
+    game::{
+        simulation::Simulation,
+        team::{PerTeam, Team},
+    },
+    unit::Time,
+};
 use anyhow::{bail, Result};
 pub use sheet::Sheet;
-use std::cmp::Ordering;
-use std::time;
+use std::{cmp::Ordering, time};
 
 pub type Score = PerTeam<u8>;
 

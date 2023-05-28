@@ -1,5 +1,7 @@
-use crate::game;
-use crate::unit::{feet, feet_per_second_squared, Length};
+use crate::{
+    game,
+    unit::{feet, feet_per_second_squared, Length},
+};
 use slint::SharedString;
 
 pub struct PlayerSkills {

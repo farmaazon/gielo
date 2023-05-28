@@ -1,9 +1,10 @@
-use crate::unit::{
-    feet, feet_per_second_squared, feet_squared_per_second_squared, inches, seconds, Acceleration,
-    AvailableEnergy, Length, Time, Velocity,
+use crate::{
+    unit::{
+        base_type::consts::PI, feet, feet_per_second_squared, feet_squared_per_second_squared,
+        inches, seconds, Acceleration, AvailableEnergy, Length, Time, Velocity,
+    },
+    vector::Vector2,
 };
-use crate::vector::Vector2;
-use std::f32::consts::PI;
 use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
 use super::Hack;

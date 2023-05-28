@@ -1,13 +1,15 @@
-use crate::game::{end, turn};
-use crate::ui::handler::{make_callback, stone, team};
-use crate::{game, ui, Game};
-use crate::{game::stone::Flag, unit::feet};
+use crate::{
+    game,
+    game::{end, stone::Flag, turn},
+    ui,
+    ui::handler::{make_callback, stone, team},
+    unit,
+    unit::feet,
+    Game,
+};
 use anyhow::Result;
 use slint::ComponentHandle;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::time;
-use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, time, time::Duration};
 use uom::si::time::second;
 
 pub struct Handler {
@@ -154,10 +156,11 @@ impl Handler {
         let game = self.game.borrow();
         let shot = self.ui.global::<ui::Shot>();
         if shot.get_automatic_weight() {
-            let target_y = feet(shot.get_mark_y());
+            let target_y = feet(shot.get_mark_y() as unit::BaseType);
             let velocity = game.sheet.parameters.velocity_for_target_y(target_y);
-            if let Some(hog_to_hog) = game.sheet.parameters.hot_to_hog_time_from_velocity(velocity) {
-                shot.set_hog_to_hog_time(hog_to_hog.get::<second>());
+            if let Some(hog_to_hog) = game.sheet.parameters.hot_to_hog_time_from_velocity(velocity)
+            {
+                shot.set_hog_to_hog_time(hog_to_hog.get::<second>() as f32);
             }
         }
         shot.update_shot_preview(&game);

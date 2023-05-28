@@ -1,12 +1,12 @@
-use crate::game::stone::{Acceleration, Position, Velocity};
-use crate::unit;
-use crate::unit::{feet_squared_per_second_squared, seconds, Time};
-use crate::vector::{EuclideanNorm, Vector2};
+use crate::{
+    game::stone::{Acceleration, Position, Velocity},
+    unit,
+    unit::{feet_squared_per_second_squared, seconds, Time},
+    vector::{EuclideanNorm, Vector2},
+};
 use derive_more::{Add, Sub};
-use roots::{find_roots_linear, find_roots_quadratic, find_roots_quartic, Roots};
-use uom::si::acceleration::foot_per_second_squared;
-use uom::si::length::foot;
-use uom::si::velocity::foot_per_second;
+use roots::{find_roots_linear, find_roots_quadratic, Roots};
+use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
 #[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq)]
 pub struct Uniform {
@@ -69,32 +69,42 @@ impl UniformlyAccelerated {
     }
 
     pub fn when_hits_circle(&self, r: unit::Length) -> Option<Time> {
+        let [a4, a3, a2, a1, a0] = self.squared_distance_from_origin_coefficients();
+        let r = r.get::<foot>();
+        debug_assert!(!a4.is_nan());
+        debug_assert!(!a3.is_nan());
+        debug_assert!(!a2.is_nan());
+        debug_assert!(!a1.is_nan());
+        debug_assert!(!a0.is_nan());
+        let d = |t: unit::BaseType| 4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
+        let already_in_circle = a0 < r * r;
+        let derivative_at_t0 = a1;
+        if already_in_circle && derivative_at_t0 < -unit::EPSILON {
+            Some(seconds(0.0))
+        } else {
+            let roots = if float_eq::float_eq!(a4, 0.0, abs <= unit::EPSILON) {
+                roots::find_roots_cubic(a3, a2, a1, a0 - r * r)
+            } else {
+                roots::find_roots_eigen(&[(a0 - r * r) / a4, a1 / a4, a2 / a4, a3 / a4])
+                    .fold(Roots::No([]), |roots, new| roots.add_new_root(new))
+            };
+            let suitable = |&&t: &&f64| t >= 0.0 && d(t) < -unit::EPSILON;
+            roots.as_ref().iter().find(suitable).copied().map(seconds)
+        }
+    }
+
+    // Returns coefficients of the polynomial function representing the distance from (0.0, 0.0) in
+    // time.
+    fn squared_distance_from_origin_coefficients(&self) -> [f64; 5] {
         let a = self.a.map(|a| a.get::<foot_per_second_squared>());
         let v0 = self.v0.map(|v| v.get::<foot_per_second>());
         let s0 = self.s0.map(|s| s.get::<foot>());
-        let r = r.get::<foot>();
         let a4 = (a.x * a.x + a.y * a.y) / 4.0;
         let a3 = v0.x * a.x + v0.y * a.y;
         let a2 = v0.x * v0.x + v0.y * v0.y + s0.x * a.x + s0.y * a.y;
         let a1 = 2.0 * (v0.x * s0.x + v0.y * s0.y);
-        let a0 = s0.x * s0.x + s0.y * s0.y - r * r;
-        let already_in_circle = s0.x * s0.x + s0.y * s0.y < r * r;
-        let derivative_at_t0 = a1;
-        if already_in_circle && derivative_at_t0 < -1e-6 {
-            Some(seconds(0.0))
-        } else {
-            let roots = find_roots_quartic(a4, a3, a2, a1, a0);
-            roots
-                .as_ref()
-                .iter()
-                .filter(|&&t| {
-                    let derivative = 4.0 * a4 * t * t * t + 3.0 * a3 * t * t + 2.0 * a2 * t + a1;
-                    t >= 0.0 && derivative < -1e-6
-                })
-                .copied()
-                .next()
-                .map(seconds)
-        }
+        let a0 = s0.x * s0.x + s0.y * s0.y;
+        [a4, a3, a2, a1, a0]
     }
 }
 
@@ -104,7 +114,7 @@ impl From<Uniform> for UniformlyAccelerated {
     }
 }
 
-fn min_non_negative_root(roots: Roots<f32>) -> Option<f32> {
+fn min_non_negative_root(roots: Roots<unit::BaseType>) -> Option<unit::BaseType> {
     roots.as_ref().iter().filter(|&&t| t >= 0.0).copied().next()
 }
 
@@ -137,7 +147,8 @@ pub fn decrease_energy(v: Velocity, energy_drop: unit::AvailableEnergy) -> Veloc
 mod tests {
     use super::*;
     use crate::unit::{
-        assert_approx_eq, feet, feet_per_second as feet_ps, feet_per_second_squared as feet_pss,
+        assert_float_eq, base_type::consts::PI, feet, feet_per_second as feet_ps,
+        feet_per_second_squared as feet_pss,
     };
 
     #[test]
@@ -147,9 +158,9 @@ mod tests {
         let s0 = feet(10.0);
 
         struct Case {
-            v: f32,
-            expect_near: Option<f32>,
-            expect_far: Option<f32>,
+            v: unit::BaseType,
+            expect_near: Option<unit::BaseType>,
+            expect_far: Option<unit::BaseType>,
         }
 
         let run_case = |Case { v, expect_far, expect_near }: Case| {
@@ -162,17 +173,17 @@ mod tests {
                 v: Vector2 { x: unit::Velocity::default(), y: feet_ps(v) },
             };
             if let Some(expect_near) = expect_near.map(seconds) {
-                assert_approx_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
-                assert_approx_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
+                assert_float_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
+                assert_float_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
             } else {
                 assert_eq!(motion_x.when_at_x(s_near), None);
                 assert_eq!(motion_y.when_at_y(s_near), None);
             }
-            assert_approx_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
-            assert_approx_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
+            assert_float_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
+            assert_float_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
             if let Some(expect_far) = expect_far.map(seconds) {
-                assert_approx_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
-                assert_approx_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
+                assert_float_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
+                assert_float_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
             } else {
                 assert_eq!(motion_x.when_at_y(s_far), None);
                 assert_eq!(motion_y.when_at_y(s_far), None);
@@ -196,10 +207,10 @@ mod tests {
         let s0 = feet(10.0);
 
         struct Case {
-            v0: f32,
-            a: f32,
-            expect_near: Option<f32>,
-            expect_far: Option<f32>,
+            v0: unit::BaseType,
+            a: unit::BaseType,
+            expect_near: Option<unit::BaseType>,
+            expect_far: Option<unit::BaseType>,
         }
 
         let run_case = |Case { v0, a, expect_near, expect_far }: Case| {
@@ -214,25 +225,25 @@ mod tests {
                 a: Vector2 { x: unit::Acceleration::default(), y: feet_pss(a) },
             };
             if let Some(expect_near) = expect_near.map(seconds) {
-                assert_approx_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
-                assert_approx_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
+                assert_float_eq!(motion_x.when_at_x(s_near).unwrap(), expect_near);
+                assert_float_eq!(motion_y.when_at_y(s_near).unwrap(), expect_near);
             } else {
                 assert_eq!(motion_x.when_at_x(s_near), None);
                 assert_eq!(motion_y.when_at_y(s_near), None);
             }
-            assert_approx_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
-            assert_approx_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
+            assert_float_eq!(motion_x.when_at_x(s0).unwrap(), seconds(0.0));
+            assert_float_eq!(motion_y.when_at_y(s0).unwrap(), seconds(0.0));
             if let Some(expect_far) = expect_far.map(seconds) {
-                assert_approx_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
-                assert_approx_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
+                assert_float_eq!(motion_x.when_at_x(s_far).unwrap(), expect_far);
+                assert_float_eq!(motion_y.when_at_y(s_far).unwrap(), expect_far);
             } else {
                 assert_eq!(motion_x.when_at_y(s_far), None);
                 assert_eq!(motion_y.when_at_y(s_far), None);
             }
         };
 
-        let sqrt5 = 5.0_f32.sqrt();
-        let sqrt2 = 2.0_f32.sqrt();
+        let sqrt5 = (5.0 as unit::BaseType).sqrt();
+        let sqrt2 = (2.0 as unit::BaseType).sqrt();
         #[rustfmt::skip]
         for case in [
             Case { v0: 1.0,  a: 0.2,   expect_near: None,                       expect_far: Some(5.0 * (sqrt5 - 1.0)) },
@@ -247,12 +258,13 @@ mod tests {
 
     #[test]
     fn when_enters_circle() {
+        #[derive(Debug)]
         struct Case {
-            s0: (f32, f32),
-            v0: (f32, f32),
-            a: (f32, f32),
-            r: f32,
-            expect_t: Option<f32>,
+            s0: (unit::BaseType, unit::BaseType),
+            v0: (unit::BaseType, unit::BaseType),
+            a: (unit::BaseType, unit::BaseType),
+            r: unit::BaseType,
+            expect_t: Option<unit::BaseType>,
         }
 
         let run_case = |Case { s0, v0, a, r, expect_t }: Case| {
@@ -263,7 +275,7 @@ mod tests {
             };
             let result = motion.when_hits_circle(feet(r));
             if let Some(expect_t) = expect_t {
-                assert_approx_eq!(result.unwrap(), seconds(expect_t), ulps = 6);
+                assert_float_eq!(result.unwrap(), seconds(expect_t));
             } else {
                 assert_eq!(result, None);
             }
@@ -283,7 +295,10 @@ mod tests {
             Case { s0: (-6.0, 8.0),  v0: (0.3, -0.4), a: (0.0, 0.0),    r: 5.0,  expect_t: Some(10.0) },
             Case { s0: (-6.0, 8.0),  v0: (0.3, 0.0),  a: (0.0, -0.08),  r: 5.0,  expect_t: Some(10.0) },
             Case { s0: (-6.0, 8.0),  v0: (0.0, 0.0),  a: (0.06, -0.08), r: 5.0,  expect_t: Some(10.0) },
+            // A case where `roots::find_roots_qartic` is wrong (as of 0.0.8 version).
+            Case { s0: (0.2932344574990866, -0.9131581396587762), v0: (-0.1606628617942618, 0.6933263997846015), a: (0.059470677389313706, -0.256640459323357), r: 3.0 / PI, expect_t: Some(0.005865405601410802) }
         ] {
+            log::debug!("Testing case {:?}", case);
             run_case(case);
         };
     }
@@ -291,12 +306,12 @@ mod tests {
     #[test]
     fn velocity_after_collision() {
         struct Case {
-            s_a: (f32, f32),
-            v_a: (f32, f32),
-            s_b: (f32, f32),
-            v_b: (f32, f32),
-            expect_v_a: (f32, f32),
-            expect_v_b: (f32, f32),
+            s_a: (unit::BaseType, unit::BaseType),
+            v_a: (unit::BaseType, unit::BaseType),
+            s_b: (unit::BaseType, unit::BaseType),
+            v_b: (unit::BaseType, unit::BaseType),
+            expect_v_a: (unit::BaseType, unit::BaseType),
+            expect_v_b: (unit::BaseType, unit::BaseType),
         }
 
         let run_case = |Case { s_a, v_a, s_b, v_b, expect_v_a, expect_v_b }: Case| {
@@ -307,10 +322,10 @@ mod tests {
             let expect_v_a = Vector2::from(expect_v_a).map(feet_pss);
             let expect_v_b = Vector2::from(expect_v_b).map(feet_pss);
             let (new_v_a, new_v_b) = super::velocity_after_collision(s_a, v_a, s_b, v_b);
-            assert_approx_eq!(new_v_a.x, expect_v_a.x, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_a.y, expect_v_a.y, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_b.x, expect_v_b.x, ulps = 6, epsilon = 1e-6);
-            assert_approx_eq!(new_v_b.y, expect_v_b.y, ulps = 6, epsilon = 1e-6);
+            assert_float_eq!(new_v_a.x, expect_v_a.x);
+            assert_float_eq!(new_v_a.y, expect_v_a.y);
+            assert_float_eq!(new_v_b.x, expect_v_b.x);
+            assert_float_eq!(new_v_b.y, expect_v_b.y);
         };
 
         #[rustfmt::skip]
@@ -326,9 +341,9 @@ mod tests {
     #[test]
     fn decreasing_energy() {
         struct Case {
-            v: (f32, f32),
-            e: f32,
-            expect_v: (f32, f32),
+            v: (unit::BaseType, unit::BaseType),
+            e: unit::BaseType,
+            expect_v: (unit::BaseType, unit::BaseType),
         }
 
         let run_case = |Case { v, e, expect_v }: Case| {
@@ -336,8 +351,8 @@ mod tests {
             let e = feet_squared_per_second_squared(e);
             let expect_v = Vector2::from(expect_v).map(feet_ps);
             let new_v = super::decrease_energy(v, e);
-            assert_approx_eq!(new_v.x, expect_v.x, ulps = 10);
-            assert_approx_eq!(new_v.y, expect_v.y, ulps = 10);
+            assert_float_eq!(new_v.x, expect_v.x);
+            assert_float_eq!(new_v.y, expect_v.y);
         };
 
         #[rustfmt::skip]

@@ -2,13 +2,11 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::profiles::Profiles;
-use crate::{ui, Game};
+use crate::{profiles::Profiles, ui, Game};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, ModelRc, VecModel};
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 use uom::si::length::foot;
 
 macro_rules! make_callback {
@@ -114,8 +112,8 @@ impl Handler {
             .get(index as usize)
             .ok_or(anyhow!("Wrong index of player skill profile: {index}"))?;
         Ok(ui::PlayerSkills {
-            x_std_dev: profile.data.x_std_dev.get::<foot>(),
-            y_std_dev: profile.data.y_std_dev.get::<foot>(),
+            x_std_dev: profile.data.x_std_dev.get::<foot>() as f32,
+            y_std_dev: profile.data.y_std_dev.get::<foot>() as f32,
         })
     }
 }

@@ -1,7 +1,9 @@
-use crate::game::simulation::Simulation;
-use crate::game::stone;
-use crate::game::team::{Team, TEAMS_COUNT};
-use crate::game::{turn, Dirty, Parameters, Score, Sheet};
+use crate::game::{
+    simulation::Simulation,
+    stone,
+    team::{Team, TEAMS_COUNT},
+    turn, Dirty, Parameters, Score, Sheet,
+};
 use anyhow::{anyhow, bail, Result};
 use std::time;
 
@@ -211,8 +213,7 @@ impl Finished {
 
 #[cfg(test)]
 fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
-    use crate::game::stone::Stones;
-    use crate::game::team::player;
+    use crate::game::{stone::Stones, team::player};
 
     stone::QUEUE_BY_HAMMER[hammer]
         .iter()
@@ -230,13 +231,11 @@ fn make_finished_turns(hammer: Team, count: usize) -> Vec<turn::Finished> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game;
-    use crate::game::sheet;
-    use crate::game::stone::Flag;
-    use crate::game::team::teams;
-    use crate::game::tests::PhaseTestSetup;
-    use crate::game::turn::delivery;
-    use crate::unit::{feet, seconds};
+    use crate::{
+        game,
+        game::{sheet, stone::Flag, team::teams, tests::PhaseTestSetup, turn::delivery},
+        unit::{feet, seconds},
+    };
     use std::time::Duration;
 
     #[test]

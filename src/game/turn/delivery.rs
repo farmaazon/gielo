@@ -1,10 +1,16 @@
-use crate::game::dirty::Dirty;
-use crate::game::sheet::Sheet;
-use crate::game::stone::Rotation;
-use crate::game::team::{player, PerTeam, Player};
-use crate::game::{sheet, stone, team};
-use crate::unit::{Angle, Length, Velocity};
-use crate::vector::Vector2;
+use crate::{
+    game::{
+        dirty::Dirty,
+        sheet,
+        sheet::Sheet,
+        stone,
+        stone::Rotation,
+        team,
+        team::{player, PerTeam, Player},
+    },
+    unit::{Angle, Length, Velocity},
+    vector::Vector2,
+};
 use uom::ConstZero;
 
 #[derive(Copy, Clone, Debug)]
@@ -79,6 +85,7 @@ impl<'a, 'b, 'c> Start<'a, 'b, 'c> {
     }
 }
 
+#[derive(Debug)]
 pub struct ResolvedStart<'a, 'b> {
     pub stone: stone::Id,
     pub angle: Angle,
@@ -92,18 +99,21 @@ pub struct ResolvedStart<'a, 'b> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::sheet::Hack;
-    use crate::unit::{assert_approx_eq, degrees, feet};
+    use crate::{
+        game::sheet::Hack,
+        unit,
+        unit::{assert_float_eq, degrees, feet},
+    };
 
     #[test]
     fn compute_angle() {
-        fn test_case((x, y): (f32, f32), expected: Angle) {
+        fn test_case((x, y): (unit::BaseType, unit::BaseType), expected: Angle) {
             let sheet = sheet::Parameters::default();
             for hack in [Hack::Left, Hack::Right] {
                 let mark = sheet.geometry.hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
                 let call =
                     Call { mark, weight: Velocity::default(), rotation: Rotation::Clockwise };
-                assert_approx_eq!(call.angle(hack, &sheet), expected);
+                assert_float_eq!(call.angle(hack, &sheet), expected);
             }
         }
 

@@ -1,20 +1,18 @@
-use crate::game;
-use crate::game::team::PerTeam;
-use crate::game::Game;
-use crate::profiles::Profiles;
-use crate::ui;
-use crate::ui::{SheetEndGeometry, SheetGeometry, StoneModel};
-use crate::unit::{feet, seconds};
-use crate::vector::Vector2;
+use crate::{
+    game,
+    game::{team::PerTeam, Game},
+    profiles::Profiles,
+    ui,
+    ui::{SheetEndGeometry, SheetGeometry, StoneModel},
+    unit,
+    unit::{feet, seconds},
+    vector::Vector2,
+};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
-use slint::VecModel;
-use slint::{Model, ModelRc};
-use std::any::Any;
-use std::cell::RefCell;
-use std::rc::Rc;
-use uom::si::acceleration::foot_per_second_squared;
-use uom::si::length::foot;
+use slint::{Model, ModelRc, VecModel};
+use std::{any::Any, cell::RefCell, rc::Rc};
+use uom::si::{acceleration::foot_per_second_squared, length::foot};
 
 #[cfg(debug_assertions)]
 const PREVIEW_STEPS: usize = 4;
@@ -36,31 +34,32 @@ impl<'a> ui::Profiles<'a> {
 impl<'a> ui::SheetModel<'a> {
     pub fn set_parameters(&self, params: game::sheet::Parameters) {
         let make_end_geometry = |geom: game::sheet::parameters::EndGeometry| SheetEndGeometry {
-            back_y: geom.back_line_y.get::<foot>(),
-            tee_y: geom.tee_line_y.get::<foot>(),
-            hog_y: geom.hog_line_y.get::<foot>(),
+            back_y: geom.back_line_y.get::<foot>() as f32,
+            tee_y: geom.tee_line_y.get::<foot>() as f32,
+            hog_y: geom.hog_line_y.get::<foot>() as f32,
         };
         let geometry = SheetGeometry {
-            width: params.geometry.width.get::<foot>(),
-            height: params.geometry.length.get::<foot>(),
-            house_radius: params.geometry.house_radius.get::<foot>(),
-            hack_offset: params.geometry.hack_x_offset.get::<foot>(),
-            tee_x: (params.geometry.center_line_x + params.geometry.width / 2.0).get::<foot>(),
+            width: params.geometry.width.get::<foot>() as f32,
+            height: params.geometry.length.get::<foot>() as f32,
+            house_radius: params.geometry.house_radius.get::<foot>() as f32,
+            hack_offset: params.geometry.hack_x_offset.get::<foot>() as f32,
+            tee_x: (params.geometry.center_line_x + params.geometry.width / 2.0).get::<foot>()
+                as f32,
             delivery_end: make_end_geometry(params.geometry.delivery_end),
             playing_end: make_end_geometry(params.geometry.playing_end),
         };
         self.set_geometry(geometry);
-        self.set_friction(params.friction.get::<foot_per_second_squared>());
-        self.set_rotation_acc(params.rotation_acc.get::<foot_per_second_squared>());
-        self.set_stone_radius(params.stone_radius.get::<foot>());
+        self.set_friction(params.friction.get::<foot_per_second_squared>() as f32);
+        self.set_rotation_acc(params.rotation_acc.get::<foot_per_second_squared>() as f32);
+        self.set_stone_radius(params.stone_radius.get::<foot>() as f32);
     }
 }
 
 impl ui::PlayerSkills {
     pub fn game_skills(self) -> game::team::player::Skills {
         game::team::player::Skills::from_tee_shot_std_dev(
-            feet(self.x_std_dev),
-            feet(self.y_std_dev),
+            feet(self.x_std_dev as unit::BaseType),
+            feet(self.y_std_dev as unit::BaseType),
             game::sheet::Parameters::default(),
         )
     }
@@ -146,7 +145,11 @@ impl Model for Stones {
             Vector2 { x: -100.0, y: -100.0 }
         };
         let team = game::stone::team(row);
-        Some(StoneModel { x: position_feet.x, y: position_feet.y, color: game.teams[team].color })
+        Some(StoneModel {
+            x: position_feet.x as f32,
+            y: position_feet.y as f32,
+            color: game.teams[team].color,
+        })
     }
 
     fn model_tracker(&self) -> &dyn slint::ModelTracker {
@@ -162,11 +165,16 @@ impl<'a> ui::Shot<'a> {
     pub fn current_call(&self, sheet: &game::sheet::Parameters) -> game::turn::delivery::Call {
         game::turn::delivery::Call {
             weight: if self.get_automatic_weight() {
-                sheet.velocity_for_target_y(feet(self.get_mark_y()))
+                sheet.velocity_for_target_y(feet(self.get_mark_y() as unit::BaseType))
             } else {
-                sheet.velocity_for_hog_to_hog_time(seconds(self.get_hog_to_hog_time()))
+                sheet.velocity_for_hog_to_hog_time(seconds(
+                    self.get_hog_to_hog_time() as unit::BaseType
+                ))
             },
-            mark: Vector2 { x: feet(self.get_mark_x()), y: feet(self.get_mark_y()) },
+            mark: Vector2 {
+                x: feet(self.get_mark_x() as unit::BaseType),
+                y: feet(self.get_mark_y()),
+            },
             rotation: if self.get_clockwise() {
                 game::stone::Rotation::Clockwise
             } else {
@@ -197,8 +205,8 @@ impl<'a> ui::Shot<'a> {
         let last = preview.last().copied().unwrap_or_default();
         self.set_preview_result(StoneModel {
             color: current_team_color.unwrap_or_default(),
-            x: last.x.get::<foot>(),
-            y: last.y.get::<foot>(),
+            x: last.x.get::<foot>() as f32,
+            y: last.y.get::<foot>() as f32,
         });
     }
 }

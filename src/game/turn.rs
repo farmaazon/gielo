@@ -1,8 +1,16 @@
-use crate::game::simulation::Simulation;
-use crate::game::stone::Stones;
-use crate::game::team::{player, PerTeam, Team};
-use crate::game::{simulation, stone, team, Dirty, Parameters, Sheet};
-use crate::unit::{seconds, Time};
+use crate::{
+    game::{
+        simulation,
+        simulation::Simulation,
+        stone,
+        stone::Stones,
+        team,
+        team::{player, PerTeam, Team},
+        Dirty, Parameters, Sheet,
+    },
+    unit,
+    unit::{seconds, Time},
+};
 use anyhow::{bail, Result};
 use std::time;
 
@@ -122,7 +130,7 @@ impl Current {
         let finished = match &mut self.phase {
             Phase::Delivering { started_at, process } => {
                 let real_time = seconds((now - *started_at).as_secs_f32());
-                let game_time = real_time * speed_factor;
+                let game_time = real_time * speed_factor as unit::BaseType;
                 let finished = simulation::delivery::Update { dirty, sheet, simulation, process }
                     .run(game_time);
                 self.delivery_time = process.current_time;
@@ -161,6 +169,7 @@ impl Current {
         let new_phase = match &mut self.phase {
             Phase::Thinking => {
                 let mut resolved = delivery.resolve(self.played_stone, self.delivering_player);
+                log::info!("Starting delivery: {resolved:?}");
                 resolved.dirty.phase = true;
                 Phase::Delivering {
                     started_at: now,
@@ -258,12 +267,11 @@ impl TryFrom<Current> for Finished {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::sheet;
-    use crate::game::sheet::Hack;
-    use crate::game::stone::Rotation;
-    use crate::game::tests::PhaseTestSetup;
-    use crate::unit::{assert_approx_eq, feet};
-    use crate::vector::Vector2;
+    use crate::{
+        game::{sheet, sheet::Hack, stone::Rotation, tests::PhaseTestSetup},
+        unit::{assert_float_eq, feet},
+        vector::Vector2,
+    };
 
     #[test]
     fn progressing_turn() {
@@ -546,17 +554,17 @@ mod tests {
             delivery::Call::tee_draw(&sheet.parameters),
         );
         let hack = sheet.parameters.geometry.hack_pos(Hack::Left);
-        assert_approx_eq!(path.first().unwrap().x, hack.x);
-        assert_approx_eq!(path.first().unwrap().y, hack.y);
-        assert_approx_eq!(path[path.len() / 4].x, feet(2.0), epsilon = 2.0);
-        assert_approx_eq!(path[path.len() / 4].y, feet(87.0), epsilon = 2.0);
-        assert_approx_eq!(path[path.len() / 2].x, feet(3.0), epsilon = 2.0);
-        assert_approx_eq!(path[path.len() / 2].y, feet(113.0), epsilon = 2.0);
-        assert_approx_eq!(path.last().unwrap().x, feet(0.0), epsilon = 2.0);
-        assert_approx_eq!(
+        assert_float_eq!(path.first().unwrap().x, hack.x);
+        assert_float_eq!(path.first().unwrap().y, hack.y);
+        assert_float_eq!(path[path.len() / 4].x, feet(2.0), abs <= 2.0);
+        assert_float_eq!(path[path.len() / 4].y, feet(87.0), abs <= 2.0);
+        assert_float_eq!(path[path.len() / 2].x, feet(3.0), abs <= 2.0);
+        assert_float_eq!(path[path.len() / 2].y, feet(113.0), abs <= 2.0);
+        assert_float_eq!(path.last().unwrap().x, feet(0.0), abs <= 2.0);
+        assert_float_eq!(
             path.last().unwrap().y,
             sheet.parameters.geometry.playing_end.tee_line_y,
-            epsilon = 2.0
+            abs <= 2.0
         );
     }
 }

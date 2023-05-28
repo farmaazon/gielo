@@ -1,13 +1,17 @@
-use crate::game::sheet;
-use crate::game::simulation::{motion, Simulation};
-use crate::game::stone::{Acceleration, Position, Rotation, Velocity};
-use crate::unit::{seconds, Time};
-use crate::vector::{EuclideanNorm, Vector2};
+use crate::{
+    game::{
+        sheet,
+        simulation::{motion, Simulation},
+        stone::{Acceleration, Position, Rotation, Velocity},
+    },
+    unit::{float_eq, seconds, Time},
+    vector::{EuclideanNorm, Vector2},
+};
 use decorum::NotNan;
-use uom::si::time::second;
-use uom::ConstZero;
+use uom::{si::time::second, ConstZero};
 
 pub use crate::game::stone::Id;
+use crate::unit;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct MovingStone {
@@ -21,7 +25,7 @@ impl MovingStone {
     pub fn new_stationary(position: Position) -> Self {
         Self {
             t0: Time::ZERO,
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated {
                 s0: position,
                 v0: Velocity::ZERO,
@@ -34,7 +38,7 @@ impl MovingStone {
     pub fn new_delivered(s0: Position, v0: Velocity) -> Self {
         Self {
             t0: Time::ZERO,
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated { s0, v0, a: Acceleration::ZERO },
             rotation: Rotation::None,
         }
@@ -127,11 +131,12 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
         self.stone.jump_t0_to(t);
         self.stone.motion.v0 = Velocity::ZERO;
         self.stone.motion.a = Acceleration::ZERO;
-        self.stone.t1 = seconds(f32::INFINITY);
+        self.stone.t1 = seconds(unit::BaseType::INFINITY);
     }
 
     pub fn remove(&mut self) {
-        *self.stone = MovingStone { t1: seconds(f32::INFINITY), ..MovingStone::default() }
+        *self.stone =
+            MovingStone { t1: seconds(unit::BaseType::INFINITY), ..MovingStone::default() }
     }
 
     pub fn collision(&mut self, rhs: &mut MovingStone, t: Time) {
@@ -162,23 +167,30 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
     fn recompute_acc_and_t1(&mut self) {
         let v0 = self.stone.motion.v0;
         let v = v0.norm();
-        let a_friction = (-v0 / v) * self.sheet_params.friction;
-        let a_rotation = match self.stone.rotation {
-            Rotation::None => Vector2::ZERO,
-            Rotation::Clockwise => Vector2 { x: -v0.y, y: v0.x },
-            Rotation::CounterClockwise => Vector2 { x: v0.y, y: -v0.x },
-        } * self.sheet_params.rotation_acc
-            / v;
-        self.stone.motion.a = a_friction + a_rotation;
-        self.stone.t1 = match self.stone.rotation {
-            Rotation::None => seconds(f32::INFINITY),
-            _ => {
-                let adaptive_quantum =
-                    self.simulation.time_quantum_factor * self.stone.motion.v0.norm();
-                let time_quantum = adaptive_quantum
-                    .min(self.simulation.parameters.max_time_quantum)
-                    .max(self.simulation.parameters.min_time_quantum);
-                self.stone.t0 + time_quantum
+        if float_eq!(v, unit::Length::ZERO) {
+            self.stone.motion.a = Acceleration::ZERO;
+            self.stone.t1 = seconds(unit::BaseType::INFINITY)
+        } else {
+            let a_friction = (-v0 / v) * self.sheet_params.friction;
+            let a_rotation = match self.stone.rotation {
+                Rotation::None => Vector2::ZERO,
+                Rotation::Clockwise => Vector2 { x: -v0.y, y: v0.x },
+                Rotation::CounterClockwise => Vector2 { x: v0.y, y: -v0.x },
+            } * self.sheet_params.rotation_acc
+                / v;
+            self.stone.motion.a = a_friction + a_rotation;
+            debug_assert!(!self.stone.motion.a.x.is_nan());
+            debug_assert!(!self.stone.motion.a.y.is_nan());
+            self.stone.t1 = match self.stone.rotation {
+                Rotation::None => seconds(unit::BaseType::INFINITY),
+                _ => {
+                    let adaptive_quantum =
+                        self.simulation.time_quantum_factor * self.stone.motion.v0.norm();
+                    let time_quantum = adaptive_quantum
+                        .min(self.simulation.parameters.max_time_quantum)
+                        .max(self.simulation.parameters.min_time_quantum);
+                    self.stone.t0 + time_quantum
+                }
             }
         }
     }
@@ -187,17 +199,19 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::simulation;
-    use crate::unit::{
-        assert_approx_eq, feet, feet_per_second, feet_per_second_squared,
-        feet_squared_per_second_squared, inches, milliseconds,
+    use crate::{
+        game::simulation,
+        unit::{
+            assert_float_eq, feet, feet_per_second, feet_per_second_squared,
+            feet_squared_per_second_squared, inches, milliseconds,
+        },
     };
 
     #[test]
     fn moving_stone_properties() {
         let stone = MovingStone {
             t0: seconds(1.5),
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 { x: feet(-1.0), y: feet(30.0) },
                 v0: Vector2 { x: feet_per_second(-0.01), y: feet_per_second(3.0) },
@@ -208,19 +222,19 @@ mod tests {
 
         let t = seconds(2.0);
         let velocity = stone.velocity(t);
-        assert_approx_eq!(velocity.x, feet_per_second(-0.0085));
-        assert_approx_eq!(velocity.y, feet_per_second(2.975));
+        assert_float_eq!(velocity.x, feet_per_second(-0.0085));
+        assert_float_eq!(velocity.y, feet_per_second(2.975));
         let position = stone.position(t);
-        assert_approx_eq!(position.x, feet(-1.004625));
-        assert_approx_eq!(position.y, feet(31.49375));
+        assert_float_eq!(position.x, feet(-1.004625));
+        assert_float_eq!(position.y, feet(31.49375));
 
         let t = seconds(3.5);
         let velocity = stone.velocity(t);
-        assert_approx_eq!(velocity.x, feet_per_second(-0.004));
-        assert_approx_eq!(velocity.y, feet_per_second(2.9));
+        assert_float_eq!(velocity.x, feet_per_second(-0.004));
+        assert_float_eq!(velocity.y, feet_per_second(2.9));
         let position = stone.position(t);
-        assert_approx_eq!(position.x, feet(-1.014));
-        assert_approx_eq!(position.y, feet(35.9));
+        assert_float_eq!(position.x, feet(-1.014));
+        assert_float_eq!(position.y, feet(35.9));
     }
 
     #[test]
@@ -228,7 +242,7 @@ mod tests {
         let sheet = sheet::Parameters::default();
         let stone = MovingStone {
             t0: seconds(10.0),
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 {
                     x: sheet.geometry.right_bound() - sheet.stone_radius - feet(1.0),
@@ -240,7 +254,7 @@ mod tests {
             rotation: Rotation::CounterClockwise,
         };
         let next_event = NextStoneEvent { stone: &stone, sheet_params: &sheet };
-        assert_approx_eq!(next_event.when_outside_x().unwrap(), seconds(11.0), epsilon = 0.1);
+        assert_float_eq!(next_event.when_outside_x().unwrap(), seconds(11.0), abs <= 0.1);
     }
 
     #[test]
@@ -248,7 +262,7 @@ mod tests {
         let sheet = sheet::Parameters::default();
         let stone = MovingStone {
             t0: seconds(20.0),
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 {
                     x: feet(3.0),
@@ -261,7 +275,7 @@ mod tests {
             rotation: Rotation::CounterClockwise,
         };
         let next_event = NextStoneEvent { stone: &stone, sheet_params: &sheet };
-        assert_approx_eq!(next_event.when_outside_y().unwrap(), seconds(21.0), epsilon = 0.1);
+        assert_float_eq!(next_event.when_outside_y().unwrap(), seconds(21.0), abs <= 0.1);
     }
 
     #[test]
@@ -296,15 +310,15 @@ mod tests {
             Update { stone: &mut stone, simulation: &simulation, sheet_params: &sheet };
         update.set_next_time_quantum();
 
-        assert_approx_eq!(stone.t0, seconds(4.0));
-        assert_approx_eq!(stone.motion.s0.x, feet(-2.808));
-        assert_approx_eq!(stone.motion.s0.y, feet(107.644));
-        assert_approx_eq!(stone.motion.v0.x, feet_per_second(-2.808));
-        assert_approx_eq!(stone.motion.v0.y, feet_per_second(3.644));
+        assert_float_eq!(stone.t0, seconds(4.0));
+        assert_float_eq!(stone.motion.s0.x, feet(-2.808));
+        assert_float_eq!(stone.motion.s0.y, feet(107.644));
+        assert_float_eq!(stone.motion.v0.x, feet_per_second(-2.808));
+        assert_float_eq!(stone.motion.v0.y, feet_per_second(3.644));
         let v = stone.motion.v0.norm().value;
-        assert_approx_eq!(stone.motion.a.x, feet_per_second_squared(0.45228 / v));
-        assert_approx_eq!(stone.motion.a.y, feet_per_second_squared(-0.81304 / v));
-        assert_approx_eq!(stone.t1, seconds(5.5334637));
+        assert_float_eq!(stone.motion.a.x, feet_per_second_squared(0.45228 / v));
+        assert_float_eq!(stone.motion.a.y, feet_per_second_squared(-0.81304 / v));
+        assert_float_eq!(stone.t1, seconds(5.533463762568621));
         assert_eq!(stone.rotation, Rotation::Clockwise);
     }
 
@@ -318,7 +332,7 @@ mod tests {
         let simulation = Simulation::new(simulation::Parameters::default(), &sheet);
         let mut stone = MovingStone {
             t0: seconds(2.0),
-            t1: seconds(f32::INFINITY),
+            t1: seconds(unit::BaseType::INFINITY),
             motion: motion::UniformlyAccelerated {
                 s0: Vector2 { x: feet(3.0), y: feet(100.0) },
                 v0: Vector2 { x: feet_per_second(-0.3), y: feet_per_second(0.4) },
@@ -329,14 +343,14 @@ mod tests {
         let when_stopped = NextStoneEvent { stone: &stone, sheet_params: &sheet }
             .when_stop()
             .expect("Stone won't stop");
-        assert_approx_eq!(when_stopped, seconds(2.5));
+        assert_float_eq!(when_stopped, seconds(2.5));
 
         let mut update =
             Update { stone: &mut stone, simulation: &simulation, sheet_params: &sheet };
         update.stop(when_stopped);
-        assert_approx_eq!(stone.motion.s0.x, feet(2.915));
-        assert_approx_eq!(stone.motion.s0.y, feet(100.0925));
-        assert_approx_eq!(stone.t0, seconds(2.5));
+        assert_float_eq!(stone.motion.s0.x, feet(2.915));
+        assert_float_eq!(stone.motion.s0.y, feet(100.0925));
+        assert_float_eq!(stone.t0, seconds(2.5));
         assert_eq!(stone.motion.v0, Velocity::ZERO);
         assert_eq!(stone.motion.a, Acceleration::ZERO);
     }
@@ -364,25 +378,27 @@ mod tests {
 
         let next_event = NextStoneEvent { stone: &moving, sheet_params: &sheet };
         let collision_time = next_event.when_collision(&stationary).expect("Stone will miss");
-        assert_approx_eq!(collision_time, seconds(4.0), ulps = 10);
+        assert_float_eq!(collision_time, seconds(4.0));
 
         let mut update =
             Update { stone: &mut moving, simulation: &simulation, sheet_params: &sheet };
         update.collision(&mut stationary, collision_time);
 
-        assert_approx_eq!(moving.t0, collision_time);
-        assert_approx_eq!(moving.motion.s0.x, feet(2.4), ulps = 10);
-        assert_approx_eq!(moving.motion.s0.y, feet(100.8), ulps = 10);
-        assert_approx_eq!(moving.motion.v0.x, feet_per_second(0.0), epsilon = 1e-6);
-        assert_approx_eq!(moving.motion.v0.y, feet_per_second(0.0), epsilon = 1e-6);
+        assert_float_eq!(moving.t0, collision_time);
+        assert_float_eq!(moving.motion.s0.x, feet(2.4));
+        assert_float_eq!(moving.motion.s0.y, feet(100.8));
+        assert_float_eq!(moving.motion.v0.x, feet_per_second(0.0));
+        assert_float_eq!(moving.motion.v0.y, feet_per_second(0.0));
+        assert_float_eq!(moving.motion.a.x, feet_per_second(0.0));
+        assert_float_eq!(moving.motion.a.y, feet_per_second(0.0));
 
-        assert_approx_eq!(stationary.t0, collision_time);
+        assert_float_eq!(stationary.t0, collision_time);
         assert_eq!(stationary.motion.s0.x, feet(1.8));
         assert_eq!(stationary.motion.s0.y, feet(101.6));
-        assert_approx_eq!(stationary.motion.v0.x, feet_per_second(-0.1125), epsilon = 1e-6);
-        assert_approx_eq!(stationary.motion.v0.y, feet_per_second(0.15), epsilon = 1e-6);
-        assert_approx_eq!(stationary.motion.a.x, feet_per_second_squared(0.3), epsilon = 1e-6);
-        assert_approx_eq!(stationary.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+        assert_float_eq!(stationary.motion.v0.x, feet_per_second(-0.1125));
+        assert_float_eq!(stationary.motion.v0.y, feet_per_second(0.15));
+        assert_float_eq!(stationary.motion.a.x, feet_per_second_squared(0.3));
+        assert_float_eq!(stationary.motion.a.y, feet_per_second_squared(-0.4));
         assert_eq!(stationary.rotation, Rotation::None);
     }
 
@@ -419,29 +435,29 @@ mod tests {
         let right_next_event = NextStoneEvent { stone: &right_stone, sheet_params: &sheet };
         let collision_time = left_next_event.when_collision(&right_stone).expect("Stone will miss");
         let another_time = right_next_event.when_collision(&left_stone).expect("Stone will miss");
-        assert_approx_eq!(collision_time, seconds(5.0), epsilon = 1e-6);
-        assert_approx_eq!(another_time, seconds(5.0), epsilon = 1e-6);
+        assert_float_eq!(collision_time, seconds(5.0));
+        assert_float_eq!(another_time, seconds(5.0));
 
         let mut update =
             Update { stone: &mut left_stone, simulation: &simulation, sheet_params: &sheet };
         update.collision(&mut right_stone, collision_time);
 
-        assert_approx_eq!(left_stone.t0, collision_time);
-        assert_eq!(left_stone.motion.s0.x, feet(3.9));
-        assert_eq!(left_stone.motion.s0.y, feet(101.2));
-        assert_approx_eq!(left_stone.motion.v0.x, feet_per_second(-0.3), epsilon = 1e-6);
-        assert_approx_eq!(left_stone.motion.v0.y, feet_per_second(0.4), epsilon = 1e-6);
-        assert_approx_eq!(left_stone.motion.a.x, feet_per_second_squared(0.3), epsilon = 1e-6);
-        assert_approx_eq!(left_stone.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+        assert_float_eq!(left_stone.t0, collision_time);
+        assert_float_eq!(left_stone.motion.s0.x, feet(3.9));
+        assert_float_eq!(left_stone.motion.s0.y, feet(101.2));
+        assert_float_eq!(left_stone.motion.v0.x, feet_per_second(-0.3));
+        assert_float_eq!(left_stone.motion.v0.y, feet_per_second(0.4));
+        assert_float_eq!(left_stone.motion.a.x, feet_per_second_squared(0.3));
+        assert_float_eq!(left_stone.motion.a.y, feet_per_second_squared(-0.4));
         assert_eq!(left_stone.rotation, Rotation::None);
 
-        assert_approx_eq!(right_stone.t0, collision_time);
-        assert_eq!(right_stone.motion.s0.x, feet(4.9));
-        assert_eq!(right_stone.motion.s0.y, feet(101.2));
-        assert_approx_eq!(right_stone.motion.v0.x, feet_per_second(0.3), epsilon = 1e-6);
-        assert_approx_eq!(right_stone.motion.v0.y, feet_per_second(0.4), epsilon = 1e-6);
-        assert_approx_eq!(right_stone.motion.a.x, feet_per_second_squared(-0.3), epsilon = 1e-6);
-        assert_approx_eq!(right_stone.motion.a.y, feet_per_second_squared(-0.4), epsilon = 1e-6);
+        assert_float_eq!(right_stone.t0, collision_time);
+        assert_float_eq!(right_stone.motion.s0.x, feet(4.9));
+        assert_float_eq!(right_stone.motion.s0.y, feet(101.2));
+        assert_float_eq!(right_stone.motion.v0.x, feet_per_second(0.3));
+        assert_float_eq!(right_stone.motion.v0.y, feet_per_second(0.4));
+        assert_float_eq!(right_stone.motion.a.x, feet_per_second_squared(-0.3));
+        assert_float_eq!(right_stone.motion.a.y, feet_per_second_squared(-0.4));
         assert_eq!(right_stone.rotation, Rotation::None);
     }
 }

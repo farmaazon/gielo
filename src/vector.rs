@@ -1,5 +1,4 @@
 use crate::unit::Length;
-use float_cmp::ApproxEq;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
@@ -131,23 +130,6 @@ impl<T: uom::ConstZero> uom::ConstZero for Vector2<T> {
     const ZERO: Self = Self { x: T::ZERO, y: T::ZERO };
 }
 
-impl<T> ApproxEq for Vector2<T>
-where
-    T: ApproxEq,
-{
-    type Margin = T::Margin;
-
-    fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
-        let margin = margin.into();
-        self.x.approx_eq(other.x, margin) && self.y.approx_eq(other.y, margin)
-    }
-
-    fn approx_ne<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
-        let margin = margin.into();
-        self.x.approx_ne(other.x, margin) || self.y.approx_ne(other.y, margin)
-    }
-}
-
 pub trait EuclideanNorm {
     type Output;
 
@@ -173,7 +155,10 @@ impl EuclideanNorm for Vector2<Length> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::{assert_approx_eq, feet_per_second};
+    use crate::{
+        unit,
+        unit::{assert_float_eq, feet_per_second},
+    };
 
     #[test]
     fn operations() {
@@ -195,10 +180,10 @@ mod tests {
 
     #[test]
     fn calculating_norm() {
-        let cases = [(3.0, 4.0, 5.0), (1.0, 30.0, 901.0_f32.sqrt())];
+        let cases = [(3.0, 4.0, 5.0), (1.0, 30.0, (901.0 as unit::BaseType).sqrt())];
         for (x, y, expected) in cases {
             let v = Vector2 { x: feet_per_second(x), y: feet_per_second(y) };
-            assert_approx_eq!(v.norm(), feet_per_second(expected));
+            assert_float_eq!(v.norm(), feet_per_second(expected));
         }
     }
 }

@@ -1,8 +1,10 @@
 pub use crate::game::team::player::Player;
 use derive_more::*;
 use slint::{Color, SharedString};
-use std::array;
-use std::ops::{Index, IndexMut};
+use std::{
+    array,
+    ops::{Index, IndexMut},
+};
 
 pub mod player;
 

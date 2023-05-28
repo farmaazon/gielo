@@ -1,7 +1,12 @@
-use crate::game::team::{PerTeam, Team};
-use crate::game::{team, Dirty};
-use crate::unit;
-use crate::vector::Vector2;
+use crate::{
+    game::{
+        team,
+        team::{PerTeam, Team},
+        Dirty,
+    },
+    unit,
+    vector::Vector2,
+};
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 use uom::ConstZero;
 
@@ -96,7 +101,7 @@ impl std::fmt::Debug for Flag {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Stones {
     positions: [Position; COUNT],
     in_play: Flag,
@@ -170,6 +175,12 @@ impl FromIterator<(Id, Position)> for Stones {
     }
 }
 
+impl std::fmt::Debug for Stones {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.iter_in_play()).finish()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Rotation {
     #[default]
@@ -189,8 +200,7 @@ pub fn team(id: Id) -> Team {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::stone;
-    use crate::unit::feet;
+    use crate::{game::stone, unit::feet};
 
     #[test]
     fn setting_and_unsetting_flag() {

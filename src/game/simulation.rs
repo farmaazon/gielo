@@ -1,8 +1,12 @@
-use crate::game::sheet;
-use crate::unit;
-use crate::unit::{milliseconds, seconds, Time};
-use uom::si::{Quantity, ISQ};
-use uom::typenum::{N1, P2, Z0};
+use crate::{
+    game::sheet,
+    unit,
+    unit::{milliseconds, seconds, Time},
+};
+use uom::{
+    si::{Quantity, ISQ},
+    typenum::{N1, P2, Z0},
+};
 
 pub mod delivery;
 pub mod motion;

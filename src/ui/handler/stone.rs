@@ -1,5 +1,4 @@
-use crate::game;
-use crate::ui::model;
+use crate::{game, ui::model};
 use std::rc::Rc;
 
 pub struct Handler {

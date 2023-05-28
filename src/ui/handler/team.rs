@@ -1,7 +1,6 @@
 use crate::{game, ui, Game};
 use slint::Model;
-use std::cmp;
-use std::rc::Rc;
+use std::{cmp, rc::Rc};
 
 pub struct Handler {
     model: Rc<slint::VecModel<ui::Team>>,

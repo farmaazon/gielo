@@ -1,11 +1,10 @@
-use crate::game::sheet::Hack;
-use crate::game::team::TEAMS_COUNT;
-use crate::game::{sheet, stone, turn};
-use crate::unit;
-use crate::unit::{degrees, feet_per_second, radians};
+use crate::{
+    game::{sheet, sheet::Hack, stone, team::TEAMS_COUNT, turn},
+    unit,
+    unit::{degrees, feet_per_second, radians},
+};
 use rand::distributions::Distribution;
-use uom::si::angle::degree;
-use uom::si::velocity::foot_per_second;
+use uom::si::{angle::degree, velocity::foot_per_second};
 
 pub const PER_TEAM_COUNT: usize = 4;
 pub const STONES_PER_PLAYER: usize = stone::COUNT_PER_TEAM / PER_TEAM_COUNT;

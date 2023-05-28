@@ -1,15 +1,19 @@
-use crate::game::stone;
-use crate::game::stone::Stones;
-use crate::game::team::{PerTeam, Team};
-use crate::unit::approx_eq;
-use crate::unit::Length;
-use crate::vector::EuclideanNorm;
+use crate::{
+    game::{
+        stone,
+        stone::Stones,
+        team::{PerTeam, Team},
+    },
+    unit::{float_eq, Length},
+    vector::EuclideanNorm,
+};
 use decorum::NotNan;
 use itertools::Itertools;
-pub use parameters::Parameters;
 use uom::si::length::foot;
 
 pub mod parameters;
+
+pub use parameters::Parameters;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Hack {
@@ -35,7 +39,7 @@ impl Sheet {
     pub fn dist_from_tee_in_house(&self, position: stone::Position) -> Option<Length> {
         let out_of_house = self.parameters.geometry.house_radius + self.parameters.stone_radius;
         let dist = self.dist_from_tee(position);
-        (dist <= out_of_house || approx_eq!(dist, out_of_house)).then_some(dist)
+        (dist <= out_of_house || float_eq!(dist, out_of_house)).then_some(dist)
     }
 
     pub fn is_in_house(&self, position: stone::Position) -> bool {
@@ -51,7 +55,7 @@ impl Sheet {
     pub fn is_center_guard(&self, position: stone::Position) -> bool {
         let dist_from_center_line = (position.x - self.parameters.geometry.center_line_x).abs();
         let touches_center_line = dist_from_center_line < self.parameters.stone_radius
-            || approx_eq!(dist_from_center_line, self.parameters.stone_radius);
+            || float_eq!(dist_from_center_line, self.parameters.stone_radius);
         self.is_guard(position) && touches_center_line
     }
 
@@ -75,7 +79,7 @@ impl Sheet {
         });
         let nearest_stone = stones_distances.as_ref().map(|s| s.first().cloned());
         let winner = match nearest_stone {
-            PerTeam { a: Some(a), b: Some(b) } if approx_eq!(a, b) => None,
+            PerTeam { a: Some(a), b: Some(b) } if float_eq!(a, b) => None,
             PerTeam { a: Some(a), b: Some(b) } if a < b => Some(Team::A),
             PerTeam { a: Some(a), b: Some(b) } if b < a => Some(Team::B),
             PerTeam { a: Some(_), b: None } => Some(Team::A),
@@ -88,7 +92,7 @@ impl Sheet {
                 stones_distances[winner.opponent()].first().cloned().unwrap_or(out_of_house);
             score[winner] = stones_distances[winner]
                 .iter()
-                .take_while(|&&d| d < not_scoring_dist && !approx_eq!(d, not_scoring_dist))
+                .take_while(|&&d| d < not_scoring_dist && !float_eq!(d, not_scoring_dist))
                 .count() as u8;
         }
         score
@@ -98,9 +102,12 @@ impl Sheet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::team::Team::{A, B};
     use crate::{
-        game::sheet::{parameters::Geometry, stone},
+        game::{
+            sheet::{parameters::Geometry, stone},
+            team::Team::{A, B},
+        },
+        unit,
         unit::feet,
         vector::Vector2,
     };
@@ -112,7 +119,9 @@ mod tests {
     }
 
     impl FlagTest {
-        fn new(data: impl IntoIterator<Item = (stone::Id, (f32, f32), bool)>) -> Self {
+        fn new(
+            data: impl IntoIterator<Item = (stone::Id, (unit::BaseType, unit::BaseType), bool)>,
+        ) -> Self {
             let tee = Geometry::default().tee();
             let mut expected = stone::Flag(0);
             let stones = data
@@ -178,7 +187,7 @@ mod tests {
 
         impl Case {
             fn new<const M: usize>(
-                stones: [(Team, f32, f32); M],
+                stones: [(Team, unit::BaseType, unit::BaseType); M],
                 (score_a, score_b): (u8, u8),
             ) -> Self {
                 let tee = Geometry::default().tee();
@@ -213,12 +222,20 @@ mod tests {
         let cases = [
             Case::new([], (0, 0)),
             Case::new([(A, 6.5, 0.0), (B, 6.0, 6.0)], (0, 0)),
-            Case::new([(A, -1.0, 0.0), (B, 1.0 + f32::EPSILON, 0.0)], (0, 0)),
+            Case::new([(A, -1.0, 0.0), (B, 1.0 + unit::BaseType::EPSILON, 0.0)], (0, 0)),
             Case::new([(A, 0.0, 0.0)], (1, 0)),
             Case::new([(B, 5.0, 0.0)], (0, 1)),
-            Case::new([(B, 0.0, 0.0), (A, -1.0, 0.0), (B, 1.0 + f32::EPSILON, 0.0)], (0, 1)),
             Case::new(
-                [(B, 0.0, 0.0), (A, -1.0, 0.0), (B, 1.0 - f32::EPSILON, 0.0), (B, 2.0, 2.0)],
+                [(B, 0.0, 0.0), (A, -1.0, 0.0), (B, 1.0 + unit::BaseType::EPSILON, 0.0)],
+                (0, 1),
+            ),
+            Case::new(
+                [
+                    (B, 0.0, 0.0),
+                    (A, -1.0, 0.0),
+                    (B, 1.0 - unit::BaseType::EPSILON, 0.0),
+                    (B, 2.0, 2.0),
+                ],
                 (0, 1),
             ),
             Case::new([(A, 0.0, 0.0), (A, 1.0, 1.0), (B, -2.0, 0.0), (A, 3.0, 3.0)], (2, 0)),
