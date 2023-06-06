@@ -15,10 +15,10 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use uom::si::{acceleration::foot_per_second_squared, length::foot};
 
 #[cfg(debug_assertions)]
-const PREVIEW_STEPS: usize = 4;
+const PREVIEW_STEPS: usize = 10;
 
 #[cfg(not(debug_assertions))]
-const PREVIEW_STEPS: usize = 2;
+const PREVIEW_STEPS: usize = 4;
 
 impl<'a> ui::Profiles<'a> {
     pub fn initialize(&self, profiles: &Profiles) {
@@ -103,11 +103,20 @@ impl ui::NewGameParameters {
     }
 
     pub fn sheet_parameters(&self, profiles: &Profiles) -> Result<game::sheet::Parameters> {
-        Ok(profiles
+        let profile = &profiles
             .ice_profile
             .get(self.ice_profile as usize)
             .ok_or_else(|| anyhow!("Unknown ice profile \"{}\"", self.ice_profile))?
-            .data)
+            .data;
+        let geometry =
+            game::sheet::parameters::Geometry { width: profile.sheet_width, ..Default::default() };
+        let parameters = game::sheet::Parameters {
+            geometry,
+            stone_radius: profile.stones_circumference / 2.0 / unit::base_type::consts::PI,
+            static_friction: profile.static_friction,
+            ..Default::default()
+        };
+        Ok(parameters.with_tee_shot_parameters(profile.tee_shot_hog_to_hog, profile.curling))
     }
 
     pub fn teams(&self) -> Result<PerTeam<game::team::Info>> {

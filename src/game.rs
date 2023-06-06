@@ -15,12 +15,13 @@ use crate::{
     unit::Time,
 };
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 pub use sheet::Sheet;
 use std::{cmp::Ordering, time};
 
 pub type Score = PerTeam<u8>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Rules {
     pub free_guard_rule_stones: usize,
     pub no_tick_rule_stones: usize,

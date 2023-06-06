@@ -53,13 +53,11 @@ component TeamLineOut inherits Rectangle {
                     current-value: Profiles.custom-player-skills-label(skills);
 
                     selected(profile) => {
-                        if (self.current-index != 0) {
-                            player-form.skills = Profiles.load-player-skills(self.current-index);
-                            team.players[player-index].skills = skills;
-                            x-std-dev-slider.value = skills.x-std-dev;
-                            y-std-dev-slider.value = skills.y-std-dev;
-                            changed(team)
-                        }
+                        player-form.skills = Profiles.load-player-skills(self.current-index);
+                        team.players[player-index].skills = skills;
+                        x-std-dev-slider.value = skills.x-std-dev;
+                        y-std-dev-slider.value = skills.y-std-dev;
+                        changed(team)
                     }
                 }
 

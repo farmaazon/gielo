@@ -95,6 +95,17 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    pub fn with_tee_shot_parameters(self, hot_to_hog: Time, curl_offset: Length) -> Self {
+        let t1 = hot_to_hog;
+        let s1 = self.geometry.playing_end.hog_line_y - self.geometry.delivery_end.hog_line_y;
+        let s2 = self.geometry.playing_end.tee_line_y - self.geometry.playing_end.hog_line_y;
+        let friction = 2.0 * (s1 + 2.0 * s2 - 2.0 * (s2 * (s1 + s2)).sqrt()) / (t1 * t1);
+        let t2 = (2.0 * s2 / friction).sqrt();
+        let t = t1 + t2;
+        let rotation_acc = 2.0 * (2.0 * curl_offset / t / t); // Why 2.0?
+        Self { friction, rotation_acc, ..self }
+    }
+
     pub fn velocity_for_target_y(&self, y: Length) -> Velocity {
         let s = y - self.geometry.delivery_end.hog_line_y;
         (2.0 * self.friction * s).sqrt()
@@ -121,6 +132,76 @@ impl Default for Parameters {
             rotation_acc: feet_per_second_squared(0.025),
             stone_radius: inches(18.0 / PI),
             static_friction: feet_squared_per_second_squared(0.25),
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::{
+        game::{simulation, simulation::Simulation, stone::Rotation, turn, Sheet},
+        unit::assert_float_eq,
+    };
+    use uom::ConstZero;
+
+    #[test]
+    fn tee_shot_parameters() {
+        #[derive(Debug)]
+        struct Case {
+            hog_to_hog_s: f64,
+            curl_offset_feet: f64,
+        }
+
+        impl Case {
+            fn run(self) {
+                log::debug!("Running case: {self:?}");
+                let hog_to_hog = seconds(self.hog_to_hog_s);
+                let curl_offset = feet(self.curl_offset_feet);
+                let parameters =
+                    Parameters::default().with_tee_shot_parameters(hog_to_hog, curl_offset);
+                let tee = parameters.geometry.tee();
+
+                let velocity = parameters.velocity_for_hog_to_hog_time(hog_to_hog);
+                assert_float_eq!(velocity, parameters.velocity_for_target_y(tee.y));
+
+                let call = turn::delivery::Call {
+                    weight: velocity,
+                    mark: tee + Vector2 { x: curl_offset, y: Length::ZERO },
+                    rotation: Rotation::Clockwise,
+                };
+                let teams = Default::default();
+                let mut dirty = Default::default();
+                let simulation = Simulation::new(Default::default(), &parameters);
+                let mut sheet = Sheet::new(parameters);
+                let start = turn::delivery::Start {
+                    call,
+                    sheet: &mut sheet,
+                    teams: &teams,
+                    dirty: &mut dirty,
+                }
+                .resolve_ideal(0, 0);
+                let mut process = simulation::delivery::Process::new(start);
+                assert!(simulation::delivery::Update {
+                    process: &mut process,
+                    sheet: &mut sheet,
+                    simulation: &simulation,
+                    dirty: &mut dirty,
+                }
+                .run(seconds(120.0)));
+                assert_float_eq!(sheet.stones.positions()[0].x, tee.x, abs <= 0.5);
+                assert_float_eq!(sheet.stones.positions()[0].y, tee.y, abs <= 0.5);
+            }
+        }
+
+        for case in [
+            Case { hog_to_hog_s: 14.5, curl_offset_feet: 5.0 },
+            Case { hog_to_hog_s: 11.0, curl_offset_feet: 5.0 },
+            Case { hog_to_hog_s: 14.5, curl_offset_feet: 1.0 },
+            Case { hog_to_hog_s: 11.0, curl_offset_feet: 1.0 },
+            Case { hog_to_hog_s: 25.0, curl_offset_feet: 8.0 },
+        ] {
+            case.run();
         }
     }
 }

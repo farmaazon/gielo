@@ -33,11 +33,11 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub fn initialize(ui: ui::Main) -> Rc<Self> {
+    pub fn initialize(ui: ui::Main, project_dirs: &Result<directories::ProjectDirs>) -> Rc<Self> {
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
         let profiles_ui = ui.global::<ui::Profiles>();
-        let profiles = Profiles::load();
+        let profiles = Profiles::load(project_dirs);
         profiles_ui.initialize(&profiles);
         let game = RefCell::new(None);
         let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles });
