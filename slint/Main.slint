@@ -1,6 +1,6 @@
 import { Functions } from "./Functions.slint";
 import { Game } from "./Game.slint";
-import { Team, Shot, NewGameTeam, NewGameParameters, GameModel, Player, PlayerSkills } from "./GameModel.slint";
+import { Team, Shot, NewGameParameters, GameModel, Player, PlayerSkills, PlayingTeam } from "./GameModel.slint";
 import { Ice } from "./Ice.slint";
 import { Profiles } from "./Profiles.slint";
 import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
@@ -10,7 +10,6 @@ export {
     Functions,
     GameModel,
     NewGameParameters,
-    NewGameTeam,
     Player,
     PlayerSkills,
     Profiles,
@@ -18,7 +17,8 @@ export {
     SheetEndGeometry,
     SheetGeometry,
     Shot,
-    StoneModel
+    StoneModel,
+    Team
 }
 
 export component Main inherits Window {

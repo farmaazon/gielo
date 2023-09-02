@@ -68,6 +68,7 @@ impl ui::PlayerSkills {
 impl ui::Player {
     pub fn player_info(self) -> game::team::Player {
         game::team::Player {
+            name: self.name,
             skills: self.skills.game_skills(),
             used_hack: match self.left_handed {
                 true => game::sheet::Hack::Right,
@@ -77,7 +78,7 @@ impl ui::Player {
     }
 }
 
-impl ui::NewGameTeam {
+impl ui::Team {
     pub fn team_info(self) -> Result<game::team::Info> {
         let players: Vec<_> =
             self.players.iter().map(|ui_player| ui_player.player_info()).collect();

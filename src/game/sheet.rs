@@ -15,8 +15,9 @@ pub mod parameters;
 
 pub use parameters::Parameters;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Hack {
+    #[default]
     Left,
     Right,
 }

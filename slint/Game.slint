@@ -1,20 +1,20 @@
 import { Functions } from "./Functions.slint";
-import { GameModel, Shot, Team } from "GameModel.slint";
+import { GameModel, Shot, PlayingTeam } from "GameModel.slint";
 import { Sheet } from "Sheet.slint";
 import { Button, Slider , CheckBox} from "std-widgets.slint";
 
 component StoneWaiting inherits Rectangle {
-    in property <Team> team;
+    in property <PlayingTeam> team;
 
     height: self.width;
-    background: team.color;
+    background: team.info.color;
     border-width: 2px;
     border-color: black;
     border-radius: self.width / 2.0;
 }
 
 component TeamStonesWaiting inherits Rectangle {
-    in property <Team> team;
+    in property <PlayingTeam> team;
     in property <int> stones;
 
     height: 20px;
@@ -70,7 +70,7 @@ component ScoreBoard inherits VerticalLayout {
     for team[index] in GameModel.teams: HorizontalLayout {
 
         ScoreCell {
-            background: team.color;
+            background: team.info.color;
         }
 
         ScoreCell {
@@ -85,6 +85,36 @@ component ScoreBoard inherits VerticalLayout {
         ScoreCell {
             text: team.score;
             font-weight: 600;
+        }
+    }
+}
+
+component WeightSlider inherits VerticalLayout {
+    alignment: center;
+    Text {
+        text: "Weight (hog to hog): " + Functions.round(weight.value, 2);
+    }
+
+    weight := Slider {
+        minimum: 6.0;
+        maximum: 24.0;
+        height: 24px;
+        vertical-stretch: 0;
+        enabled: GameModel.thinking;
+        value <=> Shot.hog-to-hog-time;
+
+        changed(v) => {
+            Shot.automatic-weight = false;
+            Shot.update();
+        }
+    }
+
+    automatic := CheckBox {
+        text: "Automatic";
+        checked <=> Shot.automatic-weight;
+
+        toggled => {
+            Shot.update();
         }
     }
 }
@@ -109,37 +139,18 @@ component LeftPane inherits Rectangle {
 
             team: team;
             stones: team.stones-left - (delivering && !blinking-stone-visible ? 1 : 0);
-            vertical-stretch: 0;
         }
 
-        VerticalLayout {
-            alignment: center;
-            Text {
-                text: "Weight (hog to hog): " + Functions.round(weight.value, 2);
-            }
+        Text {
+            text: GameModel.end-finished ? ("End Finished. " + (GameModel.end-score > 0 ?
+                GameModel.teams[0].info.name + " scored " + GameModel.end-score + " points."
+            : GameModel.end-score < 0 ?
+                GameModel.teams[1].info.name + " scored " + (-GameModel.end-score) + " points."
+            : "")) : (GameModel.current-player >= 0 ? "Current player: " + GameModel.teams[GameModel.current-team].info.players[GameModel.current-player].name : "");
+            wrap: word-wrap;
+        }
 
-            weight := Slider {
-                minimum: 6.0;
-                maximum: 24.0;
-                height: 24px;
-                vertical-stretch: 0;
-                enabled: GameModel.thinking;
-                value <=> Shot.hog-to-hog-time;
-
-                changed(v) => {
-                    Shot.automatic-weight = false;
-                    Shot.update();
-                }
-            }
-
-            automatic := CheckBox {
-                text: "Automatic";
-                checked <=> Shot.automatic-weight;
-
-                toggled => {
-                    Shot.update();
-                }
-            }
+        WeightSlider {
         }
 
         rotation := Button {
@@ -175,15 +186,6 @@ component LeftPane inherits Rectangle {
 
             if GameModel.no-tick-rule-violated: Text {
                 text: "No Tick rule violated.";
-                wrap: word-wrap;
-            }
-
-            if GameModel.end-finished: Text {
-                text: "End Finished. " + (GameModel.end-score > 0 ?
-                    GameModel.teams[0].name + " scored " + GameModel.end-score + " points."
-                : GameModel.end-score < 0 ?
-                    GameModel.teams[1].name + " scored " + (-GameModel.end-score) + " points."
-                : "");
                 wrap: word-wrap;
             }
 

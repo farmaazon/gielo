@@ -6,11 +6,12 @@ export struct PlayerSkills {
 }
 
 export struct Player {
+    name: string,
     skills: PlayerSkills,
     left-handed: bool,
 }
 
-export struct NewGameTeam {
+export struct Team {
     name: string,
     color: color,
     players: [Player],
@@ -18,14 +19,13 @@ export struct NewGameTeam {
 
 export struct NewGameParameters {
     ends: int,
-    teams: [NewGameTeam],
+    teams: [Team],
     ice-profile: int,
     rules-profile: int,
 }
 
-export struct Team {
-    name: string,
-    color: color,
+export struct PlayingTeam {
+    info: Team,
     first-hammer: bool,
     stones-left: int,
     end-score: [int],
@@ -46,10 +46,11 @@ export global Shot {
 }
 
 export global GameModel {
-    in-out property <[Team]> teams;
+    in-out property <[PlayingTeam]> teams;
     in-out property <int> end;
     in-out property <int> ends;
     in-out property <int> current-team;
+    in-out property <int> current-player;
     in-out property <bool> game-running;
     in-out property <bool> thinking;
     in-out property <bool> delivering;

@@ -1,13 +1,12 @@
 import { Button, CheckBox, ComboBox, LineEdit, SpinBox, Slider } from "std-widgets.slint";
 import { Functions } from "./Functions.slint";
-import { GameModel, NewGameParameters, NewGameTeam, Player, PlayerSkills } from "./GameModel.slint";
+import { GameModel, NewGameParameters, Player, PlayerSkills, Team } from "./GameModel.slint";
 import { Profiles } from "./Profiles.slint";
 
 component TeamLineOut inherits Rectangle {
-    in-out property <NewGameTeam> team;
-    property <[string]> player-titles: ["Lead", "Second", "Third", "Fourth"];
+    in-out property <Team> team;
 
-    callback changed(NewGameTeam);
+    callback changed(Team);
 
     VerticalLayout {
         spacing: 5px;
@@ -44,7 +43,7 @@ component TeamLineOut inherits Rectangle {
             Text {
                 width: 50px;
                 vertical-alignment: center;
-                text: player-titles[player-index] + ":";
+                text: player.name + ":";
             }
 
             VerticalLayout {

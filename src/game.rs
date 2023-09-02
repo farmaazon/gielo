@@ -127,6 +127,10 @@ impl Game {
         self.current_turn().map(|turn| turn.playing_team())
     }
 
+    pub fn delivering_player(&self) -> Option<team::player::Id> {
+        self.current_turn().map(|turn| turn.delivering_player)
+    }
+
     pub fn is_finished(&self) -> bool {
         matches!(&self.phase, Phase::GameConcluded)
     }
@@ -307,7 +311,9 @@ pub(crate) mod tests {
     fn last_stone_in_end() {
         let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
         let stone = *stone::QUEUE_BY_HAMMER.b.last().unwrap();
-        let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
+        let Phase::End(end) = &mut game.phase else {
+            panic!("Wrong phase at game start");
+        };
         *end = end::Current::new_with_turns_finished(&game.sheet, Team::B, stone::COUNT - 1);
         assert!(game.is_thinking());
         assert!(!game.is_delivering());
@@ -373,7 +379,9 @@ pub(crate) mod tests {
     #[test]
     fn proceeding_after_blank() {
         let mut game = Game::new_with_default_params(PerTeam::default(), Team::B);
-        let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
+        let Phase::End(end) = &mut game.phase else {
+            panic!("Wrong phase at game start");
+        };
         *end = end::Current::new_with_turns_finished(&game.sheet, Team::B, stone::COUNT);
         assert!(game.is_end_finished());
 
@@ -407,7 +415,9 @@ pub(crate) mod tests {
                 Score { a: 0, b: 1 },
             ],
         );
-        let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
+        let Phase::End(end) = &mut game.phase else {
+            panic!("Wrong phase at game start");
+        };
         *end = end::Current::new_with_turns_finished(&game.sheet, Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 
@@ -469,7 +479,9 @@ pub(crate) mod tests {
                 Score { a: 0, b: 1 },
             ],
         );
-        let Phase::End(end) = &mut game.phase else {panic!("Wrong phase at game start"); };
+        let Phase::End(end) = &mut game.phase else {
+            panic!("Wrong phase at game start");
+        };
         *end = end::Current::new_with_turns_finished(&game.sheet, Team::A, stone::COUNT - 1);
         game.sheet.stones = end.finished_turns.last().unwrap().snapshot.clone();
 

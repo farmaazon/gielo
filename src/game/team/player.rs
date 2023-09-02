@@ -4,6 +4,7 @@ use crate::{
     unit::{degrees, feet_per_second, radians},
 };
 use rand::distributions::Distribution;
+use slint::SharedString;
 use uom::si::{angle::degree, velocity::foot_per_second};
 
 pub const PER_TEAM_COUNT: usize = 4;
@@ -37,16 +38,11 @@ impl Skills {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Player {
+    pub name: SharedString,
     pub used_hack: Hack,
     pub skills: Skills,
-}
-
-impl Default for Player {
-    fn default() -> Self {
-        Self { used_hack: Hack::Left, skills: Skills::default() }
-    }
 }
 
 impl Player {

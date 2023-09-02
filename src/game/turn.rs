@@ -168,7 +168,7 @@ impl Current {
     pub fn start_delivery(&mut self, delivery: delivery::Start, now: time::Instant) -> Result<()> {
         let new_phase = match &mut self.phase {
             Phase::Thinking => {
-                let mut resolved = delivery.resolve(self.played_stone, self.delivering_player);
+                let resolved = delivery.resolve(self.played_stone, self.delivering_player);
                 log::info!("Starting delivery: {resolved:?}");
                 resolved.dirty.phase = true;
                 Phase::Delivering {
@@ -285,7 +285,7 @@ mod tests {
 
         let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
         turn.start_delivery(delivery, time).expect("Starting delivery failed");
-        let Phase::Delivering {started_at, process} = &turn.phase else {
+        let Phase::Delivering { started_at, process } = &turn.phase else {
             panic!("Wrong stage");
         };
         assert_eq!(started_at, &time);
@@ -302,7 +302,7 @@ mod tests {
 
         let first_update = time + time::Duration::from_secs(2);
         turn.update(&mut dirty, &mut sheet, &simulation, first_update, 5.0);
-        let Phase::Delivering {started_at, process} = &turn.phase else {
+        let Phase::Delivering { started_at, process } = &turn.phase else {
             panic!("Wrong stage");
         };
         assert_eq!(started_at, &time);
@@ -314,9 +314,7 @@ mod tests {
 
         let finishing_update = time + time::Duration::from_secs(7);
         turn.update(&mut dirty, &mut sheet, &simulation, finishing_update, 5.0);
-        let Phase::Finished {snapshot, violation } = &turn.phase else {
-            panic!("Wrong stage")
-        };
+        let Phase::Finished { snapshot, violation } = &turn.phase else { panic!("Wrong stage") };
         assert!(turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
         assert_eq!(snapshot, &sheet.stones);
@@ -427,7 +425,7 @@ mod tests {
 
         let mut turn = fgz_violation();
         assert!(turn.replace_stones(&mut dirty, &mut sheet).is_ok());
-        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+        let Phase::Finished { violation, snapshot, .. } = &turn.phase else {
             panic!("Wrong phase");
         };
         assert_eq!(*violation, ResolvedViolation::FreeGuardRule);
@@ -438,7 +436,7 @@ mod tests {
         sheet.stones = stones_after.clone();
         let mut turn = fgz_violation();
         assert!(turn.proceed(&mut dirty, &mut sheet).is_ok());
-        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+        let Phase::Finished { violation, snapshot, .. } = &turn.phase else {
             panic!("Wrong phase");
         };
         assert_eq!(*violation, ResolvedViolation::FreeGuardRule);
@@ -449,7 +447,7 @@ mod tests {
         sheet.stones = stones_after.clone();
         let mut turn = no_tick_rule_violation();
         assert!(turn.replace_stones(&mut dirty, &mut sheet).is_ok());
-        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+        let Phase::Finished { violation, snapshot, .. } = &turn.phase else {
             panic!("Wrong phase");
         };
         assert_eq!(*violation, ResolvedViolation::NoTickRuleStonesReplaced);
@@ -460,7 +458,7 @@ mod tests {
         sheet.stones = stones_after.clone();
         let mut turn = no_tick_rule_violation();
         assert!(turn.proceed(&mut dirty, &mut sheet).is_ok());
-        let Phase::Finished {violation, snapshot, ..} = &turn.phase else {
+        let Phase::Finished { violation, snapshot, .. } = &turn.phase else {
             panic!("Wrong phase");
         };
         assert_eq!(*violation, ResolvedViolation::NoTickRuleStonesLeft);

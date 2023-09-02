@@ -3,20 +3,24 @@ use slint::Model;
 use std::{cmp, rc::Rc};
 
 pub struct Handler {
-    model: Rc<slint::VecModel<ui::Team>>,
+    model: Rc<slint::VecModel<ui::PlayingTeam>>,
     score: game::team::PerTeam<Rc<slint::VecModel<i32>>>,
+    players: game::team::PerTeam<Rc<slint::VecModel<ui::Player>>>,
 }
 
 impl Handler {
     pub fn new(game: &Game, game_model: &ui::GameModel<'_>) -> Self {
         let score = game::team::teams().map(|_| Rc::new(slint::VecModel::default()));
+        let players =
+            game.teams.as_ref().map(|team| Rc::new(Self::players_ui_model(&team.players)));
         let model = Rc::new(slint::VecModel::default());
         for team in game::team::teams() {
             let team_score = score[team].clone();
-            model.push(Self::team_ui_model(game, team_score, team));
+            let team_players = players[team].clone();
+            model.push(Self::team_ui_model(game, team, team_score, team_players));
         }
         game_model.set_teams(model.clone().into());
-        Self { score, model }
+        Self { score, model, players }
     }
 
     pub fn synchronize(&self, dirty: &game::Dirty, game: &Game) {
@@ -51,7 +55,8 @@ impl Handler {
             let items = self.model.row_count();
             for (index, team) in (0..items).zip(game::team::teams()) {
                 let team_score = self.score[team].clone();
-                let team_struct = Self::team_ui_model(game, team_score, team);
+                let team_players = self.players[team].clone();
+                let team_struct = Self::team_ui_model(game, team, team_score, team_players);
                 self.model.set_row_data(index, team_struct);
             }
         }
@@ -59,13 +64,13 @@ impl Handler {
 
     fn team_ui_model(
         game: &Game,
-        score: Rc<slint::VecModel<i32>>,
         team: game::team::Team,
-    ) -> ui::Team {
+        score: Rc<slint::VecModel<i32>>,
+        players: Rc<slint::VecModel<ui::Player>>,
+    ) -> ui::PlayingTeam {
         let info = &game.teams[team];
-        ui::Team {
-            name: info.name.clone(),
-            color: info.color,
+        ui::PlayingTeam {
+            info: ui::Team { name: info.name.clone(), color: info.color, players: players.into() },
             stones_left: game
                 .current_end()
                 .map_or(game::stone::COUNT_PER_TEAM, |e| e.stones_left(team))
@@ -74,5 +79,18 @@ impl Handler {
             score: game.score[team] as i32,
             first_hammer: game.first_hammer() == team,
         }
+    }
+
+    fn player_ui_model(player: &game::team::Player) -> ui::Player {
+        ui::Player {
+            left_handed: player.used_hack == game::sheet::Hack::Right,
+            name: player.name.clone(),
+            skills: Default::default(),
+        }
+    }
+
+    fn players_ui_model(players: &[game::team::Player]) -> slint::VecModel<ui::Player> {
+        let players: Vec<_> = players.iter().map(Self::player_ui_model).collect();
+        slint::VecModel::from(players)
     }
 }

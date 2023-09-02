@@ -13,7 +13,7 @@ rand = "0.8"
 rand_distr = "0.4"
 roots = { git = "https://github.com/farmaazon/roots-rs.git", rev="02947574ec685d20363dda2c8c3426138941a093" }
 simple_logger = "4.0"
-itertools = "0.10"
+itertools = "0.11.0"
 serde_yaml = "0.9"
 
 [dependencies.log]
@@ -25,14 +25,14 @@ version = "1.0"
 features = ["derive"]
 
 [dependencies.slint]
-version = "1.0.2"
+version = "1.1.1"
 default_features = false
 features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-femtovg"]
 
 [dependencies.uom]
-version = "0.34"
+version = "0.35.0"
 default-features = false
 features = ["f64", "si", "std", "use_serde"]
 
 [build-dependencies]
-slint-build = "1.0.2"
+slint-build = "1.1.1"

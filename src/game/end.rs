@@ -277,9 +277,7 @@ mod tests {
         let mut end = Current::new(Team::A);
 
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
-        let Some(current_turn) = end.current_turn() else {
-            panic!("No current turn")
-        };
+        let Some(current_turn) = end.current_turn() else { panic!("No current turn") };
         assert!(matches!(current_turn.phase, turn::Phase::Thinking));
         assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.a[0]);
         assert_eq!(end.delivered_stone(), None);
@@ -287,9 +285,7 @@ mod tests {
 
         let check_still_delivering = |end: &Current| {
             assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
-            let Some(current_turn) = end.current_turn() else {
-                panic!("No current turn")
-            };
+            let Some(current_turn) = end.current_turn() else { panic!("No current turn") };
             assert!(matches!(current_turn.phase, turn::Phase::Delivering { .. }));
             assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.a[0]);
             assert_eq!(end.delivered_stone(), Some(stone::QUEUE_BY_HAMMER.a[0]));
@@ -307,9 +303,7 @@ mod tests {
         let finished_delivering = time + time::Duration::from_secs(7);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, finished_delivering);
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
-        let Some(current_turn) = end.current_turn() else {
-            panic!("No current turn")
-        };
+        let Some(current_turn) = end.current_turn() else { panic!("No current turn") };
         assert!(matches!(current_turn.phase, turn::Phase::Thinking));
         assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.a[1]);
         assert_eq!(end.delivered_stone(), None);
@@ -323,9 +317,7 @@ mod tests {
             .expect("Error while starting second delivery");
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
-        let Some(current_turn) = end.current_turn() else {
-            panic!("No current turn")
-        };
+        let Some(current_turn) = end.current_turn() else { panic!("No current turn") };
         assert!(matches!(current_turn.phase, turn::Phase::Delivering { .. }));
         assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.a[1]);
         assert_eq!(end.delivered_stone(), Some(stone::QUEUE_BY_HAMMER.a[1]));
@@ -334,9 +326,7 @@ mod tests {
         let finished_delivering = second_delivery_start + time::Duration::from_secs(7);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, finished_delivering);
         assert!(matches!(&end.phase, Phase::PlayingStones { .. }));
-        let Some(current_turn) = end.current_turn() else {
-            panic!("No current turn")
-        };
+        let Some(current_turn) = end.current_turn() else { panic!("No current turn") };
         assert!(matches!(current_turn.phase, turn::Phase::Thinking));
         assert_eq!(current_turn.played_stone, stone::QUEUE_BY_HAMMER.a[2]);
         assert_eq!(end.delivered_stone(), None);
@@ -364,7 +354,10 @@ mod tests {
         sheet.stones.put_stone(&mut Dirty::new(), guard, guard_position);
         let mut end = Current::new_with_turns_finished(&sheet, Team::B, 1);
         end.finished_turns[0].snapshot = sheet.stones.clone();
-        let Phase::PlayingStones {current_turn: turn::Current {free_guards, free_center_guards, ..}} = &mut end.phase else {
+        let Phase::PlayingStones {
+            current_turn: turn::Current { free_guards, free_center_guards, .. },
+        } = &mut end.phase
+        else {
             panic!("Wrong phase");
         };
         *free_guards = Flag::stone(guard);
@@ -392,7 +385,10 @@ mod tests {
 
         assert_eq!(end.finished_turns.len(), 1);
         assert!(!sheet.stones.in_play().contains(guard));
-        let Phase::PlayingStones {current_turn: turn::Current {phase: turn::Phase::Violation { violation, .. }, ..}} = &end.phase else {
+        let Phase::PlayingStones {
+            current_turn: turn::Current { phase: turn::Phase::Violation { violation, .. }, .. },
+        } = &end.phase
+        else {
             panic!("Expected Rule Violation");
         };
         assert_eq!(*violation, turn::Violation::FreeGuardRule);
@@ -405,7 +401,11 @@ mod tests {
         end.proceed(&mut dirty, &mut sheet, &parameters).expect("Proceeding failed");
         assert_eq!(end.finished_turns.len(), 2);
         assert!(sheet.stones.in_play().contains(guard));
-        let Phase::PlayingStones {current_turn: turn::Current { free_guards, free_center_guards, phase: turn::Phase::Thinking, .. }} = &end.phase else {
+        let Phase::PlayingStones {
+            current_turn:
+                turn::Current { free_guards, free_center_guards, phase: turn::Phase::Thinking, .. },
+        } = &end.phase
+        else {
             panic!("Expected Next Turn");
         };
         assert_eq!(*free_guards, Flag::stone(guard));
@@ -431,7 +431,7 @@ mod tests {
         let end_time = time + Duration::from_secs(7);
         end.update(&mut dirty, &mut sheet, &simulation, &parameters, end_time);
         assert!(matches!(&end.phase, Phase::Finished { score: Score { a: 1, b: 0 } }));
-        assert!(matches!(end.current_turn(), None));
+        assert!(end.current_turn().is_none());
         assert_eq!(end.delivered_stone(), None);
         assert_eq!(end.finished_turns.len(), stone::COUNT);
     }

@@ -9,6 +9,9 @@ use slint::{Color, ComponentHandle, ModelRc, VecModel};
 use std::{cell::RefCell, rc::Rc};
 use uom::si::length::foot;
 
+const DEFAULT_PLAYER_NAMES: [&str; crate::game::team::player::PER_TEAM_COUNT] =
+    ["Lead", "Second", "Third", "Fourth"];
+
 macro_rules! make_callback {
     ($this:ident.$method:ident($($arg:ident),*)) => {
         {
@@ -51,15 +54,14 @@ impl Handler {
     }
 
     fn default_new_game_parameters() -> ui::NewGameParameters {
-        let default_player = ui::Player {
+        let default_player = |name: &str| ui::Player {
+            name: name.into(),
             left_handed: false,
             skills: ui::PlayerSkills { x_std_dev: 1.0, y_std_dev: 2.0 },
         };
         let default_players = move || {
             ModelRc::new(VecModel::from(
-                std::iter::repeat(default_player.clone())
-                    .take(crate::game::team::player::PER_TEAM_COUNT)
-                    .collect_vec(),
+                DEFAULT_PLAYER_NAMES.iter().copied().map(default_player).collect_vec(),
             ))
         };
         ui::NewGameParameters {
@@ -67,12 +69,12 @@ impl Handler {
             ice_profile: 0,
             rules_profile: 0,
             teams: ModelRc::new(VecModel::from(vec![
-                ui::NewGameTeam {
+                ui::Team {
                     color: Color::from_rgb_u8(255, 0, 0),
                     name: "Red".into(),
                     players: default_players(),
                 },
-                ui::NewGameTeam {
+                ui::Team {
                     color: Color::from_rgb_u8(255, 255, 0),
                     name: "Yellow".into(),
                     players: default_players(),

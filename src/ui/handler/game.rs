@@ -79,6 +79,10 @@ impl Handler {
                 Some(game::team::Team::B) => 1,
                 None => 0,
             });
+            game_model.set_current_player(match game.delivering_player() {
+                Some(player) => player as i32,
+                None => -1,
+            });
             if let Some(end::Phase::Finished { score }) = game.current_end().map(|e| &e.phase) {
                 game_model.set_end_score(if score.a > 0 {
                     score.a as i32
