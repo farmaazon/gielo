@@ -5,6 +5,7 @@ import { Ice } from "./Ice.slint";
 import { Profiles } from "./Profiles.slint";
 import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
 import { NewGame } from "./NewGame.slint";
+import { TabWidget } from "std-widgets.slint";
 
 export {
     Functions,
@@ -24,15 +25,30 @@ export {
 export component Main inherits Window {
     in property <bool> blinking-stone-visible;
     in property <NewGameParameters> default-game-parameters;
+    in property <bool> rebounding;
 
-    preferred-width: 800px;
-    preferred-height: 600px;
+    preferred-width: 1000px;
+    preferred-height: 800px;
+    title: "Gielo";
 
-    if GameModel.game-running: Game {
-        blinking-stone-visible: root.blinking-stone-visible;
-    }
+    if !rebounding: tabs := TabWidget {
+        Tab {
+            title: "New Game";
 
-    if !GameModel.game-running: NewGame {
-        parameters: default-game-parameters;
+            NewGame {
+                parameters: default-game-parameters;
+
+                game-started => {
+                    tabs.current-index = 1;
+                }
+            }
+        }
+        Tab {
+            title: "Current Game";
+
+            Game {
+                blinking-stone-visible: root.blinking-stone-visible;
+            }
+        }
     }
 }

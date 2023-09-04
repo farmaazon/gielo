@@ -27,6 +27,13 @@ fn main() {
             ui.set_blinking_stone_visible(!ui.get_blinking_stone_visible());
         }
     });
+    let weak_ui = ui.as_weak();
+    ui.global::<ui::Functions>().on_rebound(move || {
+        if let Some(ui) = weak_ui.upgrade() {
+            ui.set_rebounding(true);
+            slint::Timer::single_shot(Duration::from_millis(0), move || ui.set_rebounding(false));
+        }
+    });
     ui.global::<ui::Functions>().initialize();
     let _handler = Handler::initialize(ui.clone_strong(), &project_dirs);
     ui.run().unwrap();

@@ -2,10 +2,10 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{profiles::Profiles, ui, Game};
+use crate::{game::sheet, profiles::Profiles, ui, Game};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
-use slint::{Color, ComponentHandle, ModelRc, VecModel};
+use slint::{Color, ComponentHandle, ModelRc, SharedString, VecModel};
 use std::{cell::RefCell, rc::Rc};
 use uom::si::length::foot;
 
@@ -40,10 +40,14 @@ impl Handler {
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
         let profiles_ui = ui.global::<ui::Profiles>();
+        let sheet_ui = ui.global::<ui::SheetModel>();
+        sheet_ui.set_parameters(sheet::Parameters::default());
         let profiles = Profiles::load(project_dirs);
         profiles_ui.initialize(&profiles);
         let game = RefCell::new(None);
         let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles });
+        profiles_ui.on_load_team_name(make_callback!(this.load_team_name(index)));
+        profiles_ui.on_load_team_players(make_callback!(this.load_team_players(index)));
         profiles_ui.on_load_player_skills(make_callback!(this.load_player_skills(index)));
         profiles_ui.on_custom_player_skills_label(|skills| {
             format!("Weight: ±{} ft, angle ±{} ft", skills.y_std_dev, skills.x_std_dev).into()
@@ -105,6 +109,36 @@ impl Handler {
         let game_model = self.ui.global::<ui::GameModel>();
         game_model.set_game_running(false);
         Ok(())
+    }
+
+    pub fn load_team_name(&self, index: i32) -> Result<SharedString> {
+        self.profiles
+            .teams
+            .get(index as usize)
+            .map(|team| team.name.as_str().into())
+            .ok_or(anyhow!("Wrong index of team skill"))
+    }
+
+    pub fn load_team_players(&self, index: i32) -> Result<slint::ModelRc<ui::Player>> {
+        let players = &self
+            .profiles
+            .teams
+            .get(index as usize)
+            .ok_or(anyhow!("Wrong index of player skill profile: {index}"))?
+            .data
+            .players;
+        let ui_players: Vec<_> = players
+            .iter()
+            .map(|p| ui::Player {
+                left_handed: false,
+                name: p.name.as_str().into(),
+                skills: ui::PlayerSkills {
+                    x_std_dev: p.skills.x_std_dev.get::<foot>() as f32,
+                    y_std_dev: p.skills.y_std_dev.get::<foot>() as f32,
+                },
+            })
+            .collect();
+        Ok(ModelRc::new(VecModel::from(ui_players)))
     }
 
     pub fn load_player_skills(&self, index: i32) -> Result<ui::PlayerSkills> {

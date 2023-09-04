@@ -1,4 +1,4 @@
-import { Button, CheckBox, ComboBox, LineEdit, SpinBox, Slider } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, LineEdit, ListView, SpinBox, Slider } from "std-widgets.slint";
 import { Functions } from "./Functions.slint";
 import { GameModel, NewGameParameters, Player, PlayerSkills, Team } from "./GameModel.slint";
 import { Profiles } from "./Profiles.slint";
@@ -24,6 +24,7 @@ component TeamLineOut inherits Rectangle {
             Text {
                 vertical-alignment: center;
                 text: "Team";
+                horizontal-stretch: 0;
             }
 
             LineEdit {
@@ -32,12 +33,26 @@ component TeamLineOut inherits Rectangle {
                     team.name = self.text;
                     changed(team);
                 }
+                horizontal-stretch: 2;
+            }
+
+            team-profile := ComboBox {
+                model: Profiles.teams;
+                current-index: -1;
+                current-value: "Load from profile...";
+                horizontal-stretch: 1;
+
+                selected => {
+                    root.team.name = Profiles.load-team-name(self.current-index);
+                    root.team.players = [];
+                    root.team.players = Profiles.load-team-players(self.current-index);
+                    root.changed(team);
+                    Functions.rebound();
+                }
             }
         }
 
         for player[player-index] in team.players: player-form := HorizontalLayout {
-            property <PlayerSkills> skills: player.skills;
-
             spacing: 5px;
 
             Text {
@@ -49,44 +64,44 @@ component TeamLineOut inherits Rectangle {
             VerticalLayout {
                 player-profile := ComboBox {
                     model: Profiles.player-skills;
-                    current-value: Profiles.custom-player-skills-label(skills);
+                    current-value: Profiles.custom-player-skills-label(player.skills);
 
                     selected(profile) => {
-                        player-form.skills = Profiles.load-player-skills(self.current-index);
-                        team.players[player-index].skills = skills;
-                        x-std-dev-slider.value = skills.x-std-dev;
-                        y-std-dev-slider.value = skills.y-std-dev;
-                        changed(team)
+                        team.players[player-index].skills = Profiles.load-player-skills(self.current-index);
+                        root.changed(team);
+                        Functions.rebound();
+                    }
+
+                    callback refresh-label();
+                    refresh-label => {
+                        self.current-index = 0;
+                        self.current-value = Profiles.custom-player-skills-label(team.players[player-index].skills);
                     }
                 }
 
                 HorizontalLayout {
                     y-std-dev-slider := Slider {
-                        value: skills.y-std-dev;
+                        value: player.skills.y-std-dev;
                         minimum: 0.0;
                         maximum: 12.0;
 
                         changed(value) => {
                             self.value = Functions.round(value, 1);
-                            skills.y-std-dev = self.value;
                             team.players[player-index].skills.y-std-dev = self.value;
-                            player-profile.current-index = 0;
-                            player-profile.current-value = Profiles.custom-player-skills-label(skills);
-                            root.changed(team)
+                            player-profile.refresh-label();
+                            root.changed(team);
                         }
                     }
 
                     x-std-dev-slider := Slider {
-                        value: skills.x-std-dev;
+                        value: player.skills.x-std-dev;
                         minimum: 0.0;
                         maximum: 6.0;
 
                         changed(value) => {
                             self.value = Functions.round(value, 1);
-                            skills.x-std-dev = self.value;
                             team.players[player-index].skills.x-std-dev = self.value;
-                            player-profile.current-index = 0;
-                            player-profile.current-value = Profiles.custom-player-skills-label(skills);
+                            player-profile.refresh-label();
                             root.changed(team)
                         }
                     }
@@ -99,7 +114,7 @@ component TeamLineOut inherits Rectangle {
 
                 toggled => {
                     team.players[player-index].left-handed = self.checked;
-                    changed(team)
+                    root.changed(team)
                 }
             }
         }
@@ -113,88 +128,85 @@ export component NewGame inherits Rectangle {
         ice-profile: 0,
         rules-profile: 0,
     };
-    background: #519ee8;
+    callback game-started;
+    // background: #519ee8;
 
-    HorizontalLayout {
-        alignment: center;
+    VerticalLayout {
+        HorizontalLayout {
+            alignment: center;
+            spacing: 20px;
 
-        VerticalLayout {
-            padding: 10px;
-            spacing: 10px;
-            horizontal-stretch: 0;
-            width: 400px;
-
-            TeamLineOut {
-                team: parameters.teams[0];
+            for team[index] in parameters.teams: TeamLineOut {
+                width: 400px;
+                horizontal-stretch: 0;
+                team: team;
 
                 changed(team) => {
-                    root.parameters.teams[0] = team;
+                    root.parameters.teams[index] = team;
                 }
             }
-
-            Text {
-                text: "Ice profile:";
-            }
-
-            ComboBox {
-                model: Profiles.ice;
-                current-index: root.parameters.ice-profile;
-
-                selected(profile) => {
-                    root.parameters.ice-profile = self.current-index;
-                }
-            }
-
-            Rectangle {}
         }
 
-        VerticalLayout {
-            padding: 10px;
-            spacing: 10px;
-            horizontal-stretch: 0;
-            width: 400px;
+        HorizontalLayout {
+            alignment: center;
 
-            TeamLineOut {
-                team: parameters.teams[1];
+            VerticalLayout {
+                width: 400px;
+                padding: 10px;
+                spacing: 10px;
+                horizontal-stretch: 0;
 
-                changed(team) => {
-                    root.parameters.teams[1] = team;
+                Text {
+                    text: "Ice profile:";
                 }
-            }
 
-            Text {
-                text: "Rule set:";
-            }
+                ComboBox {
+                    model: Profiles.ice;
+                    current-index: root.parameters.ice-profile;
 
-            ComboBox {
-                model: Profiles.rules;
-                current-index: root.parameters.rules-profile;
-
-                selected(profile) => {
-                    parameters.rules-profile = self.current-index;
+                    selected(profile) => {
+                        root.parameters.ice-profile = self.current-index;
+                    }
                 }
-            }
 
-            Text {
-                text: "Ends:";
-            }
+                Text {
+                    text: "Rule set:";
+                }
 
-            ends := SpinBox {
-                minimum: 1;
-                maximum: 20;
-                value: parameters.ends;
-                vertical-stretch: 0;
-            }
+                ComboBox {
+                    model: Profiles.rules;
+                    current-index: root.parameters.rules-profile;
 
-            Rectangle {}
+                    selected(profile) => {
+                        parameters.rules-profile = self.current-index;
+                    }
+                }
 
-            Button {
-                text: "Start!";
+                Text {
+                    text: "Ends:";
+                }
 
-                clicked => {
-                    // SpinBox, for some reason, does not have "changed" callback;
-                    root.parameters.ends = ends.value;
-                    GameModel.start-new-game(root.parameters);
+                ends := SpinBox {
+                    minimum: 1;
+                    maximum: 20;
+                    value: parameters.ends;
+                    vertical-stretch: 0;
+
+                    edited(value) => {
+                        debug(value);
+                        parameters.ends = value;
+                    }
+                }
+
+                Rectangle {}
+
+                Button {
+                    text: "Start!";
+
+                    clicked => {
+                        GameModel.start-new-game(root.parameters);
+                        root.game-started()
+                    }
                 }
             }
         }

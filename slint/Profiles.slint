@@ -1,10 +1,13 @@
-import { PlayerSkills } from "./GameModel.slint";
+import { Player, PlayerSkills, Team } from "./GameModel.slint";
 
 export global Profiles {
     in-out property <[string]> player-skills: ["Custom"];
     in-out property <[string]> rules: ["Default"];
     in-out property <[string]> ice: ["Default"];
+    in-out property <[string]> teams: [];
 
+    pure callback load-team-name(int) -> string;
+    pure callback load-team-players(int) -> [Player];
     pure callback load-player-skills(int) -> PlayerSkills;
     pure callback custom-player-skills-label(PlayerSkills) -> string;
 }

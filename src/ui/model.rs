@@ -25,9 +25,11 @@ impl<'a> ui::Profiles<'a> {
         let player = ModelRc::new(VecModel::from(profiles.player_skills_names().collect_vec()));
         let rules = ModelRc::new(VecModel::from(profiles.rule_set_names().collect_vec()));
         let ice = ModelRc::new(VecModel::from(profiles.ice_profile_names().collect_vec()));
+        let teams = ModelRc::new(VecModel::from(profiles.teams().collect_vec()));
         self.set_player_skills(player);
         self.set_rules(rules);
         self.set_ice(ice);
+        self.set_teams(teams);
     }
 }
 

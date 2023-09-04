@@ -85,7 +85,7 @@ impl UniformlyAccelerated {
             let roots = if float_eq::float_eq!(a4, 0.0, abs <= unit::EPSILON) {
                 roots::find_roots_cubic(a3, a2, a1, a0 - r * r)
             } else {
-                roots::find_roots_eigen(&[(a0 - r * r) / a4, a1 / a4, a2 / a4, a3 / a4])
+                roots::find_roots_eigen(&[a3 / a4, a2 / a4, a1 / a4, (a0 - r * r) / a4])
                     .fold(Roots::No([]), |roots, new| roots.add_new_root(new))
             };
             let suitable = |&&t: &&f64| t >= 0.0 && d(t) < -unit::EPSILON;
@@ -295,7 +295,7 @@ mod tests {
             Case { s0: (-6.0, 8.0),  v0: (0.3, -0.4), a: (0.0, 0.0),    r: 5.0,  expect_t: Some(10.0) },
             Case { s0: (-6.0, 8.0),  v0: (0.3, 0.0),  a: (0.0, -0.08),  r: 5.0,  expect_t: Some(10.0) },
             Case { s0: (-6.0, 8.0),  v0: (0.0, 0.0),  a: (0.06, -0.08), r: 5.0,  expect_t: Some(10.0) },
-            // A case where `roots::find_roots_qartic` is wrong (as of 0.0.8 version).
+            // A case where `roots::find_roots_quartic` is wrong (as of 0.0.8 version).
             Case { s0: (0.2932344574990866, -0.9131581396587762), v0: (-0.1606628617942618, 0.6933263997846015), a: (0.059470677389313706, -0.256640459323357), r: 3.0 / PI, expect_t: Some(0.005865405601410802) }
         ] {
             log::debug!("Testing case {:?}", case);

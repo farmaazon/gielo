@@ -1,5 +1,5 @@
 use crate::{
-    profiles::{Ice, PlayerSkills, Profile, Profiles, Rules},
+    profiles::{Ice, Player, PlayerSkills, Profile, Profiles, Rules, Team},
     unit::{feet, feet_squared_per_second_squared, inches, seconds},
 };
 
@@ -37,6 +37,26 @@ pub fn create() -> Profiles {
             "Without no-tick rule": Rules { free_guard_rule_stones: 5, no_tick_rule_stones: 0 },
             "4 Free guards": Rules { free_guard_rule_stones: 4, no_tick_rule_stones: 0 },
             "No free guards": Rules { free_guard_rule_stones: 0, no_tick_rule_stones: 0 },
+        ],
+        teams: list![
+            "Newcomers": Team { players: [
+                Player {
+                    name: "Lead".to_owned(),
+                    skills: PlayerSkills { x_std_dev: feet(4.0), y_std_dev: feet(8.0) }
+                },
+                Player {
+                    name: "Second".to_owned(),
+                    skills: PlayerSkills { x_std_dev: feet(3.7), y_std_dev: feet(7.0) }
+                },
+                Player {
+                    name: "Third".to_owned(),
+                    skills: PlayerSkills { x_std_dev: feet(3.3), y_std_dev: feet(6.0) }
+                },
+                Player {
+                    name: "Skip".to_owned(),
+                    skills: PlayerSkills { x_std_dev: feet(3.0), y_std_dev: feet(5.0) }
+                },
+            ] }
         ],
     }
 }

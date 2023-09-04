@@ -30,6 +30,17 @@ pub struct Ice {
 
 pub use game::Rules;
 
+#[derive(Deserialize, Serialize)]
+pub struct Player {
+    pub name: String,
+    pub skills: PlayerSkills,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Team {
+    pub players: [Player; 4],
+}
+
 // Deserialize and Serialize in `serde` module.
 pub struct Profile<T> {
     pub name: String,
@@ -41,6 +52,7 @@ pub struct Profiles {
     pub player_skills: Vec<Profile<PlayerSkills>>,
     pub ice_profile: Vec<Profile<Ice>>,
     pub rule_set: Vec<Profile<Rules>>,
+    pub teams: Vec<Profile<Team>>,
 }
 
 impl Profiles {
@@ -112,5 +124,9 @@ impl Profiles {
 
     pub fn rule_set_names(&self) -> impl Iterator<Item = SharedString> + '_ {
         Self::names_iterator(&self.rule_set)
+    }
+
+    pub fn teams(&self) -> impl Iterator<Item = SharedString> + '_ {
+        Self::names_iterator(&self.teams)
     }
 }
