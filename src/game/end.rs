@@ -5,9 +5,10 @@ use crate::game::{
     turn, Dirty, Parameters, Score, Sheet,
 };
 use anyhow::{anyhow, bail, Result};
+use serde::{Deserialize, Serialize};
 use std::time;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     PlayingStones { current_turn: turn::Current },
@@ -24,7 +25,7 @@ impl TryFrom<Phase> for turn::Current {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Current {
     pub hammer: Team,
     pub finished_turns: Vec<turn::Finished>,
@@ -53,6 +54,13 @@ impl Current {
     pub fn current_turn(&self) -> Option<&turn::Current> {
         match &self.phase {
             Phase::PlayingStones { current_turn } => Some(current_turn),
+            _ => None,
+        }
+    }
+
+    pub fn current_turn_number(&self) -> Option<u8> {
+        match &self.phase {
+            Phase::PlayingStones { .. } => Some(self.finished_turns.len() as u8),
             _ => None,
         }
     }
@@ -180,7 +188,7 @@ impl Current {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Finished {
     pub hammer: Team,
     pub score: Score,

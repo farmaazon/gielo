@@ -12,24 +12,20 @@ use crate::{
     unit::{seconds, Time},
 };
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 use std::time;
 
 pub mod delivery;
 
 pub type Index = usize;
 
-pub enum NoTickRuleDecision {
-    ReplaceStones,
-    LeaveStones,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Violation {
     FreeGuardRule,
     NoTickRule,
 }
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 pub enum ResolvedViolation {
     #[default]
     None,
@@ -38,16 +34,27 @@ pub enum ResolvedViolation {
     NoTickRuleStonesLeft,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     Thinking,
-    Delivering { started_at: time::Instant, process: simulation::delivery::Process },
-    Violation { violation: Violation },
-    Finished { snapshot: Stones, violation: ResolvedViolation },
+    Violation {
+        violation: Violation,
+    },
+    Finished {
+        snapshot: Stones,
+        violation: ResolvedViolation,
+    },
+    // Logically it's between Violation and Finished, but must be last due to serde bug:
+    // https://github.com/serde-rs/serde/issues/2614
+    #[serde(skip)]
+    Delivering {
+        started_at: time::Instant,
+        process: simulation::delivery::Process,
+    },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Current {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
@@ -240,7 +247,7 @@ impl Current {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Finished {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
@@ -564,5 +571,14 @@ mod tests {
             sheet.parameters.geometry.playing_end.tee_line_y,
             abs <= 2.0
         );
+    }
+
+    /// See https://github.com/serde-rs/serde/issues/2614
+    #[test]
+    fn serde_failure_case() {
+        let phase = Phase::Violation { violation: Violation::FreeGuardRule };
+        let bin = bincode2::serialize(&phase).unwrap();
+        let deserialized: Phase = bincode2::deserialize(&bin).unwrap();
+        assert!(matches!(deserialized, Phase::Violation { violation: Violation::FreeGuardRule }));
     }
 }

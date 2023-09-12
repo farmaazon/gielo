@@ -4,6 +4,7 @@ use crate::{
     unit::{degrees, feet_per_second, radians},
 };
 use rand::distributions::Distribution;
+use serde::{Deserialize, Serialize};
 use slint::SharedString;
 use uom::si::{angle::degree, velocity::foot_per_second};
 
@@ -16,7 +17,7 @@ pub fn who_is_delivering(turn: turn::Index) -> Id {
     turn / TEAMS_COUNT / STONES_PER_PLAYER
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Skills {
     pub angle_std_dev: unit::Angle,
     pub velocity_std_dev: unit::Velocity,
@@ -38,7 +39,7 @@ impl Skills {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Player {
     pub name: SharedString,
     pub used_hack: Hack,

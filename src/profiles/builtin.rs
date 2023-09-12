@@ -41,19 +41,19 @@ pub fn create() -> Profiles {
         teams: list![
             "Newcomers": Team { players: [
                 Player {
-                    name: "Lead".to_owned(),
+                    name: "Lead".into(),
                     skills: PlayerSkills { x_std_dev: feet(4.0), y_std_dev: feet(8.0) }
                 },
                 Player {
-                    name: "Second".to_owned(),
+                    name: "Second".into(),
                     skills: PlayerSkills { x_std_dev: feet(3.7), y_std_dev: feet(7.0) }
                 },
                 Player {
-                    name: "Third".to_owned(),
+                    name: "Third".into(),
                     skills: PlayerSkills { x_std_dev: feet(3.3), y_std_dev: feet(6.0) }
                 },
                 Player {
-                    name: "Skip".to_owned(),
+                    name: "Skip".into(),
                     skills: PlayerSkills { x_std_dev: feet(3.0), y_std_dev: feet(5.0) }
                 },
             ] }

@@ -8,6 +8,7 @@ use crate::{
     vector::Vector2,
 };
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use serde::{Deserialize, Serialize};
 use uom::ConstZero;
 
 pub const COUNT_PER_TEAM: usize = 8;
@@ -37,6 +38,8 @@ pub type Position = Vector2<unit::Length>;
     BitXor,
     BitXorAssign,
     Not,
+    Deserialize,
+    Serialize,
 )]
 pub struct Flag(pub u16);
 
@@ -101,7 +104,7 @@ impl std::fmt::Debug for Flag {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Stones {
     positions: [Position; COUNT],
     in_play: Flag,

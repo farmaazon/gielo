@@ -1,5 +1,6 @@
 import { Functions } from "./Functions.slint";
 import { GameModel, Shot, PlayingTeam } from "GameModel.slint";
+import { SaveLoad } from "SaveLoad.slint";
 import { Sheet } from "Sheet.slint";
 import { Button, Slider , CheckBox} from "std-widgets.slint";
 
@@ -232,6 +233,12 @@ export component Game inherits Rectangle {
             HorizontalLayout {
                 alignment: center;
                 ScoreBoard {}
+            }
+
+            Button {
+                text: "Save";
+
+                clicked => { SaveLoad.save(); }
             }
         }
 

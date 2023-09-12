@@ -4,21 +4,19 @@ extern crate core;
 
 pub mod game;
 pub mod profiles;
+pub mod save_load;
 pub mod ui;
 pub mod unit;
 pub mod vector;
 
 pub use crate::game::Game;
 use crate::ui::handler::Handler;
-use anyhow::anyhow;
 use slint::ComponentHandle;
 use std::time::Duration;
 
 fn main() {
     simple_logger::SimpleLogger::new().init().unwrap();
 
-    let project_dirs = directories::ProjectDirs::from("pl", "Capricornus", "Gielo")
-        .ok_or(anyhow!("Cannot retrieve home directory from the system"));
     let ui = ui::Main::new().unwrap();
     let weak_ui = ui.as_weak();
     let blinking = slint::Timer::default();
@@ -35,6 +33,6 @@ fn main() {
         }
     });
     ui.global::<ui::Functions>().initialize();
-    let _handler = Handler::initialize(ui.clone_strong(), &project_dirs);
+    let _handler = Handler::initialize(ui.clone_strong());
     ui.run().unwrap();
 }

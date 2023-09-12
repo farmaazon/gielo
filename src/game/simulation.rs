@@ -3,6 +3,7 @@ use crate::{
     unit,
     unit::{milliseconds, seconds, Time},
 };
+use serde::{Deserialize, Serialize};
 use uom::{
     si::{Quantity, ISQ},
     typenum::{N1, P2, Z0},
@@ -15,7 +16,7 @@ pub mod stone;
 pub type TimeQuantumFactorDimension = ISQ<N1, Z0, P2, Z0, Z0, Z0, Z0, dyn uom::Kind>;
 pub type TimeQuantumFactor = Quantity<TimeQuantumFactorDimension, unit::Units, unit::BaseType>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Parameters {
     pub min_time_quantum: Time,
     pub max_time_quantum: Time,
@@ -27,7 +28,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Simulation {
     pub parameters: Parameters,
     time_quantum_factor: TimeQuantumFactor,

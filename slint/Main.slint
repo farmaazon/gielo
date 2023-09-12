@@ -3,6 +3,7 @@ import { Game } from "./Game.slint";
 import { Team, Shot, NewGameParameters, GameModel, Player, PlayerSkills, PlayingTeam } from "./GameModel.slint";
 import { Ice } from "./Ice.slint";
 import { Profiles } from "./Profiles.slint";
+import { LoadPanel, SaveLoad } from "./SaveLoad.slint";
 import { StoneModel, SheetEndGeometry, SheetGeometry, SheetModel } from "./SheetModel.slint";
 import { NewGame } from "./NewGame.slint";
 import { TabWidget } from "std-widgets.slint";
@@ -14,6 +15,7 @@ export {
     Player,
     PlayerSkills,
     Profiles,
+    SaveLoad,
     SheetModel,
     SheetEndGeometry,
     SheetGeometry,
@@ -48,6 +50,15 @@ export component Main inherits Window {
 
             Game {
                 blinking-stone-visible: root.blinking-stone-visible;
+            }
+        }
+        Tab {
+            title: "Load Game";
+
+            LoadPanel {
+                game-loaded => {
+                    tabs.current-index = 1
+                }
             }
         }
     }

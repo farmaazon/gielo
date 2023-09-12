@@ -5,11 +5,12 @@ use crate::{
     },
     vector::Vector2,
 };
+use serde::{Deserialize, Serialize};
 use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
 use super::Hack;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct EndGeometry {
     pub hack_line_y: Length,
     pub back_line_y: Length,
@@ -17,7 +18,7 @@ pub struct EndGeometry {
     pub hog_line_y: Length,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Geometry {
     pub width: Length,
     pub length: Length,
@@ -85,7 +86,7 @@ impl Geometry {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Parameters {
     pub geometry: Geometry,
     pub stone_radius: Length,

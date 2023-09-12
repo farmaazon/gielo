@@ -2,10 +2,10 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{game::sheet, profiles::Profiles, ui, Game};
+use crate::{game::sheet, profiles::Profiles, save_load::SaveLoad, ui, Game};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
-use slint::{Color, ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::{cell::RefCell, rc::Rc};
 use uom::si::length::foot;
 
@@ -33,19 +33,26 @@ pub struct Handler {
     ui: ui::Main,
     game: RefCell<Option<Rc<game::Handler>>>,
     profiles: Profiles,
+    save_load: RefCell<SaveLoad>,
+    saves_model: Rc<VecModel<SharedString>>,
 }
 
 impl Handler {
-    pub fn initialize(ui: ui::Main, project_dirs: &Result<directories::ProjectDirs>) -> Rc<Self> {
+    pub fn initialize(ui: ui::Main) -> Rc<Self> {
+        let save_load = SaveLoad::new();
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
         let profiles_ui = ui.global::<ui::Profiles>();
         let sheet_ui = ui.global::<ui::SheetModel>();
+        let save_load_ui = ui.global::<ui::SaveLoad>();
         sheet_ui.set_parameters(sheet::Parameters::default());
-        let profiles = Profiles::load(project_dirs);
+        let profiles = save_load.load_profiles();
         profiles_ui.initialize(&profiles);
         let game = RefCell::new(None);
-        let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles });
+        let saves_model = Rc::new(VecModel::from(Self::saves_vec(&save_load)));
+        save_load_ui.set_saves(saves_model.clone().into());
+        let save_load = RefCell::new(save_load);
+        let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles, save_load, saves_model });
         profiles_ui.on_load_team_name(make_callback!(this.load_team_name(index)));
         profiles_ui.on_load_team_players(make_callback!(this.load_team_players(index)));
         profiles_ui.on_load_player_skills(make_callback!(this.load_player_skills(index)));
@@ -54,6 +61,8 @@ impl Handler {
         });
         game_model.on_start_new_game(make_callback!(this.on_game_start(parameters)));
         game_model.on_finish_game(make_callback!(this.on_game_finish()));
+        save_load_ui.on_save(make_callback!(this.save_game()));
+        save_load_ui.on_load(make_callback!(this.load_game(save_index)));
         this
     }
 
@@ -89,14 +98,11 @@ impl Handler {
 
     pub fn on_game_start(&self, parameters: ui::NewGameParameters) -> Result<()> {
         let game_model = self.ui.global::<ui::GameModel>();
-        let sheet_model = self.ui.global::<ui::SheetModel>();
         let game_params = parameters.game_parameters(&self.profiles)?;
         let sheet_params = parameters.sheet_parameters(&self.profiles)?;
         let teams = parameters.teams()?;
         let simulation_params = crate::game::simulation::Parameters::default();
         let first_hammer = crate::game::team::Team::A;
-        // Sheet needs to be updated before game.
-        sheet_model.set_parameters(sheet_params);
         let game = Game::new(teams, game_params, sheet_params, simulation_params, first_hammer);
         let game_handler = game::Handler::initialize(self.ui.clone_strong(), game);
         *self.game.borrow_mut() = Some(game_handler);
@@ -151,5 +157,34 @@ impl Handler {
             x_std_dev: profile.data.x_std_dev.get::<foot>() as f32,
             y_std_dev: profile.data.y_std_dev.get::<foot>() as f32,
         })
+    }
+
+    pub fn save_game(&self) -> Result<()> {
+        let game = self.game.borrow();
+        let running = game.as_ref().ok_or_else(|| anyhow!("Cannot save game when not running!"))?;
+        let mut save_load = self.save_load.borrow_mut();
+        let new_save = running.save(&mut save_load)?;
+        self.saves_model.insert(0, new_save.name.clone());
+        Ok(())
+    }
+
+    pub fn load_game(&self, model_index: i32) -> Result<()> {
+        let index = self.saves_model.row_count() - model_index as usize - 1;
+        let new_game = self.save_load.borrow().load_game(index)?;
+        let new_game_handler = game::Handler::initialize(self.ui.clone_strong(), new_game);
+        self.game.replace(Some(new_game_handler));
+        Ok(())
+    }
+
+    pub fn update_save_list(&self) {
+        let mut save_load = self.save_load.borrow_mut();
+        if let Err(err) = save_load.reload_saves_list() {
+            log::error!("Could not refresh save list: {err}");
+        }
+        self.saves_model.set_vec(Self::saves_vec(&save_load))
+    }
+
+    fn saves_vec(save_load: &SaveLoad) -> Vec<SharedString> {
+        save_load.known_saves.iter().map(|save| save.name.clone()).rev().collect()
     }
 }

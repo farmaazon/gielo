@@ -1,0 +1,54 @@
+
+import { ListView } from "std-widgets.slint";
+
+export global SaveLoad {
+    in-out property<[string]> saves;
+
+    callback reload-saves();
+    callback save();
+    callback load(int);
+}
+
+export component LoadPanel inherits HorizontalLayout {
+    alignment: center;
+    padding: 15px;
+
+    property <int> current-index: -1;
+    callback game-loaded;
+
+    Rectangle {
+        width: 400px;
+        background: white;
+        border-width: 1px;
+        border-color: gray;
+
+        ListView {
+            width: 400px;
+            for path[index] in SaveLoad.saves: Rectangle {
+                property <bool> is-selected: root.current-index == index;
+                property <duration> previous-click;
+                property <duration> last-click;
+
+                background: is-selected ? lightblue : transparent;
+
+                Text {
+                    text: path;
+                    font-size: 12px;
+                    font-weight: 800;
+                }
+
+                TouchArea {
+                    clicked => {
+                        previous-click = last-click;
+                        last-click = animation-tick();
+                        root.current-index = index;
+                        if (last-click - previous-click < 0.2s) {
+                            SaveLoad.load(index);
+                            root.game-loaded();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

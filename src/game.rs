@@ -33,7 +33,7 @@ impl Default for Rules {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Parameters {
     pub speed_factor: f32,
     pub ends: u8,
@@ -46,7 +46,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     End(end::Current),
@@ -64,7 +64,7 @@ impl TryFrom<Phase> for end::Current {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Game {
     pub params: Parameters,
     pub simulation: Simulation,
@@ -119,8 +119,19 @@ impl Game {
         }
     }
 
+    pub fn current_end_number(&self) -> Option<u8> {
+        match &self.phase {
+            Phase::End(_) => Some((self.finished_ends.len() + 1) as u8),
+            _ => None,
+        }
+    }
+
     pub fn current_turn(&self) -> Option<&turn::Current> {
         self.current_end().and_then(|end| end.current_turn())
+    }
+
+    pub fn current_turn_number(&self) -> Option<u8> {
+        self.current_end().and_then(|end| end.current_turn_number())
     }
 
     pub fn playing_team(&self) -> Option<Team> {

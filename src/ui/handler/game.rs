@@ -1,6 +1,7 @@
 use crate::{
     game,
     game::{end, stone::Flag, turn},
+    save_load::{SaveEntry, SaveLoad},
     ui,
     ui::handler::{make_callback, stone, team},
     unit,
@@ -25,6 +26,7 @@ impl Handler {
         let game_model = ui.global::<ui::GameModel>();
         game_model.set_ends(game.params.ends as i32);
         let sheet_model = ui.global::<ui::SheetModel>();
+        sheet_model.set_parameters(game.sheet.parameters);
         let team_handler = team::Handler::new(&game, &game_model);
         let game = Rc::new(RefCell::new(game));
         let stones_model = Rc::new(ui::model::Stones::new(game.clone()));
@@ -105,11 +107,7 @@ impl Handler {
             }
         }
         if dirty.finished_ends_count != 0 || dirty.phase {
-            game_model.set_end(if game.is_finished() {
-                game.params.ends as i32
-            } else {
-                game.finished_ends.len() as i32 + 1
-            });
+            game_model.set_end(game.current_end_number().unwrap_or(game.params.ends) as i32);
         }
     }
 
@@ -169,5 +167,10 @@ impl Handler {
         }
         shot.update_shot_preview(&game);
         Ok(())
+    }
+
+    pub fn save<'a>(&self, save_load: &'a mut SaveLoad) -> Result<&'a SaveEntry> {
+        let game = self.game.borrow();
+        save_load.save_game(&game)
     }
 }

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
+chrono = "0.4"
 decorum = "0.3"
 derive_more = "0.99"
 directories = "5.0"
@@ -14,6 +15,8 @@ rand_distr = "0.4"
 roots = { git = "https://github.com/farmaazon/roots-rs.git", rev="5e66f152f0c97608142ed02386ba78e0c15973f5" }
 simple_logger = "4.0"
 itertools = "0.11"
+semver = { version = "1.0", features = ["serde"] }
+bincode2 = "2.0"
 serde_yaml = "0.9"
 
 [dependencies.log]
@@ -25,9 +28,9 @@ version = "1.0"
 features = ["derive"]
 
 [dependencies.slint]
-version = "1.2"
+git = "https://github.com/farmaazon/slint.git"
 default_features = false
-features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-skia"]
+features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-skia", "serde"]
 
 [dependencies.uom]
 version = "0.35"
@@ -35,4 +38,4 @@ default-features = false
 features = ["f64", "si", "std", "use_serde"]
 
 [build-dependencies]
-slint-build = "1.2"
+slint-build = { git = "https://github.com/farmaazon/slint.git" }

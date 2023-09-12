@@ -9,20 +9,21 @@ use crate::{
 };
 use decorum::NotNan;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use uom::si::length::foot;
 
 pub mod parameters;
 
 pub use parameters::Parameters;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Hack {
     #[default]
     Left,
     Right,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Sheet {
     pub stones: Stones,
     pub parameters: Parameters,

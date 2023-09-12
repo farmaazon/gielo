@@ -5,14 +5,11 @@ use crate::{
 use ::serde::{Deserialize, Serialize};
 use anyhow::Result;
 use slint::SharedString;
-use std::{fs, io};
+use std::fs;
 
 mod serde;
 
 pub mod builtin;
-
-const FILENAME: &str = "profiles.yaml";
-
 #[derive(Deserialize, Serialize)]
 pub struct PlayerSkills {
     pub x_std_dev: Length,
@@ -28,11 +25,12 @@ pub struct Ice {
     pub static_friction: AvailableEnergy,
 }
 
+use crate::save_load::is_file_not_found;
 pub use game::Rules;
 
 #[derive(Deserialize, Serialize)]
 pub struct Player {
-    pub name: String,
+    pub name: SharedString,
     pub skills: PlayerSkills,
 }
 
@@ -43,7 +41,7 @@ pub struct Team {
 
 // Deserialize and Serialize in `serde` module.
 pub struct Profile<T> {
-    pub name: String,
+    pub name: SharedString,
     pub data: T,
 }
 
@@ -56,21 +54,7 @@ pub struct Profiles {
 }
 
 impl Profiles {
-    pub fn load(project_dirs: &Result<directories::ProjectDirs>) -> Self {
-        match project_dirs {
-            Ok(dirs) => Self::load_from_or_create_file(&dirs.config_dir().join(FILENAME)),
-            Err(err) => {
-                log::error!("Failed to discover path for profiles file: {err}.");
-                builtin::create()
-            }
-        }
-    }
-
     pub fn load_from_or_create_file(path: &std::path::Path) -> Self {
-        fn is_file_not_found(err: &anyhow::Error) -> bool {
-            err.downcast_ref::<io::Error>()
-                .map_or(false, |io_err| io_err.kind() == io::ErrorKind::NotFound)
-        }
         let path_str = path.to_string_lossy();
         match Self::load_from_file(path) {
             Ok(profiles) => {
@@ -111,7 +95,7 @@ impl Profiles {
         Ts: IntoIterator<Item = &'a Profile<T>>,
         Ts::IntoIter: 'a,
     {
-        list.into_iter().map(|Profile { name, .. }| name.into())
+        list.into_iter().map(|Profile { name, .. }| name.clone())
     }
 
     pub fn player_skills_names(&self) -> impl Iterator<Item = SharedString> + '_ {

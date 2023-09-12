@@ -1,5 +1,6 @@
 pub use crate::game::team::player::Player;
 use derive_more::*;
+use serde::{Deserialize, Serialize};
 use slint::{Color, SharedString};
 use std::{
     array,
@@ -11,7 +12,7 @@ pub mod player;
 pub const TEAMS_COUNT: usize = 2;
 pub const TEAMS: PerTeam<Team> = PerTeam { a: Team::A, b: Team::B };
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Team {
     A,
     B,
@@ -26,7 +27,9 @@ impl Team {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq, Sum)]
+#[derive(
+    Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq, Sum, Deserialize, Serialize,
+)]
 pub struct PerTeam<T> {
     pub a: T,
     pub b: T,
@@ -97,7 +100,7 @@ pub fn teams() -> PerTeam<Team> {
     PerTeam { a: Team::A, b: Team::B }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Info {
     pub name: SharedString,
     pub color: Color,

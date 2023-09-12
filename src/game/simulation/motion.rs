@@ -6,9 +6,10 @@ use crate::{
 };
 use derive_more::{Add, Sub};
 use roots::{find_roots_linear, find_roots_quadratic, Roots};
+use serde::{Deserialize, Serialize};
 use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
-#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq, Deserialize, Serialize)]
 pub struct Uniform {
     pub s0: Position,
     pub v: Velocity,
@@ -31,7 +32,7 @@ impl Uniform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq, Deserialize, Serialize)]
 pub struct UniformlyAccelerated {
     pub s0: Position,
     pub v0: Velocity,
