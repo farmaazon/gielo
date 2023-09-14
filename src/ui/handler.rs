@@ -18,7 +18,17 @@ macro_rules! make_callback {
             let weak = Rc::downgrade(&$this);
             move |$($arg),*| {
                 if let Some(this) = weak.upgrade() {
-                    this.$method($($arg),*).unwrap()
+                    let error_ui = this.ui.global::<$crate::ui::Error>();
+                    match (this.$method($($arg),*)) {
+                        Ok(value) => {
+                            error_ui.invoke_report_success();
+                            value
+                        }
+                        Err(err) => {
+                            error_ui.invoke_report_error(err.to_string().into());
+                            Default::default()
+                        }
+                    }
                 } else {
                     Default::default()
                 }

@@ -1,3 +1,4 @@
+import { Error, ErrorPopup } from "./Error.slint";
 import { Functions } from "./Functions.slint";
 import { Game } from "./Game.slint";
 import { Team, Shot, NewGameParameters, GameModel, Player, PlayerSkills, PlayingTeam } from "./GameModel.slint";
@@ -9,6 +10,7 @@ import { NewGame } from "./NewGame.slint";
 import { TabWidget } from "std-widgets.slint";
 
 export {
+    Error,
     Functions,
     GameModel,
     NewGameParameters,
@@ -61,5 +63,10 @@ export component Main inherits Window {
                 }
             }
         }
+    }
+
+    error-popup := ErrorPopup {
+        x: root.width / 2 - self.width / 2;
+        y: 0;
     }
 }

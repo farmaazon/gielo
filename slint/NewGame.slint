@@ -1,4 +1,5 @@
 import { Button, CheckBox, ComboBox, LineEdit, ListView, SpinBox, Slider } from "std-widgets.slint";
+import { Error } from "./Error.slint";
 import { Functions } from "./Functions.slint";
 import { GameModel, NewGameParameters, Player, PlayerSkills, Team } from "./GameModel.slint";
 import { Profiles } from "./Profiles.slint";
@@ -205,7 +206,9 @@ export component NewGame inherits Rectangle {
 
                     clicked => {
                         GameModel.start-new-game(root.parameters);
-                        root.game-started()
+                        if (Error.last-rs-call-succeeded) {
+                            root.game-started();
+                        }
                     }
                 }
             }

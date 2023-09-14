@@ -1,4 +1,4 @@
-
+import { Error } from "./Error.slint";
 import { ListView } from "std-widgets.slint";
 
 export global SaveLoad {
@@ -44,7 +44,9 @@ export component LoadPanel inherits HorizontalLayout {
                         root.current-index = index;
                         if (last-click - previous-click < 0.2s) {
                             SaveLoad.load(index);
-                            root.game-loaded();
+                            if (Error.last-rs-call-succeeded) {
+                                root.game-loaded();
+                            }
                         }
                     }
                 }

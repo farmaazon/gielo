@@ -1,0 +1,60 @@
+export global Error {
+    out property <string> error-message;
+    in-out property <bool> display-error;
+    out property <bool> last-rs-call-succeeded: false;
+
+    callback report-error(string);
+    callback report-success();
+
+    report-error(message) => {
+        self.error-message = message;
+        self.display-error = true;
+        self.last-rs-call-succeeded = false;
+    }
+
+    report-success() => {
+        self.last-rs-call-succeeded = true;
+    }
+}
+
+
+export component ErrorPopup inherits Rectangle {
+
+    width: 400px;
+    height: layout.height;
+    visible: Error.display-error;
+    background: lightsalmon;
+    border-width: 2px;
+    border-color: red;
+
+    layout := VerticalLayout {
+        height: self.padding * 2 + self.spacing + message.height + dismiss.height;
+        padding: 12px;
+        spacing: 12px;
+        message := Rectangle {
+            vertical-stretch: 0;
+            height: message-text.height;
+            message-text := Text {
+                width: 100%;
+                text: Error.error-message;
+                wrap: word-wrap;
+                color: red;
+                font-weight: 500;
+            }
+        }
+
+        dismiss := Rectangle {
+            height: dismiss-text.height;
+            width: dismiss-text.width;
+            vertical-stretch: 0;
+            dismiss-text := Text {
+                text: "dismiss";
+                color: red;
+                font-weight: 900;
+            }
+            TouchArea {
+                clicked => { Error.display-error = false }
+            }
+        }
+    }
+}
