@@ -46,7 +46,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     End(end::Current),
@@ -64,7 +64,7 @@ impl TryFrom<Phase> for end::Current {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Game {
     pub params: Parameters,
     pub simulation: Simulation,

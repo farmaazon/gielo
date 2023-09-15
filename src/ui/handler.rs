@@ -2,7 +2,7 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{game::sheet, profiles::Profiles, save_load::SaveLoad, ui, Game};
+use crate::{game::sheet, profiles::Profiles, save_load::SaveLoad, ui, Game, Snapshot};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -42,13 +42,14 @@ pub(crate) use make_callback;
 pub struct Handler {
     ui: ui::Main,
     game: RefCell<Option<Rc<game::Handler>>>,
+    snapshot: Rc<Snapshot>,
     profiles: Profiles,
     save_load: RefCell<SaveLoad>,
     saves_model: Rc<VecModel<SharedString>>,
 }
 
 impl Handler {
-    pub fn initialize(ui: ui::Main) -> Rc<Self> {
+    pub fn initialize(ui: ui::Main, game: Option<Game>, snapshot: Rc<Snapshot>) -> Rc<Self> {
         let save_load = SaveLoad::new();
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
@@ -58,11 +59,19 @@ impl Handler {
         sheet_ui.set_parameters(sheet::Parameters::default());
         let profiles = save_load.load_profiles();
         profiles_ui.initialize(&profiles);
-        let game = RefCell::new(None);
+        let game_handler = game.map(|game| {
+            game::Handler::initialize(ui.clone_strong(), game.clone(), snapshot.clone())
+        });
         let saves_model = Rc::new(VecModel::from(Self::saves_vec(&save_load)));
         save_load_ui.set_saves(saves_model.clone().into());
-        let save_load = RefCell::new(save_load);
-        let this = Rc::new(Self { ui: ui.clone_strong(), game, profiles, save_load, saves_model });
+        let this = Rc::new(Self {
+            ui: ui.clone_strong(),
+            game: RefCell::new(game_handler),
+            snapshot,
+            profiles,
+            save_load: RefCell::new(save_load),
+            saves_model,
+        });
         profiles_ui.on_load_team_name(make_callback!(this.load_team_name(index)));
         profiles_ui.on_load_team_players(make_callback!(this.load_team_players(index)));
         profiles_ui.on_load_player_skills(make_callback!(this.load_player_skills(index)));
@@ -114,7 +123,8 @@ impl Handler {
         let simulation_params = crate::game::simulation::Parameters::default();
         let first_hammer = crate::game::team::Team::A;
         let game = Game::new(teams, game_params, sheet_params, simulation_params, first_hammer);
-        let game_handler = game::Handler::initialize(self.ui.clone_strong(), game);
+        let game_handler =
+            game::Handler::initialize(self.ui.clone_strong(), game, self.snapshot.clone());
         *self.game.borrow_mut() = Some(game_handler);
         game_model.set_game_running(true);
         Ok(())
@@ -181,7 +191,8 @@ impl Handler {
     pub fn load_game(&self, model_index: i32) -> Result<()> {
         let index = self.saves_model.row_count() - model_index as usize - 1;
         let new_game = self.save_load.borrow().load_game(index)?;
-        let new_game_handler = game::Handler::initialize(self.ui.clone_strong(), new_game);
+        let new_game_handler =
+            game::Handler::initialize(self.ui.clone_strong(), new_game, self.snapshot.clone());
         self.game.replace(Some(new_game_handler));
         Ok(())
     }

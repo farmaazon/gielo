@@ -3,7 +3,7 @@ use crate::{
     game::{end, stone::Flag, turn},
     save_load::{SaveEntry, SaveLoad},
     ui,
-    ui::handler::{make_callback, stone, team},
+    ui::handler::{make_callback, stone, team, Snapshot},
     unit,
     unit::feet,
     Game,
@@ -18,15 +18,17 @@ pub struct Handler {
     stone_handler: stone::Handler,
     team_handler: team::Handler,
     game: Rc<RefCell<Game>>,
+    snapshot: Rc<Snapshot>,
     update_timer: RefCell<Option<slint::Timer>>,
 }
 
 impl Handler {
-    pub fn initialize(ui: ui::Main, game: Game) -> Rc<Self> {
+    pub fn initialize(ui: ui::Main, game: Game, snapshot: Rc<Snapshot>) -> Rc<Self> {
         let game_model = ui.global::<ui::GameModel>();
         game_model.set_ends(game.params.ends as i32);
         let sheet_model = ui.global::<ui::SheetModel>();
         sheet_model.set_parameters(game.sheet.parameters);
+        snapshot.set(Some(game.clone()));
         let team_handler = team::Handler::new(&game, &game_model);
         let game = Rc::new(RefCell::new(game));
         let stones_model = Rc::new(ui::model::Stones::new(game.clone()));
@@ -40,9 +42,10 @@ impl Handler {
             stone_handler,
             team_handler,
             update_timer,
+            snapshot,
         });
         let to_initialize = game::Dirty {
-            finished_ends_count: 0,
+            finished_ends_count: game_model.get_end() as isize,
             stones: Flag::ALL,
             score: true,
             phase: true,
@@ -120,6 +123,10 @@ impl Handler {
         }
     }
 
+    fn make_snapshot(&self) {
+        self.snapshot.set(Some(self.game.borrow().clone()))
+    }
+
     pub fn update(self: &Rc<Self>) -> Result<()> {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().update(&mut dirty, time::Instant::now());
@@ -136,7 +143,7 @@ impl Handler {
             game.start_delivery(&mut dirty, call, time::Instant::now())?;
         }
         self.synchronize(dirty);
-
+        self.make_snapshot();
         Ok(())
     }
 
@@ -144,6 +151,7 @@ impl Handler {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().proceed(&mut dirty)?;
         self.synchronize(dirty);
+        self.make_snapshot();
         Ok(())
     }
 
@@ -151,6 +159,7 @@ impl Handler {
         let mut dirty = game::Dirty::new();
         self.game.borrow_mut().replace_stones(&mut dirty)?;
         self.synchronize(dirty);
+        self.make_snapshot();
         Ok(())
     }
 

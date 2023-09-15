@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use std::time;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     PlayingStones { current_turn: turn::Current },
@@ -25,7 +25,7 @@ impl TryFrom<Phase> for turn::Current {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Current {
     pub hammer: Team,
     pub finished_turns: Vec<turn::Finished>,

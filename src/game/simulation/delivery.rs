@@ -49,7 +49,7 @@ pub mod event {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Process {
     pub stones: [MovingStone; game::stone::COUNT],
     pub delivered_stone: stone::Id,

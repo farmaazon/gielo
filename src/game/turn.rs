@@ -34,7 +34,7 @@ pub enum ResolvedViolation {
     NoTickRuleStonesLeft,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Phase {
     Thinking,
@@ -54,7 +54,7 @@ pub enum Phase {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Current {
     pub played_stone: stone::Id,
     pub delivering_player: player::Id,
@@ -259,6 +259,7 @@ impl TryFrom<Current> for Finished {
     type Error = anyhow::Error;
 
     fn try_from(current: Current) -> anyhow::Result<Self> {
+        // panic!("Check how we do panic.");
         match current.phase {
             Phase::Finished { snapshot, violation, .. } => Ok(Self {
                 played_stone: current.played_stone,
