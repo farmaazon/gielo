@@ -1,13 +1,19 @@
 use crate::{
-    game::stone::{Acceleration, Position, Velocity},
+    stone::{Acceleration, Position, Velocity},
     unit,
-    unit::{feet_squared_per_second_squared, seconds, Time},
-    vector::{EuclideanNorm, Vector2},
+    unit::{
+        acceleration::foot_per_second_squared,
+        feet_squared_per_second_squared,
+        length::foot,
+        seconds,
+        vector::{EuclideanNorm, Vector2},
+        velocity::foot_per_second,
+        Time,
+    },
 };
 use derive_more::{Add, Sub};
 use roots::{find_roots_linear, find_roots_quadratic, Roots};
 use serde::{Deserialize, Serialize};
-use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
 #[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq, Deserialize, Serialize)]
 pub struct Uniform {

@@ -1,17 +1,21 @@
 use crate::{
-    game::{
-        sheet,
-        simulation::{motion, Simulation},
-        stone::{Acceleration, Position, Rotation, Velocity},
+    motion, sheet,
+    sheet::stone::Rotation,
+    unit,
+    unit::{
+        float_eq, seconds,
+        time::second,
+        vector::{EuclideanNorm, Vector2},
+        ConstZero, Time,
     },
-    unit::{float_eq, seconds, Time},
-    vector::{EuclideanNorm, Vector2},
+    Simulation,
 };
 use decorum::NotNan;
-use uom::{si::time::second, ConstZero};
 
-pub use crate::game::stone::Id;
-use crate::unit;
+pub type Id = sheet::stone::Id;
+pub type Velocity = Vector2<unit::Velocity>;
+pub type Acceleration = Vector2<unit::Acceleration>;
+pub type Position = sheet::stone::Position;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct MovingStone {
@@ -183,14 +187,7 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
             debug_assert!(!self.stone.motion.a.y.is_nan());
             self.stone.t1 = match self.stone.rotation {
                 Rotation::None => seconds(unit::BaseType::INFINITY),
-                _ => {
-                    let adaptive_quantum =
-                        self.simulation.time_quantum_factor * self.stone.motion.v0.norm();
-                    let time_quantum = adaptive_quantum
-                        .min(self.simulation.parameters.max_time_quantum)
-                        .max(self.simulation.parameters.min_time_quantum);
-                    self.stone.t0 + time_quantum
-                }
+                _ => self.stone.t0 + self.simulation.new_time_quantum_for_stone(v),
             }
         }
     }
@@ -200,7 +197,7 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
 mod tests {
     use super::*;
     use crate::{
-        game::simulation,
+        simulation,
         unit::{
             assert_float_eq, feet, feet_per_second, feet_per_second_squared,
             feet_squared_per_second_squared, inches, milliseconds,

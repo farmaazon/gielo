@@ -2,14 +2,18 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{game::sheet, profiles::Profiles, save_load::SaveLoad, ui, Game, Snapshot};
+use crate::{
+    game::{sheet, unit::length::foot, Game},
+    profiles::Profiles,
+    save_load::SaveLoad,
+    ui, Snapshot,
+};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::{cell::RefCell, rc::Rc};
-use uom::si::length::foot;
 
-const DEFAULT_PLAYER_NAMES: [&str; crate::game::team::player::PER_TEAM_COUNT] =
+const DEFAULT_PLAYER_NAMES: [&str; crate::game::player::PER_TEAM_COUNT] =
     ["Lead", "Second", "Third", "Fourth"];
 
 macro_rules! make_callback {
@@ -37,6 +41,7 @@ macro_rules! make_callback {
     }
 }
 
+use crate::ui::model::{initialize_profiles, new_game_parameters, set_ui_sheet_parameters};
 pub(crate) use make_callback;
 
 pub struct Handler {
@@ -56,9 +61,9 @@ impl Handler {
         let profiles_ui = ui.global::<ui::Profiles>();
         let sheet_ui = ui.global::<ui::SheetModel>();
         let save_load_ui = ui.global::<ui::SaveLoad>();
-        sheet_ui.set_parameters(sheet::Parameters::default());
+        set_ui_sheet_parameters(&sheet_ui, sheet::Parameters::default());
         let profiles = save_load.load_profiles();
-        profiles_ui.initialize(&profiles);
+        initialize_profiles(&profiles_ui, &profiles);
         let game_handler = game.map(|game| {
             game::Handler::initialize(ui.clone_strong(), game.clone(), snapshot.clone())
         });
@@ -117,11 +122,11 @@ impl Handler {
 
     pub fn on_game_start(&self, parameters: ui::NewGameParameters) -> Result<()> {
         let game_model = self.ui.global::<ui::GameModel>();
-        let game_params = parameters.game_parameters(&self.profiles)?;
-        let sheet_params = parameters.sheet_parameters(&self.profiles)?;
-        let teams = parameters.teams()?;
+        let game_params = new_game_parameters::game_parameters(&parameters, &self.profiles)?;
+        let sheet_params = new_game_parameters::sheet_parameters(&parameters, &self.profiles)?;
+        let teams = new_game_parameters::teams(&parameters)?;
         let simulation_params = crate::game::simulation::Parameters::default();
-        let first_hammer = crate::game::team::Team::A;
+        let first_hammer = sheet::team::Team::A;
         let game = Game::new(teams, game_params, sheet_params, simulation_params, first_hammer);
         let game_handler =
             game::Handler::initialize(self.ui.clone_strong(), game, self.snapshot.clone());

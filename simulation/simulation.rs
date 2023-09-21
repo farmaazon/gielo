@@ -1,7 +1,6 @@
 use crate::{
-    game::sheet,
-    unit,
-    unit::{milliseconds, seconds, Time},
+    sheet, unit,
+    unit::{milliseconds, seconds, Time, Velocity},
 };
 use serde::{Deserialize, Serialize};
 use uom::{
@@ -9,12 +8,8 @@ use uom::{
     typenum::{N1, P2, Z0},
 };
 
-pub mod delivery;
-pub mod motion;
-pub mod stone;
-
-pub type TimeQuantumFactorDimension = ISQ<N1, Z0, P2, Z0, Z0, Z0, Z0, dyn uom::Kind>;
-pub type TimeQuantumFactor = Quantity<TimeQuantumFactorDimension, unit::Units, unit::BaseType>;
+type TimeQuantumFactorDimension = ISQ<N1, Z0, P2, Z0, Z0, Z0, Z0, dyn uom::Kind>;
+type TimeQuantumFactor = Quantity<TimeQuantumFactorDimension, unit::Units, unit::BaseType>;
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Parameters {
@@ -53,5 +48,10 @@ impl Simulation {
     #[cfg(test)]
     pub(crate) fn new_mock(parameters: Parameters, time_quantum_factor: TimeQuantumFactor) -> Self {
         Self { parameters, time_quantum_factor }
+    }
+
+    pub fn new_time_quantum_for_stone(&self, v: Velocity) -> Time {
+        let adaptive_quantum = self.time_quantum_factor * v;
+        adaptive_quantum.min(self.parameters.max_time_quantum).max(self.parameters.min_time_quantum)
     }
 }

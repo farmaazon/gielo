@@ -1,12 +1,15 @@
 use crate::{
-    game::{sheet, sheet::Hack, stone, team::TEAMS_COUNT, turn},
-    unit,
-    unit::{degrees, feet_per_second, radians},
+    sheet,
+    sheet::{stone, team::TEAMS_COUNT, Hack},
+    turn,
+    unit::{
+        angle::degree, degrees, feet_per_second, radians, velocity::foot_per_second, Angle, Length,
+        Velocity,
+    },
 };
-use rand::distributions::Distribution;
+use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 use slint::SharedString;
-use uom::si::{angle::degree, velocity::foot_per_second};
 
 pub const PER_TEAM_COUNT: usize = 4;
 pub const STONES_PER_PLAYER: usize = stone::COUNT_PER_TEAM / PER_TEAM_COUNT;
@@ -19,16 +22,12 @@ pub fn who_is_delivering(turn: turn::Index) -> Id {
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Skills {
-    pub angle_std_dev: unit::Angle,
-    pub velocity_std_dev: unit::Velocity,
+    pub angle_std_dev: Angle,
+    pub velocity_std_dev: Velocity,
 }
 
 impl Skills {
-    pub fn from_tee_shot_std_dev(
-        x: unit::Length,
-        y: unit::Length,
-        sheet: sheet::Parameters,
-    ) -> Self {
+    pub fn from_tee_shot_std_dev(x: Length, y: Length, sheet: sheet::Parameters) -> Self {
         let tee_shot_y = sheet.geometry.playing_end.tee_line_y;
         let tee_shot_v = sheet.velocity_for_target_y(tee_shot_y);
         let tangent_dev = (x / (tee_shot_y - sheet.geometry.delivery_end.hack_line_y)).value;
@@ -47,13 +46,13 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn rand_angle_error(&self) -> unit::Angle {
+    pub fn rand_angle_error(&self) -> Angle {
         let angle_dist =
             rand_distr::Normal::new(0.0, self.skills.angle_std_dev.get::<degree>()).unwrap();
         degrees(angle_dist.sample(&mut rand::thread_rng()))
     }
 
-    pub fn rand_velocity_error(&self) -> unit::Velocity {
+    pub fn rand_velocity_error(&self) -> Velocity {
         let velocity_dist =
             rand_distr::Normal::new(0.0, self.skills.velocity_std_dev.get::<foot_per_second>())
                 .unwrap();

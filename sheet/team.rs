@@ -1,13 +1,6 @@
-pub use crate::game::team::player::Player;
-use derive_more::*;
+use derive_more::{Add, AddAssign, Sum};
 use serde::{Deserialize, Serialize};
-use slint::{Color, SharedString};
-use std::{
-    array,
-    ops::{Index, IndexMut},
-};
-
-pub mod player;
+use std::ops::{Index, IndexMut};
 
 pub const TEAMS_COUNT: usize = 2;
 pub const TEAMS: PerTeam<Team> = PerTeam { a: Team::A, b: Team::B };
@@ -71,7 +64,7 @@ impl<T> IndexMut<Team> for PerTeam<T> {
 
 impl<T> IntoIterator for PerTeam<T> {
     type Item = T;
-    type IntoIter = array::IntoIter<T, TEAMS_COUNT>;
+    type IntoIter = std::array::IntoIter<T, TEAMS_COUNT>;
 
     fn into_iter(self) -> Self::IntoIter {
         [self.a, self.b].into_iter()
@@ -100,17 +93,10 @@ pub fn teams() -> PerTeam<Team> {
     PerTeam { a: Team::A, b: Team::B }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Info {
-    pub name: SharedString,
-    pub color: Color,
-    pub players: [Player; player::PER_TEAM_COUNT],
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vector::Vector2;
+    use crate::unit::vector::Vector2;
 
     #[test]
     fn per_team_map() {

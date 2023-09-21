@@ -1,20 +1,14 @@
-#[macro_use]
-extern crate uom;
-extern crate core;
-
-pub mod game;
-pub mod profiles;
-pub mod save_load;
-pub mod ui;
-pub mod unit;
-pub mod vector;
-
-pub use crate::game::Game;
 use crate::ui::handler::Handler;
 use anyhow::Result;
 use derive_more::Deref;
 use slint::ComponentHandle;
 use std::{cell::Cell, panic, rc::Rc, time::Duration};
+
+pub mod profiles;
+pub mod save_load;
+pub mod ui;
+pub use gielo_game as game;
+use gielo_game::Game;
 
 #[derive(Default, Deref)]
 pub struct Snapshot(Cell<Option<Game>>);

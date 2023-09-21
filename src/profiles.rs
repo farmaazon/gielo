@@ -1,6 +1,6 @@
 use crate::{
     game,
-    unit::{AvailableEnergy, Length, Time},
+    game::unit::{AvailableEnergy, Length, Time},
 };
 use ::serde::{Deserialize, Serialize};
 use anyhow::Result;

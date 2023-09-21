@@ -1,4 +1,4 @@
-use crate::game::stone;
+use crate::sheet::stone;
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct Dirty {

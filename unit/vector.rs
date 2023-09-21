@@ -1,4 +1,4 @@
-use crate::unit::Length;
+use crate::{Length, Velocity};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -137,8 +137,8 @@ pub trait EuclideanNorm {
     fn norm(self) -> Self::Output;
 }
 
-impl EuclideanNorm for crate::game::stone::Velocity {
-    type Output = crate::unit::Velocity;
+impl EuclideanNorm for Vector2<Velocity> {
+    type Output = Velocity;
 
     fn norm(self) -> Self::Output {
         (self.x * self.x + self.y * self.y).sqrt()
@@ -156,10 +156,7 @@ impl EuclideanNorm for Vector2<Length> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        unit,
-        unit::{assert_float_eq, feet_per_second},
-    };
+    use crate::{assert_float_eq, feet_per_second, BaseType};
 
     #[test]
     fn operations() {
@@ -181,7 +178,7 @@ mod tests {
 
     #[test]
     fn calculating_norm() {
-        let cases = [(3.0, 4.0, 5.0), (1.0, 30.0, (901.0 as unit::BaseType).sqrt())];
+        let cases = [(3.0, 4.0, 5.0), (1.0, 30.0, (901.0 as BaseType).sqrt())];
         for (x, y, expected) in cases {
             let v = Vector2 { x: feet_per_second(x), y: feet_per_second(y) };
             assert_float_eq!(v.norm(), feet_per_second(expected));

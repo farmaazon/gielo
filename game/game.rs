@@ -1,25 +1,31 @@
-pub mod dirty;
-pub mod end;
-pub mod sheet;
-pub mod simulation;
-pub mod stone;
-pub mod team;
-pub mod turn;
-
-pub use crate::game::dirty::Dirty;
 use crate::{
-    game::{
-        simulation::Simulation,
+    dirty::Dirty,
+    end, player,
+    player::Player,
+    sheet,
+    sheet::{
+        stone,
         team::{PerTeam, Team},
+        Sheet,
     },
+    simulation,
+    simulation::Simulation,
+    turn,
     unit::Time,
 };
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-pub use sheet::Sheet;
+use slint::{Color, SharedString};
 use std::{cmp::Ordering, time};
 
 pub type Score = PerTeam<u8>;
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct TeamInfo {
+    pub name: SharedString,
+    pub color: Color,
+    pub players: [Player; player::PER_TEAM_COUNT],
+}
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Rules {
@@ -68,7 +74,7 @@ impl TryFrom<Phase> for end::Current {
 pub struct Game {
     pub params: Parameters,
     pub simulation: Simulation,
-    pub teams: PerTeam<team::Info>,
+    pub teams: PerTeam<TeamInfo>,
     pub sheet: Sheet,
     pub finished_ends: Vec<end::Finished>,
     pub score: Score,
@@ -77,7 +83,7 @@ pub struct Game {
 
 impl Game {
     pub fn new(
-        teams: PerTeam<team::Info>,
+        teams: PerTeam<TeamInfo>,
         params: Parameters,
         sheet_params: sheet::Parameters,
         simulation_params: simulation::Parameters,
@@ -96,7 +102,7 @@ impl Game {
         }
     }
 
-    pub fn new_with_default_params(teams: PerTeam<team::Info>, first_hammer: Team) -> Self {
+    pub fn new_with_default_params(teams: PerTeam<TeamInfo>, first_hammer: Team) -> Self {
         Self::new(
             teams,
             Parameters::default(),
@@ -138,7 +144,7 @@ impl Game {
         self.current_turn().map(|turn| turn.playing_team())
     }
 
-    pub fn delivering_player(&self) -> Option<team::player::Id> {
+    pub fn delivering_player(&self) -> Option<player::Id> {
         self.current_turn().map(|turn| turn.delivering_player)
     }
 
@@ -189,13 +195,9 @@ impl Game {
     ) -> Result<()> {
         match &mut self.phase {
             Phase::End(end) => {
-                let delivery = turn::delivery::Start {
-                    call,
-                    sheet: &mut self.sheet,
-                    dirty,
-                    teams: &self.teams,
-                };
-                end.start_delivery(delivery, now)
+                let delivery =
+                    turn::delivery::Start { call, sheet: &mut self.sheet, teams: &self.teams };
+                end.start_delivery(dirty, delivery, now)
             }
             _ => bail!("Starting delivery at wrong game phase"),
         }
@@ -208,7 +210,7 @@ impl Game {
                 dirty.score = true;
                 let tied = self.score.a == self.score.b;
                 if tied || self.finished_ends.len() + 1 < self.params.ends as usize {
-                    self.sheet.stones.clear(dirty);
+                    self.sheet.stones.clear(&mut dirty.stones);
                     let new_hammer = match score.a.cmp(&score.b) {
                         Ordering::Less => Team::A,
                         Ordering::Equal => *hammer,
@@ -250,7 +252,7 @@ impl Game {
 
     #[cfg(test)]
     pub(crate) fn new_with_ends_finished(
-        teams: PerTeam<team::Info>,
+        teams: PerTeam<TeamInfo>,
         params: Parameters,
         sheet_params: sheet::Parameters,
         simulation_params: simulation::Parameters,
@@ -276,7 +278,7 @@ pub(crate) mod tests {
         pub parameters: Parameters,
         pub sheet: Sheet,
         pub simulation: Simulation,
-        pub teams: PerTeam<team::Info>,
+        pub teams: PerTeam<TeamInfo>,
         pub dirty: Dirty,
         pub time: time::Instant,
     }

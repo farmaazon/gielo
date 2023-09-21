@@ -1,15 +1,17 @@
 use crate::{
-    game::{
-        simulation,
-        simulation::Simulation,
+    dirty::Dirty,
+    player, sheet,
+    sheet::{
         stone,
         stone::Stones,
-        team,
-        team::{player, PerTeam, Team},
-        Dirty, Parameters, Sheet,
+        team::{PerTeam, Team},
+        Sheet,
     },
+    simulation,
+    simulation::Simulation,
     unit,
     unit::{seconds, Time},
+    Parameters, TeamInfo,
 };
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
@@ -138,8 +140,13 @@ impl Current {
             Phase::Delivering { started_at, process } => {
                 let real_time = seconds((now - *started_at).as_secs_f32());
                 let game_time = real_time * speed_factor as unit::BaseType;
-                let finished = simulation::delivery::Update { dirty, sheet, simulation, process }
-                    .run(game_time);
+                let finished = simulation::delivery::Update {
+                    dirty: &mut dirty.stones,
+                    sheet,
+                    simulation,
+                    process,
+                }
+                .run(game_time);
                 self.delivery_time = process.current_time;
                 finished
             }
@@ -172,15 +179,24 @@ impl Current {
         }
     }
 
-    pub fn start_delivery(&mut self, delivery: delivery::Start, now: time::Instant) -> Result<()> {
+    pub fn start_delivery(
+        &mut self,
+        dirty: &mut Dirty,
+        delivery: delivery::Start,
+        now: time::Instant,
+    ) -> Result<()> {
         let new_phase = match &mut self.phase {
             Phase::Thinking => {
-                let resolved = delivery.resolve(self.played_stone, self.delivering_player);
-                log::info!("Starting delivery: {resolved:?}");
-                resolved.dirty.phase = true;
+                let conditions = delivery.resolve(self.played_stone, self.delivering_player);
+                log::info!("Starting delivery: {conditions:?}, {:?}", delivery.sheet);
+                dirty.phase = true;
                 Phase::Delivering {
                     started_at: now,
-                    process: simulation::delivery::Process::new(resolved),
+                    process: simulation::delivery::Process::new(
+                        conditions,
+                        delivery.sheet,
+                        &mut dirty.stones,
+                    ),
                 }
             }
             _ => bail!("Starting delivery not on thinking phase"),
@@ -193,7 +209,7 @@ impl Current {
         let snapshot = sheet.stones.clone();
         let violation = match &mut self.phase {
             Phase::Violation { violation: Violation::FreeGuardRule } => {
-                sheet.stones.restore(dirty, self.stones_before.clone());
+                sheet.stones.restore(&mut dirty.stones, self.stones_before.clone());
                 ResolvedViolation::FreeGuardRule
             }
             Phase::Violation { violation: Violation::NoTickRule } => {
@@ -216,7 +232,7 @@ impl Current {
             _ => bail!("Cannot replace stones at current phase"),
         };
         let snapshot = sheet.stones.clone();
-        sheet.stones.restore(dirty, self.stones_before.clone());
+        sheet.stones.restore(&mut dirty.stones, self.stones_before.clone());
         self.phase = Phase::Finished { snapshot, violation };
         Ok(())
     }
@@ -225,14 +241,14 @@ impl Current {
         &self,
         sheet: &Sheet,
         simulation: &Simulation,
-        teams: &PerTeam<team::Info>,
+        teams: &PerTeam<TeamInfo>,
         call: delivery::Call,
     ) -> Vec<stone::Position> {
         let mut sheet_copy = sheet.clone();
-        let mut dirty = Dirty::new();
-        let start = delivery::Start { call, sheet: &mut sheet_copy, teams, dirty: &mut dirty };
+        let mut dirty = sheet::stone::Flag::default();
+        let start = delivery::Start { call, sheet: &mut sheet_copy, teams };
         let resolved = start.resolve_ideal(self.played_stone, self.delivering_player);
-        let mut process = simulation::delivery::Process::new(resolved);
+        let mut process = simulation::delivery::Process::new(resolved, &mut sheet_copy, &mut dirty);
         let mut result = vec![sheet_copy.stones.positions()[self.played_stone]];
         let mut update = simulation::delivery::Update {
             process: &mut process,
@@ -276,9 +292,10 @@ impl TryFrom<Current> for Finished {
 mod tests {
     use super::*;
     use crate::{
-        game::{sheet, sheet::Hack, stone::Rotation, tests::PhaseTestSetup},
-        unit::{assert_float_eq, feet},
-        vector::Vector2,
+        sheet,
+        sheet::{stone::Rotation, Hack},
+        tests::PhaseTestSetup,
+        unit::{assert_float_eq, feet, vector::Vector2},
     };
 
     #[test]
@@ -291,8 +308,8 @@ mod tests {
         assert!(!turn.is_finished());
         assert_eq!(turn.playing_team(), stone::team(stone));
 
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
-        turn.start_delivery(delivery, time).expect("Starting delivery failed");
+        let delivery = delivery::Start::tee_draw(&mut sheet, &teams);
+        turn.start_delivery(&mut dirty, delivery, time).expect("Starting delivery failed");
         let Phase::Delivering { started_at, process } = &turn.phase else {
             panic!("Wrong stage");
         };
@@ -358,9 +375,8 @@ mod tests {
                 (corner_guard, corner_guard_pos),
             ]);
             let mut turn = Current::new(stone, 1, &sheet, true, true);
-            let delivery =
-                delivery::Start { call, sheet: &mut sheet, teams: &teams, dirty: &mut dirty };
-            turn.start_delivery(delivery, time).expect("Failed to start delivery");
+            let delivery = delivery::Start { call, sheet: &mut sheet, teams: &teams };
+            turn.start_delivery(&mut dirty, delivery, time).expect("Failed to start delivery");
             turn.update(
                 &mut dirty,
                 &mut sheet,
@@ -488,18 +504,19 @@ mod tests {
         turn.phase = Phase::Delivering {
             started_at: time,
             process: simulation::delivery::Process::new(
-                delivery::Start::tee_draw(&mut Dirty::default(), &mut sheet, &teams)
-                    .resolve(stone, 0),
+                delivery::Start::tee_draw(&mut sheet, &teams).resolve(stone, 0),
+                &mut sheet,
+                &mut stone::Flag(0),
             ),
         };
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
-        assert!(turn.start_delivery(delivery, time).is_err());
+        let delivery = delivery::Start::tee_draw(&mut sheet, &teams);
+        assert!(turn.start_delivery(&mut dirty, delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
 
         turn.phase =
             Phase::Finished { snapshot: Stones::default(), violation: ResolvedViolation::None };
-        let delivery = delivery::Start::tee_draw(&mut dirty, &mut sheet, &teams);
-        assert!(turn.start_delivery(delivery, time).is_err());
+        let delivery = delivery::Start::tee_draw(&mut sheet, &teams);
+        assert!(turn.start_delivery(&mut dirty, delivery, time).is_err());
         dirty.check_and_clear(&Dirty::new());
         turn.update(&mut dirty, &mut sheet, &simulation, time, 5.0);
         dirty.check_and_clear(&Dirty::new());
@@ -508,7 +525,7 @@ mod tests {
     #[test]
     fn finished_turn_conversion() {
         let mut stones = Stones::new();
-        stones.put_stone(&mut Dirty::new(), 10, Vector2 { x: feet(1.0), y: feet(133.0) });
+        stones.put_stone(&mut stone::Flag(0), 10, Vector2 { x: feet(1.0), y: feet(133.0) });
         let unfinished = Current {
             played_stone: 12,
             delivering_player: 2,

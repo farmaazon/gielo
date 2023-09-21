@@ -1,13 +1,9 @@
 use crate::{
-    game,
-    game::{
-        simulation::{stone, stone::MovingStone, Simulation},
-        stone::Rotation,
-        turn::delivery::ResolvedStart,
-        Dirty, Sheet,
-    },
-    unit::{float_eq, Time},
-    vector::Vector2,
+    sheet,
+    sheet::{stone::Rotation, Sheet},
+    stone,
+    unit::{float_eq, vector::Vector2, Angle, Time, Velocity},
+    Simulation,
 };
 use decorum::NotNan;
 use derive_more::{Deref, DerefMut};
@@ -15,12 +11,13 @@ use itertools::Itertools;
 use std::cmp;
 use uom::{si::time::second, ConstZero};
 
-pub use crate::game::simulation::delivery::event::Event;
+pub use crate::delivery::event::Event;
+use crate::stone::MovingStone;
 
 const EVENT_LIMIT_IN_SINGLE_RUN: usize = 1000;
 
 pub mod event {
-    use crate::{game::simulation::stone, unit::Time};
+    use crate::{stone, unit::Time};
 
     #[derive(Copy, Clone, Debug)]
     pub enum Kind {
@@ -49,9 +46,18 @@ pub mod event {
     }
 }
 
+#[derive(Debug)]
+pub struct StartingConditions {
+    pub stone: stone::Id,
+    pub angle: Angle,
+    pub velocity: Velocity,
+    pub hack: sheet::Hack,
+    pub rotation: Rotation,
+}
+
 #[derive(Clone, Debug)]
 pub struct Process {
-    pub stones: [MovingStone; game::stone::COUNT],
+    pub stones: [MovingStone; sheet::stone::COUNT],
     pub delivered_stone: stone::Id,
     pub rotation: Rotation,
     pub current_time: Time,
@@ -61,7 +67,9 @@ pub struct Process {
 
 impl Process {
     pub fn new(
-        ResolvedStart { stone, angle, velocity, hack, rotation, sheet, dirty }: ResolvedStart,
+        StartingConditions { stone, angle, velocity, hack, rotation }: StartingConditions,
+        sheet: &mut Sheet,
+        dirty: &mut sheet::stone::Flag,
     ) -> Self {
         let delivered_initial_pos = sheet.parameters.geometry.hack_pos(hack);
         sheet.stones.put_stone(dirty, stone, delivered_initial_pos);
@@ -97,7 +105,7 @@ pub struct Update<'a, 'b, 'c, 'd> {
     pub process: &'a mut Process,
     pub sheet: &'b mut Sheet,
     pub simulation: &'d Simulation,
-    pub dirty: &'c mut Dirty,
+    pub dirty: &'c mut sheet::stone::Flag,
 }
 
 impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
@@ -148,7 +156,7 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
         let outside_y = Event::from_times(event::Kind::StoneOut, id, next_event.when_outside_y());
         let stopped = Event::from_times(event::Kind::StoneStopped, id, next_event.when_stop());
         let next_stones =
-            game::stone::Flag::range((id + 1)..game::stone::COUNT) & self.sheet.stones.in_play();
+            sheet::stone::Flag::range((id + 1)..sheet::stone::COUNT) & self.sheet.stones.in_play();
         let collisions = next_stones.iter_ids().flat_map(move |with| {
             let rhs = &self.process.stones[with];
             Event::from_times(event::Kind::Collision { with }, id, next_event.when_collision(rhs))
@@ -256,23 +264,22 @@ impl<'a, 'b, 'c, 'd> Update<'a, 'b, 'c, 'd> {
 mod tests {
     use super::*;
     use crate::{
-        game::{
-            sheet,
-            sheet::Hack,
-            simulation,
-            stone::{Flag, Position, Rotation},
+        sheet::{
+            stone::{Flag, Position},
+            Hack,
         },
+        simulation,
         unit::{
             assert_float_eq, base_type::consts::PI, feet, feet_per_second, feet_per_second_squared,
-            feet_squared_per_second_squared, inches, radians, seconds, Angle, Length, Velocity,
+            feet_squared_per_second_squared, inches, radians, seconds, vector::EuclideanNorm,
+            Length,
         },
-        vector::{EuclideanNorm, Vector2},
     };
 
     struct DeliveryTest {
         sheet: Sheet,
         simulation: Simulation,
-        dirty: Dirty,
+        dirty: Flag,
         process: Process,
     }
 
@@ -294,21 +301,16 @@ mod tests {
             let mut sheet = Sheet::new(sheet_params);
             sheet.stones = other_stones.into_iter().collect();
             let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-            let mut dirty = Dirty::new();
-            let start = ResolvedStart {
+            let mut dirty = Flag(0);
+            let start = StartingConditions {
                 stone: delivered_stone,
                 angle,
                 velocity,
                 hack: Hack::Left,
                 rotation,
-                sheet: &mut sheet,
-                dirty: &mut dirty,
             };
-            let process = Process::new(start);
-            dirty.check_and_clear(&Dirty {
-                stones: Flag::stone(delivered_stone),
-                ..Dirty::default()
-            });
+            let process = Process::new(start, &mut sheet, &mut dirty);
+            dirty.assert_and_clear(Flag::stone(delivered_stone));
             sheet.stones.in_play().contains(delivered_stone);
 
             Self { sheet, dirty, process, simulation }
@@ -335,7 +337,7 @@ mod tests {
             [],
         );
         test.run_update(seconds(2.0), false);
-        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(0), ..Dirty::default() });
+        test.dirty.assert_and_clear(Flag::stone(0));
 
         let mut check_moving = |time: Time, exp_pos: Position| {
             test.run_update(time, false);
@@ -343,7 +345,7 @@ mod tests {
             assert_float_eq!(position.x, exp_pos.x, abs <= 2.0);
             assert_float_eq!(position.y, exp_pos.y, abs <= 2.0);
             assert_eq!(test.sheet.stones.in_play(), Flag::stone(0));
-            test.dirty.check_and_clear(&Dirty { stones: Flag::stone(0), ..Dirty::default() });
+            test.dirty.assert_and_clear(Flag::stone(0));
         };
 
         check_moving(seconds(5.1), Vector2 { x: feet(2.0), y: feet(40.0) });
@@ -360,7 +362,7 @@ mod tests {
             abs <= 2.0
         );
         assert_eq!(test.sheet.stones.in_play(), Flag::stone(0));
-        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(0), ..Dirty::default() });
+        test.dirty.assert_and_clear(Flag::stone(0));
     }
 
     #[test]
@@ -374,7 +376,7 @@ mod tests {
         );
         test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
-        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
+        test.dirty.assert_and_clear(Flag::stone(4));
     }
 
     #[test]
@@ -388,14 +390,14 @@ mod tests {
         );
         test.run_update(seconds(60.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
-        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(4), ..Dirty::default() });
+        test.dirty.assert_and_clear(Flag::stone(4));
     }
 
     #[test]
     fn clear_stone() {
         let tee = sheet::parameters::Geometry::default().tee();
-        let delivered = game::stone::TEAM_IDS.a.start;
-        let taken_out = game::stone::TEAM_IDS.b.start;
+        let delivered = sheet::stone::TEAM_IDS.a.start;
+        let taken_out = sheet::stone::TEAM_IDS.b.start;
         let mut test = DeliveryTest::set_up(
             radians(-2.0 / 132.0),
             feet_per_second(9.13),
@@ -408,22 +410,16 @@ mod tests {
         assert!(!test.process.stones[taken_out].is_moving());
         assert_eq!(test.sheet.stones.positions()[taken_out], tee);
         assert!(test.process.stones[delivered].is_moving());
-        test.dirty.check_and_clear(&Dirty { stones: Flag::stone(delivered), ..Dirty::default() });
+        test.dirty.assert_and_clear(Flag::stone(delivered));
 
         test.run_update(seconds(16.0), false);
         assert!(test.process.stones[taken_out].is_moving());
         assert!(test.process.stones[delivered].is_moving());
-        test.dirty.check_and_clear(&Dirty {
-            stones: Flag::stone(taken_out) | Flag::stone(delivered),
-            ..Dirty::default()
-        });
+        test.dirty.assert_and_clear(Flag::stone(taken_out) | Flag::stone(delivered));
 
         test.run_update(seconds(20.0), true);
         assert_eq!(test.sheet.stones.in_play(), Flag(0));
-        test.dirty.check_and_clear(&Dirty {
-            stones: Flag::stone(taken_out) | Flag::stone(delivered),
-            ..Dirty::default()
-        });
+        test.dirty.assert_and_clear(Flag::stone(taken_out) | Flag::stone(delivered));
     }
 
     #[test]
@@ -436,9 +432,9 @@ mod tests {
             stone_radius: inches(18.0 / PI),
         };
         let tee = sheet_params.geometry.tee();
-        let frozen = game::stone::TEAM_IDS.a.start;
-        let taken_out = game::stone::TEAM_IDS.b.start;
-        let delivered = game::stone::TEAM_IDS.a.start + 1;
+        let frozen = sheet::stone::TEAM_IDS.a.start;
+        let taken_out = sheet::stone::TEAM_IDS.b.start;
+        let delivered = sheet::stone::TEAM_IDS.a.start + 1;
         let stones = [
             (frozen, tee),
             (taken_out, tee + Vector2 { x: feet(0.0), y: sheet_params.stone_radius * 2.0 }),
@@ -464,8 +460,8 @@ mod tests {
     #[test]
     fn take_out_guard_just_behind_hog_line() {
         let sheet_params = sheet::Parameters::default();
-        let guard = game::stone::TEAM_IDS.a.start;
-        let delivered = game::stone::TEAM_IDS.b.start;
+        let guard = sheet::stone::TEAM_IDS.a.start;
+        let delivered = sheet::stone::TEAM_IDS.b.start;
         let stones = [(
             guard,
             Position {
@@ -493,9 +489,6 @@ mod tests {
 
     #[test]
     fn collision_case() {
-        simple_logger::SimpleLogger::new().init().unwrap();
-        // DEBUG [gielo::game::simulation::delivery] Starting delivery: { stone: 9, angle: -0.003968233139033363, weight: 3, hack: Left, rotation: Clockwise }
-        // DEBUG [gielo::game::simulation::delivery] Stones positions when starting delivery: [Vector2 { x: -4.71237046298357 ft^1, y: 130.80300085783333 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: -5.005604920482656 ft^1, y: 131.7161589974921 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }]
         let first_stone = 8;
         let second_stone = 0;
         let delivered_stone = 9;
@@ -536,18 +529,16 @@ mod tests {
         let mut sheet = Sheet::new(sheet_params);
         sheet.stones = [(existing_stone, existing_stone_pos)].into_iter().collect();
         let simulation = Simulation::new(simulation::Parameters::default(), &sheet.parameters);
-        let mut dirty = Dirty::new();
-        let start = ResolvedStart {
+        let mut dirty = Flag(0);
+        let start = StartingConditions {
             stone: delivered_stone,
             angle: Angle::ZERO,
             velocity: sheet.parameters.velocity_for_target_y(delivered_stone_target.y),
             hack: Hack::Left,
             rotation: Rotation::None,
-            sheet: &mut sheet,
-            dirty: &mut dirty,
         };
-        let mut process = Process::new(start);
-        dirty.check_and_clear(&Dirty { stones: Flag::stone(delivered_stone), ..Dirty::default() });
+        let mut process = Process::new(start, &mut sheet, &mut dirty);
+        dirty.assert_and_clear(Flag::stone(delivered_stone));
 
         let mut update = Update {
             process: &mut process,
@@ -564,7 +555,7 @@ mod tests {
     }
 
     #[test]
-    fn inifinite_loop_case() {
+    fn infinite_loop_case() {
         // 2023-05-29T20:41:30.941Z INFO  [gielo::game::turn] Starting delivery: ResolvedStart { stone: 2, angle: 0.029739065044429545, velocity: 6.660988156007251 ft^1 s^-1, hack: Left, rotation: Clockwise, sheet: Sheet { stones: Stones { positions: [Vector2 { x: 2.1878551923754115 ft^1, y: 131.46574811443395 ft^1 }, Vector2 { x: -1.385046970563802 ft^1, y: 131.63285902920924 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: -0.4094141612577939 ft^1, y: 131.93239985326647 ft^1 }, Vector2 { x: 2.086156542675065 ft^1, y: 129.7895295071387 ft^1 }, Vector2 { x: -1.18616978195276 ft^1, y: 129.57204710483458 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }, Vector2 { x: 0.0 ft^1, y: 0.0 ft^1 }], in_play: Flag(0000011100000011) }, parameters: Parameters { geometry: Geometry { width: 15.583333333333334 ft^1, length: 150.0 ft^1, center_line_x: 0.0 ft^1, hack_x_offset: 0.4999999999999999 ft^1, house_radius: 6.0 ft^1, delivery_end: EndGeometry { hack_line_y: 6.0 ft^1, back_line_y: 12.0 ft^1, tee_line_y: 18.0 ft^1, hog_line_y: 39.0 ft^1 }, playing_end: EndGeometry { hack_line_y: 144.0 ft^1, back_line_y: 138.0 ft^1, tee_line_y: 132.0 ft^1, hog_line_y: 111.0 ft^1 } }, stone_radius: 0.47746482927568595 ft^1, friction: 0.24 ft^1 s^-2, rotation_acc: 0.025 ft^1 s^-2, static_friction: 0.25 ft^2 s^-2 } }, dirty: Dirty { finished_ends_count: 0, stones: Flag(0000000000000000), score: false, phase: false, preview: false } }
         let sheet_params = sheet::Parameters::default();
         let simulation = Simulation::new(simulation::Parameters::default(), &sheet_params);
@@ -578,17 +569,15 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let mut dirty = Dirty::default();
-        let resolved = ResolvedStart {
+        let mut dirty = Flag(0);
+        let resolved = StartingConditions {
             stone: 2,
             angle: radians(0.029739065044429545),
             velocity: feet_per_second(6.660988156007251),
             hack: Hack::Left,
             rotation: Rotation::Clockwise,
-            sheet: &mut sheet,
-            dirty: &mut dirty,
         };
-        let mut process = Process::new(resolved);
+        let mut process = Process::new(resolved, &mut sheet, &mut dirty);
         let mut update = Update {
             process: &mut process,
             sheet: &mut sheet,
@@ -597,6 +586,6 @@ mod tests {
         };
 
         assert!(update.run(seconds(100.0)));
-        // Should not enter inifinite loop.
+        // Should not enter infinite loop.
     }
 }

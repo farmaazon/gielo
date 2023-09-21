@@ -1,12 +1,9 @@
-use crate::{
-    unit::{
-        base_type::consts::PI, feet, feet_per_second_squared, feet_squared_per_second_squared,
-        inches, seconds, Acceleration, AvailableEnergy, Length, Time, Velocity,
-    },
-    vector::Vector2,
+use crate::unit::{
+    acceleration::foot_per_second_squared, base_type::consts::PI, feet, feet_per_second_squared,
+    feet_squared_per_second_squared, inches, length::foot, seconds, vector::Vector2,
+    velocity::foot_per_second, Acceleration, Angle, AvailableEnergy, Length, Time, Velocity,
 };
 use serde::{Deserialize, Serialize};
-use uom::si::{acceleration::foot_per_second_squared, length::foot, velocity::foot_per_second};
 
 use super::Hack;
 
@@ -107,6 +104,11 @@ impl Parameters {
         Self { friction, rotation_acc, ..self }
     }
 
+    pub fn angle_from_mark(&self, mark: Vector2<Length>, from: Hack) -> Angle {
+        let offset = mark - self.geometry.hack_pos(from);
+        (offset.x / offset.y).atan()
+    }
+
     pub fn velocity_for_target_y(&self, y: Length) -> Velocity {
         let s = y - self.geometry.delivery_end.hog_line_y;
         (2.0 * self.friction * s).sqrt()
@@ -138,71 +140,26 @@ impl Default for Parameters {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
     use crate::{
-        game::{simulation, simulation::Simulation, stone::Rotation, turn, Sheet},
-        unit::assert_float_eq,
+        unit,
+        unit::{assert_float_eq, degrees},
     };
-    use uom::ConstZero;
 
     #[test]
-    fn tee_shot_parameters() {
-        #[derive(Debug)]
-        struct Case {
-            hog_to_hog_s: f64,
-            curl_offset_feet: f64,
-        }
-
-        impl Case {
-            fn run(self) {
-                log::debug!("Running case: {self:?}");
-                let hog_to_hog = seconds(self.hog_to_hog_s);
-                let curl_offset = feet(self.curl_offset_feet);
-                let parameters =
-                    Parameters::default().with_tee_shot_parameters(hog_to_hog, curl_offset);
-                let tee = parameters.geometry.tee();
-
-                let velocity = parameters.velocity_for_hog_to_hog_time(hog_to_hog);
-                assert_float_eq!(velocity, parameters.velocity_for_target_y(tee.y));
-
-                let call = turn::delivery::Call {
-                    weight: velocity,
-                    mark: tee + Vector2 { x: curl_offset, y: Length::ZERO },
-                    rotation: Rotation::Clockwise,
-                };
-                let teams = Default::default();
-                let mut dirty = Default::default();
-                let simulation = Simulation::new(Default::default(), &parameters);
-                let mut sheet = Sheet::new(parameters);
-                let start = turn::delivery::Start {
-                    call,
-                    sheet: &mut sheet,
-                    teams: &teams,
-                    dirty: &mut dirty,
-                }
-                .resolve_ideal(0, 0);
-                let mut process = simulation::delivery::Process::new(start);
-                assert!(simulation::delivery::Update {
-                    process: &mut process,
-                    sheet: &mut sheet,
-                    simulation: &simulation,
-                    dirty: &mut dirty,
-                }
-                .run(seconds(120.0)));
-                assert_float_eq!(sheet.stones.positions()[0].x, tee.x, abs <= 0.5);
-                assert_float_eq!(sheet.stones.positions()[0].y, tee.y, abs <= 0.5);
+    fn compute_angle() {
+        fn test_case((x, y): (unit::BaseType, unit::BaseType), expected: Angle) {
+            let sheet = Parameters::default();
+            for hack in [Hack::Left, Hack::Right] {
+                let mark = sheet.geometry.hack_pos(hack) + Vector2 { x: feet(x), y: feet(y) };
+                let result = sheet.angle_from_mark(mark, hack);
+                assert_float_eq!(result, expected);
             }
         }
 
-        for case in [
-            Case { hog_to_hog_s: 14.5, curl_offset_feet: 5.0 },
-            Case { hog_to_hog_s: 11.0, curl_offset_feet: 5.0 },
-            Case { hog_to_hog_s: 14.5, curl_offset_feet: 1.0 },
-            Case { hog_to_hog_s: 11.0, curl_offset_feet: 1.0 },
-            Case { hog_to_hog_s: 25.0, curl_offset_feet: 8.0 },
-        ] {
-            case.run();
-        }
+        test_case((-6.0, 6.0), degrees(-45.0));
+        test_case((0.0, 6.0), degrees(0.0));
+        test_case((6.0, 6.0), degrees(45.0));
     }
 }

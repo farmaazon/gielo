@@ -1,0 +1,24 @@
+[package]
+name = "gielo-game"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+gielo-sheet.workspace = true
+gielo-simulation.workspace = true
+gielo-unit.workspace = true
+
+anyhow.workspace = true
+derive_more.workspace = true
+log.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+serde.workspace = true
+slint.workspace = true
+
+[dev-dependencies]
+bincode2.workspace = true

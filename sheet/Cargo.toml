@@ -1,0 +1,18 @@
+[package]
+name = "gielo-sheet"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+gielo-unit.workspace = true
+
+decorum.workspace = true
+derive_more.workspace = true
+itertools.workspace = true
+log.workspace = true
+roots.workspace = true
+serde.workspace = true

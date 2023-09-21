@@ -1,17 +1,17 @@
 use crate::{
     game,
-    game::{end, stone::Flag, turn},
+    game::{end, sheet::stone::Flag, turn, unit, unit::feet, Game},
     save_load::{SaveEntry, SaveLoad},
     ui,
-    ui::handler::{make_callback, stone, team, Snapshot},
-    unit,
-    unit::feet,
-    Game,
+    ui::{
+        handler::{make_callback, stone, team, Snapshot},
+        model::{call, set_ui_sheet_parameters, update_shot_preview},
+    },
 };
 use anyhow::Result;
+use gielo_game::{dirty::Dirty, unit::time::second};
 use slint::ComponentHandle;
 use std::{cell::RefCell, rc::Rc, time, time::Duration};
-use uom::si::time::second;
 
 pub struct Handler {
     ui: ui::Main,
@@ -27,7 +27,7 @@ impl Handler {
         let game_model = ui.global::<ui::GameModel>();
         game_model.set_ends(game.params.ends as i32);
         let sheet_model = ui.global::<ui::SheetModel>();
-        sheet_model.set_parameters(game.sheet.parameters);
+        set_ui_sheet_parameters(&sheet_model, game.sheet.parameters);
         snapshot.set(Some(game.clone()));
         let team_handler = team::Handler::new(&game, &game_model);
         let game = Rc::new(RefCell::new(game));
@@ -44,7 +44,7 @@ impl Handler {
             update_timer,
             snapshot,
         });
-        let to_initialize = game::Dirty {
+        let to_initialize = Dirty {
             finished_ends_count: game_model.get_end() as isize,
             stones: Flag::ALL,
             score: true,
@@ -59,7 +59,7 @@ impl Handler {
         this
     }
 
-    pub fn synchronize(self: &Rc<Self>, dirty: game::Dirty) {
+    pub fn synchronize(self: &Rc<Self>, dirty: Dirty) {
         let game = self.game.borrow();
         self.synchronize_phase(&dirty, &game);
         self.synchronize_violations(&dirty, &game);
@@ -67,11 +67,11 @@ impl Handler {
         self.team_handler.synchronize_score(&dirty, &game);
         self.team_handler.synchronize_teams(&dirty, &game);
         if dirty.preview {
-            self.ui.global::<ui::Shot>().update_shot_preview(&game);
+            update_shot_preview(&self.ui.global::<ui::Shot>(), &game);
         }
     }
 
-    fn synchronize_phase(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
+    fn synchronize_phase(self: &Rc<Self>, dirty: &Dirty, game: &Game) {
         let game_model = self.ui.global::<ui::GameModel>();
         if dirty.phase {
             game_model.set_game_finished(game.is_finished());
@@ -80,8 +80,8 @@ impl Handler {
             game_model.set_delivering(game.is_delivering());
             let playing_team = game.playing_team();
             game_model.set_current_team(match playing_team {
-                Some(game::team::Team::A) => 0,
-                Some(game::team::Team::B) => 1,
+                Some(game::sheet::team::Team::A) => 0,
+                Some(game::sheet::team::Team::B) => 1,
                 None => 0,
             });
             game_model.set_current_player(match game.delivering_player() {
@@ -114,7 +114,7 @@ impl Handler {
         }
     }
 
-    fn synchronize_violations(self: &Rc<Self>, dirty: &game::Dirty, game: &Game) {
+    fn synchronize_violations(self: &Rc<Self>, dirty: &Dirty, game: &Game) {
         let game_model = self.ui.global::<ui::GameModel>();
         if dirty.phase {
             let violation = game.current_turn().and_then(turn::Current::violation);
@@ -128,18 +128,18 @@ impl Handler {
     }
 
     pub fn update(self: &Rc<Self>) -> Result<()> {
-        let mut dirty = game::Dirty::new();
+        let mut dirty = Dirty::new();
         self.game.borrow_mut().update(&mut dirty, time::Instant::now());
         self.synchronize(dirty);
         Ok(())
     }
 
     pub fn on_deliver(self: &Rc<Self>) -> Result<()> {
-        let mut dirty = game::Dirty::new();
+        let mut dirty = Dirty::new();
         let shot = self.ui.global::<ui::Shot>();
         {
             let mut game = self.game.borrow_mut();
-            let call = shot.current_call(&game.sheet.parameters);
+            let call = call(&shot, &game.sheet.parameters);
             game.start_delivery(&mut dirty, call, time::Instant::now())?;
         }
         self.synchronize(dirty);
@@ -148,7 +148,7 @@ impl Handler {
     }
 
     pub fn on_proceed(self: &Rc<Self>) -> Result<()> {
-        let mut dirty = game::Dirty::new();
+        let mut dirty = Dirty::new();
         self.game.borrow_mut().proceed(&mut dirty)?;
         self.synchronize(dirty);
         self.make_snapshot();
@@ -156,7 +156,7 @@ impl Handler {
     }
 
     pub fn on_replace_stones(self: &Rc<Self>) -> Result<()> {
-        let mut dirty = game::Dirty::new();
+        let mut dirty = Dirty::new();
         self.game.borrow_mut().replace_stones(&mut dirty)?;
         self.synchronize(dirty);
         self.make_snapshot();
@@ -174,7 +174,7 @@ impl Handler {
                 shot.set_hog_to_hog_time(hog_to_hog.get::<second>() as f32);
             }
         }
-        shot.update_shot_preview(&game);
+        update_shot_preview(&shot, &game);
         Ok(())
     }
 

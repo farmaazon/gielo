@@ -1,9 +1,18 @@
-[package]
-name = "gielo"
+[workspace]
+members = ["game", "sheet", "simulation", "slint", "unit"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Adam Obuchowicz <farmaazon@gmail.com>"]
 
-[dependencies]
+[workspace.dependencies]
+gielo-game = { path = "game" }
+gielo-sheet = { path = "sheet" }
+gielo-simulation = { path = "simulation" }
+gielo-slint = { path = "slint" }
+gielo-unit = { path = "unit" }
+
 anyhow = "1.0"
 chrono = "0.4"
 decorum = "0.3"
@@ -18,24 +27,45 @@ itertools = "0.11"
 semver = { version = "1.0", features = ["serde"] }
 bincode2 = "2.0"
 serde_yaml = "0.9"
+slint-build = { git = "https://github.com/farmaazon/slint.git" }
 
-[dependencies.log]
+[workspace.dependencies.log]
 version = "0.4"
 features = ["max_level_info", "release_max_level_warn"]
 
-[dependencies.serde]
+[workspace.dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
-[dependencies.slint]
+[workspace.dependencies.slint]
 git = "https://github.com/farmaazon/slint.git"
 default_features = false
 features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-skia", "serde"]
 
-[dependencies.uom]
+[workspace.dependencies.uom]
 version = "0.35"
 default-features = false
 features = ["f64", "si", "std", "use_serde"]
 
-[build-dependencies]
-slint-build = { git = "https://github.com/farmaazon/slint.git" }
+[package]
+name = "gielo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+gielo-game.workspace = true
+gielo-slint.workspace = true
+
+anyhow.workspace = true
+bincode2.workspace = true
+chrono.workspace = true
+derive_more.workspace = true
+directories.workspace = true
+log.workspace = true
+itertools.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+simple_logger.workspace = true
+slint.workspace = true

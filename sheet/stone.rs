@@ -1,15 +1,11 @@
 use crate::{
-    game::{
-        team,
-        team::{PerTeam, Team},
-        Dirty,
-    },
+    team,
+    team::{PerTeam, Team},
     unit,
-    vector::Vector2,
+    unit::{vector::Vector2, ConstZero},
 };
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 use serde::{Deserialize, Serialize};
-use uom::ConstZero;
 
 pub const COUNT_PER_TEAM: usize = 8;
 pub const COUNT: usize = COUNT_PER_TEAM * team::TEAMS_COUNT;
@@ -21,8 +17,6 @@ pub const QUEUE_BY_HAMMER: PerTeam<[Id; COUNT]> = PerTeam {
 };
 
 pub type Id = usize;
-pub type Velocity = Vector2<unit::Velocity>;
-pub type Acceleration = Vector2<unit::Acceleration>;
 pub type Position = Vector2<unit::Length>;
 
 #[derive(
@@ -90,6 +84,11 @@ impl Flag {
     pub fn iter_ids(self) -> impl Iterator<Item = Id> {
         (0..COUNT).filter(move |&id| self.contains(id))
     }
+
+    pub fn assert_and_clear(&mut self, rhs: Self) {
+        assert_eq!(*self, rhs);
+        *self = Self(0);
+    }
 }
 
 impl FromIterator<Id> for Flag {
@@ -131,28 +130,28 @@ impl Stones {
         self.iter_flag(self.in_play)
     }
 
-    pub fn set_position(&mut self, dirty: &mut Dirty, id: Id, position: Position) {
+    pub fn set_position(&mut self, dirty: &mut Flag, id: Id, position: Position) {
         self.positions[id] = position;
-        dirty.stones.set(id)
+        dirty.set(id)
     }
 
-    pub fn put_stone(&mut self, dirty: &mut Dirty, id: Id, position: Position) {
+    pub fn put_stone(&mut self, dirty: &mut Flag, id: Id, position: Position) {
         self.set_position(dirty, id, position);
         self.in_play.set(id);
     }
 
-    pub fn remove_stone(&mut self, dirty: &mut Dirty, id: Id) {
+    pub fn remove_stone(&mut self, dirty: &mut Flag, id: Id) {
         self.set_position(dirty, id, Position::ZERO);
         self.in_play.unset(id);
     }
 
-    pub fn clear(&mut self, dirty: &mut Dirty) {
-        dirty.stones |= self.in_play;
+    pub fn clear(&mut self, dirty: &mut Flag) {
+        *dirty |= self.in_play;
         self.in_play = Flag(0);
     }
 
-    pub fn restore(&mut self, dirty: &mut Dirty, snapshot: Stones) {
-        dirty.stones |= self.in_play | snapshot.in_play;
+    pub fn restore(&mut self, dirty: &mut Flag, snapshot: Stones) {
+        *dirty |= self.in_play | snapshot.in_play;
         *self = snapshot;
     }
 
@@ -203,7 +202,7 @@ pub fn team(id: Id) -> Team {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{game::stone, unit::feet};
+    use crate::unit::feet;
 
     #[test]
     fn setting_and_unsetting_flag() {
@@ -236,7 +235,7 @@ mod tests {
         assert_eq!(Flag(3).iter_ids().collect::<Vec<_>>(), vec![0, 1]);
         assert_eq!(Flag(4).iter_ids().collect::<Vec<_>>(), vec![2]);
         assert_eq!(Flag(15).iter_ids().collect::<Vec<_>>(), vec![0, 1, 2, 3]);
-        assert_eq!(Flag::ALL.iter_ids().collect::<Vec<_>>(), Vec::from_iter(0..stone::COUNT));
+        assert_eq!(Flag::ALL.iter_ids().collect::<Vec<_>>(), Vec::from_iter(0..COUNT));
     }
 
     #[test]
@@ -252,7 +251,7 @@ mod tests {
     #[test]
     fn modifying_stones() {
         let mut stones = Stones::new();
-        let mut dirty = Dirty::new();
+        let mut dirty = Flag(0);
         let position_a = Position { x: feet(1.0), y: feet(100.0) };
         let position_b = Position { x: feet(1.0), y: feet(120.0) };
         let position_c = Position { x: feet(1.0), y: feet(120.0) };
@@ -260,32 +259,29 @@ mod tests {
         stones.put_stone(&mut dirty, 3, position_a);
         assert_eq!(stones.positions()[3], position_a);
         assert_eq!(stones.in_play(), Flag::stone(3));
-        dirty.check_and_clear(&Dirty { stones: Flag::stone(3), ..Dirty::default() });
+        dirty.assert_and_clear(Flag::stone(3));
 
         stones.put_stone(&mut dirty, 15, position_b);
         assert_eq!(stones.positions()[3], position_a);
         assert_eq!(stones.positions()[15], position_b);
         assert_eq!(stones.in_play(), Flag::stone(3) | Flag::stone(15));
-        dirty.check_and_clear(&Dirty { stones: Flag::stone(15), ..Dirty::default() });
+        dirty.assert_and_clear(Flag::stone(15));
 
         stones.set_position(&mut dirty, 3, position_c);
         assert_eq!(stones.positions()[3], position_c);
         assert_eq!(stones.positions()[15], position_b);
         assert_eq!(stones.in_play(), Flag::stone(3) | Flag::stone(15));
-        dirty.check_and_clear(&Dirty { stones: Flag::stone(3), ..Dirty::default() });
+        dirty.assert_and_clear(Flag::stone(3));
 
         stones.remove_stone(&mut dirty, 3);
         assert_eq!(stones.positions()[15], position_b);
         assert_eq!(stones.in_play(), Flag::stone(15));
-        dirty.check_and_clear(&Dirty { stones: Flag::stone(3), ..Dirty::default() });
+        dirty.assert_and_clear(Flag::stone(3));
 
-        stones.put_stone(&mut Dirty::new(), 0, position_a);
+        stones.put_stone(&mut Flag(0), 0, position_a);
         stones.clear(&mut dirty);
         assert_eq!(stones.in_play(), Flag(0));
-        dirty.check_and_clear(&Dirty {
-            stones: Flag::stone(0) | Flag::stone(15),
-            ..Dirty::default()
-        });
+        dirty.assert_and_clear(Flag::stone(0) | Flag::stone(15));
     }
 
     #[test]
@@ -293,17 +289,17 @@ mod tests {
         let mut stones = Stones::new();
         let position_a = Position { x: feet(1.0), y: feet(100.0) };
         let position_b = Position { x: feet(1.0), y: feet(120.0) };
-        stones.put_stone(&mut Dirty::new(), 1, position_a);
-        stones.put_stone(&mut Dirty::new(), 2, position_b);
-        stones.put_stone(&mut Dirty::new(), 4, position_b);
-        stones.put_stone(&mut Dirty::new(), 5, position_b);
-        stones.put_stone(&mut Dirty::new(), 8, position_a);
-        stones.put_stone(&mut Dirty::new(), 15, position_a);
+        stones.put_stone(&mut Flag(0), 1, position_a);
+        stones.put_stone(&mut Flag(0), 2, position_b);
+        stones.put_stone(&mut Flag(0), 4, position_b);
+        stones.put_stone(&mut Flag(0), 5, position_b);
+        stones.put_stone(&mut Flag(0), 8, position_a);
+        stones.put_stone(&mut Flag(0), 15, position_a);
 
         let a_stones = stones.stone_flags(|s| s == position_a);
         assert_eq!(a_stones, Flag::stone(1) | Flag::stone(8) | Flag::stone(15));
 
-        stones.remove_stone(&mut Dirty::new(), 4);
+        stones.remove_stone(&mut Flag(0), 4);
         let b_stones = stones.stone_flags(|s| s == position_b);
         assert_eq!(b_stones, Flag::stone(2) | Flag::stone(5));
     }

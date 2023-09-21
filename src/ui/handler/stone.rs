@@ -1,4 +1,5 @@
-use crate::{game, ui::model};
+use crate::ui::model;
+use gielo_game::dirty::Dirty;
 use std::rc::Rc;
 
 pub struct Handler {
@@ -10,7 +11,7 @@ impl Handler {
         Self { model }
     }
 
-    pub fn synchronize(&self, dirty: &game::Dirty) {
+    pub fn synchronize(&self, dirty: &Dirty) {
         for stone in dirty.stones.iter_ids() {
             self.model.notify.row_changed(stone);
         }

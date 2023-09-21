@@ -1,6 +1,6 @@
 use crate::{
+    game::unit::{feet, feet_squared_per_second_squared, inches, seconds},
     profiles::{Ice, Player, PlayerSkills, Profile, Profiles, Rules, Team},
-    unit::{feet, feet_squared_per_second_squared, inches, seconds},
 };
 
 macro_rules! list {

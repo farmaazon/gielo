@@ -1,4 +1,4 @@
-use crate::{profiles, profiles::Profiles, Game};
+use crate::{game::Game, profiles, profiles::Profiles};
 use anyhow::{anyhow, bail, Result};
 use itertools::Itertools;
 use slint::SharedString;
@@ -166,16 +166,16 @@ impl Default for SaveLoad {
 mod tests {
     use super::*;
     use crate::game::{
-        team,
-        team::{PerTeam, Team},
+        sheet::team::{PerTeam, Team},
+        TeamInfo,
     };
 
     #[test]
     fn serialize_and_deserialize() {
         let game = Game::new_with_default_params(
             PerTeam {
-                a: team::Info { name: "Test Team A".into(), ..Default::default() },
-                b: team::Info { name: "Test Team B".into(), ..Default::default() },
+                a: TeamInfo { name: "Test Team A".into(), ..Default::default() },
+                b: TeamInfo { name: "Test Team B".into(), ..Default::default() },
             },
             Team::B,
         );

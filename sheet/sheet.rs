@@ -1,20 +1,13 @@
 use crate::{
-    game::{
-        stone,
-        stone::Stones,
-        team::{PerTeam, Team},
-    },
-    unit::{float_eq, Length},
-    vector::EuclideanNorm,
+    stone,
+    stone::Stones,
+    team::{PerTeam, Team},
+    unit::{float_eq, length::foot, vector::EuclideanNorm, Length},
+    Parameters,
 };
 use decorum::NotNan;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use uom::si::length::foot;
-
-pub mod parameters;
-
-pub use parameters::Parameters;
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Hack {
@@ -105,13 +98,10 @@ impl Sheet {
 mod tests {
     use super::*;
     use crate::{
-        game::{
-            sheet::{parameters::Geometry, stone},
-            team::Team::{A, B},
-        },
+        parameters::Geometry,
+        team::Team::{A, B},
         unit,
-        unit::feet,
-        vector::Vector2,
+        unit::{feet, vector::Vector2},
     };
 
     #[derive(Debug)]

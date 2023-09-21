@@ -1,0 +1,13 @@
+[package]
+name = "gielo-unit"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+uom.workspace = true
+serde.workspace = true
+float_eq.workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "gielo-simulation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+gielo-sheet.workspace = true
+gielo-unit.workspace = true
+
+decorum.workspace = true
+derive_more.workspace = true
+float_eq.workspace = true
+itertools.workspace = true
+log.workspace = true
+roots.workspace = true
+uom.workspace = true
+serde.workspace = true

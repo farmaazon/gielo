@@ -1,0 +1,15 @@
+[package]
+name = "gielo-slint"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+slint.workspace = true
+
+[build-dependencies]
+serde.workspace = true
+slint-build.workspace = true
