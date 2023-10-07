@@ -1,20 +1,11 @@
-use crate::{
-    team,
-    team::{PerTeam, Team},
-    unit,
-    unit::{vector::Vector2, ConstZero},
-};
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use gielo_unit as unit;
+use gielo_unit::{vector::Vector2, ConstZero};
 use serde::{Deserialize, Serialize};
 
-pub const COUNT_PER_TEAM: usize = 8;
-pub const COUNT: usize = COUNT_PER_TEAM * team::TEAMS_COUNT;
-pub const TEAM_IDS: PerTeam<std::ops::Range<Id>> =
-    PerTeam { a: 0..COUNT_PER_TEAM, b: COUNT_PER_TEAM..COUNT };
-pub const QUEUE_BY_HAMMER: PerTeam<[Id; COUNT]> = PerTeam {
-    a: [8, 0, 9, 1, 10, 2, 11, 3, 12, 4, 13, 5, 14, 6, 15, 7],
-    b: [0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15],
-};
+use crate::Parameters;
+
+pub const COUNT: usize = 16;
 
 pub type Id = usize;
 pub type Position = Vector2<unit::Length>;
@@ -39,8 +30,6 @@ pub struct Flag(pub u16);
 
 impl Flag {
     pub const ALL: Self = Self(u16::MAX);
-    pub const TEAM: PerTeam<Self> =
-        PerTeam { a: Self(0b0000_0000_1111_1111), b: Self(0b1111_1111_0000_0000) };
 
     pub fn stone(id: Id) -> Self {
         Self(1 << id)
@@ -158,6 +147,14 @@ impl Stones {
     pub fn stone_flags<F: FnMut(Position) -> bool>(&self, mut predicate: F) -> Flag {
         self.iter_in_play().filter_map(|(id, stone)| predicate(stone).then_some(id)).collect()
     }
+
+    pub fn guards(&self, parameters: &Parameters) -> Flag {
+        self.stone_flags(|stone| parameters.is_guard(stone)) & self.in_play()
+    }
+
+    pub fn center_guards(&self, parameters: &Parameters) -> Flag {
+        self.stone_flags(|stone| parameters.is_center_guard(stone)) & self.in_play()
+    }
 }
 
 impl PartialEq for Stones {
@@ -183,7 +180,7 @@ impl std::fmt::Debug for Stones {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Rotation {
     #[default]
     None,
@@ -191,18 +188,13 @@ pub enum Rotation {
     CounterClockwise,
 }
 
-pub fn team(id: Id) -> Team {
-    if Flag::TEAM.a.contains(id) {
-        Team::A
-    } else {
-        Team::B
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::parameters::Geometry;
+
     use super::*;
-    use crate::unit::feet;
+    use gielo_unit::feet;
+    use unit::length::foot;
 
     #[test]
     fn setting_and_unsetting_flag() {
@@ -302,5 +294,65 @@ mod tests {
         stones.remove_stone(&mut Flag(0), 4);
         let b_stones = stones.stone_flags(|s| s == position_b);
         assert_eq!(b_stones, Flag::stone(2) | Flag::stone(5));
+    }
+
+    #[derive(Debug)]
+    struct FlagTest {
+        parameters: Parameters,
+        stones: Stones,
+        expected: Flag,
+    }
+
+    impl FlagTest {
+        fn new(
+            data: impl IntoIterator<Item = (Id, (unit::BaseType, unit::BaseType), bool)>,
+        ) -> Self {
+            let parameters = Parameters::default();
+            let tee = parameters.geometry.tee();
+            let mut expected = Flag(0);
+            let stones = data
+                .into_iter()
+                .map(|(id, (x, y), exp)| {
+                    if exp {
+                        expected |= Flag::stone(id);
+                    }
+                    (id, tee + Vector2 { x: feet(x), y: feet(y) })
+                })
+                .collect();
+            Self { parameters, stones, expected }
+        }
+    }
+
+    #[test]
+    fn guards() {
+        let house_radius = Geometry::default().house_radius.value;
+        let test = FlagTest::new([
+            (0, (0.0, 0.0), false),
+            (1, (0.0, -house_radius), false),
+            (2, (0.0, -house_radius - 1.0), true),
+            (3, (-4.0, -house_radius - 4.0), true),
+            (4, (4.0, -house_radius - 4.0), true),
+            (5, (house_radius - 0.1, house_radius - 0.1), false),
+            (8, (-house_radius + 0.1, house_radius - 0.1), false),
+        ]);
+        assert_eq!(test.stones.guards(&test.parameters), test.expected)
+    }
+
+    #[test]
+    fn center_guards() {
+        let house_radius = Geometry::default().house_radius.get::<foot>();
+        let stone_radius = Parameters::default().stone_radius.get::<foot>();
+        let test = FlagTest::new([
+            (0, (0.0, 0.0), false),
+            (1, (0.0, -house_radius), false),
+            (2, (0.0, -house_radius - 1.0), true),
+            (3, (-4.0, -house_radius - 4.0), false),
+            (4, (4.0, -house_radius - 4.0), false),
+            (5, (house_radius - 0.1, house_radius - 0.1), false),
+            (8, (-house_radius + 0.1, house_radius - 0.1), false),
+            (9, (-stone_radius, -house_radius - 4.0), true),
+            (10, (stone_radius, -house_radius - 4.0), true),
+        ]);
+        assert_eq!(test.stones.center_guards(&test.parameters), test.expected)
     }
 }

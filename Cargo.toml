@@ -1,5 +1,5 @@
 [workspace]
-members = ["game", "sheet", "simulation", "slint", "unit"]
+members = ["game", "sheet", "simulation", "slint", "team", "unit"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ gielo-game = { path = "game" }
 gielo-sheet = { path = "sheet" }
 gielo-simulation = { path = "simulation" }
 gielo-slint = { path = "slint" }
+gielo-team = { path = "team" }
 gielo-unit = { path = "unit" }
 
 anyhow = "1.0"
@@ -21,7 +22,7 @@ directories = "5.0"
 float_eq = "1.0"
 rand = "0.8"
 rand_distr = "0.4"
-roots = { git = "https://github.com/farmaazon/roots-rs.git", rev="5e66f152f0c97608142ed02386ba78e0c15973f5" }
+roots = { git = "https://github.com/farmaazon/roots-rs.git", rev = "5e66f152f0c97608142ed02386ba78e0c15973f5" }
 simple_logger = "4.0"
 itertools = "0.11"
 semver = { version = "1.0", features = ["serde"] }
@@ -54,7 +55,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-gielo-game.workspace = true
+gielo-game = { workspace = true, features = ["slint"] }
 gielo-slint.workspace = true
 
 anyhow.workspace = true

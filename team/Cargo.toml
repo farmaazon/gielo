@@ -1,5 +1,5 @@
 [package]
-name = "gielo-sheet"
+name = "gielo-team"
 version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
@@ -8,10 +8,10 @@ authors = { workspace = true }
 path = "lib.rs"
 
 [dependencies]
+gielo-sheet.workspace = true
 gielo-unit.workspace = true
 
 derive_more.workspace = true
-itertools.workspace = true
-log.workspace = true
-roots.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
 serde.workspace = true

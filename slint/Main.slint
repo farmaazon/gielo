@@ -29,6 +29,7 @@ export {
 export component Main inherits Window {
     in property <bool> blinking-stone-visible;
     in property <NewGameParameters> default-game-parameters;
+    in-out property <float> speed: 16.0;
     in property <bool> rebounding;
 
     preferred-width: 1000px;

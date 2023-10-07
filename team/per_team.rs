@@ -1,24 +1,7 @@
+use crate::{Team, TEAMS_COUNT};
 use derive_more::{Add, AddAssign, Sum};
 use serde::{Deserialize, Serialize};
 use std::ops::{Index, IndexMut};
-
-pub const TEAMS_COUNT: usize = 2;
-pub const TEAMS: PerTeam<Team> = PerTeam { a: Team::A, b: Team::B };
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Team {
-    A,
-    B,
-}
-
-impl Team {
-    pub fn opponent(self) -> Self {
-        match self {
-            Self::A => Self::B,
-            Self::B => Self::A,
-        }
-    }
-}
 
 #[derive(
     Copy, Clone, Debug, Default, Add, AddAssign, Eq, PartialEq, Sum, Deserialize, Serialize,
@@ -89,14 +72,11 @@ impl<T, E> From<PerTeam<Result<T, E>>> for Result<PerTeam<T>, E> {
     }
 }
 
-pub fn teams() -> PerTeam<Team> {
-    PerTeam { a: Team::A, b: Team::B }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::vector::Vector2;
+    use crate::Team;
+    use gielo_unit::vector::Vector2;
 
     #[test]
     fn per_team_map() {

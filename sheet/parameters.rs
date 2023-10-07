@@ -1,11 +1,15 @@
-use crate::unit::{
-    acceleration::foot_per_second_squared, base_type::consts::PI, feet, feet_per_second_squared,
-    feet_squared_per_second_squared, inches, length::foot, seconds, vector::Vector2,
-    velocity::foot_per_second, Acceleration, Angle, AvailableEnergy, Length, Time, Velocity,
+use crate::{stone, Hack};
+use gielo_unit::{
+    acceleration::foot_per_second_squared,
+    base_type::consts::PI,
+    feet, feet_per_second_squared, feet_squared_per_second_squared, float_eq, inches,
+    length::foot,
+    seconds,
+    vector::{EuclideanNorm, Vector2},
+    velocity::foot_per_second,
+    Acceleration, Angle, AvailableEnergy, Length, Time, Velocity,
 };
 use serde::{Deserialize, Serialize};
-
-use super::Hack;
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct EndGeometry {
@@ -125,6 +129,33 @@ impl Parameters {
         let roots = roots::find_roots_quadratic(a2, a1, a0);
         roots.as_ref().iter().next().copied().map(seconds)
     }
+
+    pub fn dist_from_tee(&self, position: stone::Position) -> Length {
+        (position - self.geometry.tee()).norm()
+    }
+
+    pub fn dist_from_tee_in_house(&self, position: stone::Position) -> Option<Length> {
+        let out_of_house = self.geometry.house_radius + self.stone_radius;
+        let dist = self.dist_from_tee(position);
+        (dist <= out_of_house || float_eq!(dist, out_of_house)).then_some(dist)
+    }
+
+    pub fn is_in_house(&self, position: stone::Position) -> bool {
+        self.dist_from_tee_in_house(position).is_some()
+    }
+
+    pub fn is_guard(&self, position: stone::Position) -> bool {
+        let before_tee_line =
+            (position.y + self.stone_radius) < self.geometry.playing_end.tee_line_y;
+        !self.is_in_house(position) && before_tee_line
+    }
+
+    pub fn is_center_guard(&self, position: stone::Position) -> bool {
+        let dist_from_center_line = (position.x - self.geometry.center_line_x).abs();
+        let touches_center_line = dist_from_center_line < self.stone_radius
+            || float_eq!(dist_from_center_line, self.stone_radius);
+        self.is_guard(position) && touches_center_line
+    }
 }
 
 impl Default for Parameters {
@@ -142,10 +173,8 @@ impl Default for Parameters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        unit,
-        unit::{assert_float_eq, degrees},
-    };
+    use gielo_unit as unit;
+    use gielo_unit::{assert_float_eq, degrees};
 
     #[test]
     fn compute_angle() {

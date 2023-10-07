@@ -2,18 +2,13 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{
-    game::{sheet, unit::length::foot, Game},
-    profiles::Profiles,
-    save_load::SaveLoad,
-    ui, Snapshot,
-};
+use crate::{game::RunningGame, profiles::Profiles, save_load::SaveLoad, ui, Snapshot};
 use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
-const DEFAULT_PLAYER_NAMES: [&str; crate::game::player::PER_TEAM_COUNT] =
+const DEFAULT_PLAYER_NAMES: [&str; crate::game::team::player::PER_TEAM_COUNT] =
     ["Lead", "Second", "Third", "Fourth"];
 
 macro_rules! make_callback {
@@ -41,7 +36,10 @@ macro_rules! make_callback {
     }
 }
 
-use crate::ui::model::{initialize_profiles, new_game_parameters, set_ui_sheet_parameters};
+use crate::{
+    game::unit::length::foot,
+    ui::model::{initialize_profiles, new_game_parameters, set_ui_sheet_parameters},
+};
 pub(crate) use make_callback;
 
 pub struct Handler {
@@ -51,17 +49,18 @@ pub struct Handler {
     profiles: Profiles,
     save_load: RefCell<SaveLoad>,
     saves_model: Rc<VecModel<SharedString>>,
+    _blinking: slint::Timer,
 }
 
 impl Handler {
-    pub fn initialize(ui: ui::Main, game: Option<Game>, snapshot: Rc<Snapshot>) -> Rc<Self> {
+    pub fn initialize(ui: ui::Main, game: Option<RunningGame>, snapshot: Rc<Snapshot>) -> Rc<Self> {
         let save_load = SaveLoad::new();
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
         let profiles_ui = ui.global::<ui::Profiles>();
         let sheet_ui = ui.global::<ui::SheetModel>();
         let save_load_ui = ui.global::<ui::SaveLoad>();
-        set_ui_sheet_parameters(&sheet_ui, sheet::Parameters::default());
+        set_ui_sheet_parameters(&sheet_ui, &crate::game::sheet::Parameters::default());
         let profiles = save_load.load_profiles();
         initialize_profiles(&profiles_ui, &profiles);
         let game_handler = game.map(|game| {
@@ -69,6 +68,13 @@ impl Handler {
         });
         let saves_model = Rc::new(VecModel::from(Self::saves_vec(&save_load)));
         save_load_ui.set_saves(saves_model.clone().into());
+        let weak_ui = ui.as_weak();
+        let blinking = slint::Timer::default();
+        blinking.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {
+            if let Some(ui) = weak_ui.upgrade() {
+                ui.set_blinking_stone_visible(!ui.get_blinking_stone_visible());
+            }
+        });
         let this = Rc::new(Self {
             ui: ui.clone_strong(),
             game: RefCell::new(game_handler),
@@ -76,6 +82,7 @@ impl Handler {
             profiles,
             save_load: RefCell::new(save_load),
             saves_model,
+            _blinking: blinking,
         });
         profiles_ui.on_load_team_name(make_callback!(this.load_team_name(index)));
         profiles_ui.on_load_team_players(make_callback!(this.load_team_players(index)));
@@ -123,11 +130,7 @@ impl Handler {
     pub fn on_game_start(&self, parameters: ui::NewGameParameters) -> Result<()> {
         let game_model = self.ui.global::<ui::GameModel>();
         let game_params = new_game_parameters::game_parameters(&parameters, &self.profiles)?;
-        let sheet_params = new_game_parameters::sheet_parameters(&parameters, &self.profiles)?;
-        let teams = new_game_parameters::teams(&parameters)?;
-        let simulation_params = crate::game::simulation::Parameters::default();
-        let first_hammer = sheet::team::Team::A;
-        let game = Game::new(teams, game_params, sheet_params, simulation_params, first_hammer);
+        let game = RunningGame::new(game_params);
         let game_handler =
             game::Handler::initialize(self.ui.clone_strong(), game, self.snapshot.clone());
         *self.game.borrow_mut() = Some(game_handler);
@@ -196,8 +199,9 @@ impl Handler {
     pub fn load_game(&self, model_index: i32) -> Result<()> {
         let index = self.saves_model.row_count() - model_index as usize - 1;
         let new_game = self.save_load.borrow().load_game(index)?;
+        let running = RunningGame::load(new_game);
         let new_game_handler =
-            game::Handler::initialize(self.ui.clone_strong(), new_game, self.snapshot.clone());
+            game::Handler::initialize(self.ui.clone_strong(), running, self.snapshot.clone());
         self.game.replace(Some(new_game_handler));
         Ok(())
     }

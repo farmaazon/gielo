@@ -7,11 +7,16 @@ use std::{cell::Cell, panic, rc::Rc, time::Duration};
 pub mod profiles;
 pub mod save_load;
 pub mod ui;
-pub use gielo_game as game;
-use gielo_game::Game;
+
+pub mod game {
+    pub use gielo_game::{
+        slint::{Game, RunningGame, Setup},
+        *,
+    };
+}
 
 #[derive(Default, Deref)]
-pub struct Snapshot(Cell<Option<Game>>);
+pub struct Snapshot(Cell<Option<game::RunningGame>>);
 
 thread_local! {
     pub static CRASH_INFO: Cell<Option<String>> = Default::default();
@@ -22,13 +27,6 @@ fn initialize(
     crash_info: Option<String>,
 ) -> Result<(ui::Main, Rc<Handler>)> {
     let ui = ui::Main::new()?;
-    let weak_ui = ui.as_weak();
-    let blinking = slint::Timer::default();
-    blinking.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {
-        if let Some(ui) = weak_ui.upgrade() {
-            ui.set_blinking_stone_visible(!ui.get_blinking_stone_visible());
-        }
-    });
     let weak_ui = ui.as_weak();
     ui.global::<ui::Functions>().on_rebound(move || {
         if let Some(ui) = weak_ui.upgrade() {

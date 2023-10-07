@@ -1104,13 +1104,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode2",
+ "decorum",
  "derive_more",
  "gielo-sheet",
  "gielo-simulation",
+ "gielo-team",
  "gielo-unit",
+ "itertools",
  "log",
- "rand",
- "rand_distr",
  "serde",
  "slint",
 ]
@@ -1119,7 +1120,6 @@ dependencies = [
 name = "gielo-sheet"
 version = "0.1.0"
 dependencies = [
- "decorum",
  "derive_more",
  "gielo-unit",
  "itertools",
@@ -1151,6 +1151,18 @@ dependencies = [
  "serde",
  "slint",
  "slint-build",
+]
+
+[[package]]
+name = "gielo-team"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gielo-sheet",
+ "gielo-unit",
+ "rand",
+ "rand_distr",
+ "serde",
 ]
 
 [[package]]

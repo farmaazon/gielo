@@ -1,17 +1,15 @@
-use crate::{
-    stone::{Acceleration, Position, Velocity},
-    unit,
-    unit::{
-        acceleration::foot_per_second_squared,
-        feet_squared_per_second_squared,
-        length::foot,
-        seconds,
-        vector::{EuclideanNorm, Vector2},
-        velocity::foot_per_second,
-        Time,
-    },
-};
+use crate::stone::{Acceleration, Position, Velocity};
 use derive_more::{Add, Sub};
+use gielo_unit as unit;
+use gielo_unit::{
+    acceleration::foot_per_second_squared,
+    feet_squared_per_second_squared,
+    length::foot,
+    seconds,
+    vector::{EuclideanNorm, Vector2},
+    velocity::foot_per_second,
+    Time,
+};
 use roots::{find_roots_linear, find_roots_quadratic, Roots};
 use serde::{Deserialize, Serialize};
 
@@ -153,7 +151,7 @@ pub fn decrease_energy(v: Velocity, energy_drop: unit::AvailableEnergy) -> Veloc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::{
+    use gielo_unit::{
         assert_float_eq, base_type::consts::PI, feet, feet_per_second as feet_ps,
         feet_per_second_squared as feet_pss,
     };

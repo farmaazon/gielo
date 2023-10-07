@@ -11,14 +11,15 @@ path = "lib.rs"
 gielo-sheet.workspace = true
 gielo-simulation.workspace = true
 gielo-unit.workspace = true
+gielo-team.workspace = true
 
 anyhow.workspace = true
+decorum.workspace = true
 derive_more.workspace = true
 log.workspace = true
-rand.workspace = true
-rand_distr.workspace = true
+itertools.workspace = true
 serde.workspace = true
-slint.workspace = true
+slint = { workspace = true, optional = true }
 
 [dev-dependencies]
 bincode2.workspace = true

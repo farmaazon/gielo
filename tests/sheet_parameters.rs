@@ -1,8 +1,8 @@
 use gielo_game::{
     sheet,
     sheet::{
-        stone::{Flag, Rotation},
-        Hack, Sheet,
+        stone::{Flag, Rotation, Stones},
+        Hack,
     },
     simulation,
     simulation::Simulation,
@@ -32,7 +32,7 @@ fn tee_shot_parameters() {
 
             let mut dirty = Flag(0);
             let simulation = Simulation::new(Default::default(), &parameters);
-            let mut sheet = Sheet::new(parameters);
+            let mut sheet = Stones::new();
             let start = simulation::delivery::StartingConditions {
                 stone: 0,
                 velocity,
@@ -40,16 +40,18 @@ fn tee_shot_parameters() {
                 rotation: Rotation::Clockwise,
                 hack: Default::default(),
             };
-            let mut process = simulation::delivery::Process::new(start, &mut sheet, &mut dirty);
+            let mut process =
+                simulation::delivery::Process::new(start, &mut sheet, &parameters, &mut dirty);
             assert!(simulation::delivery::Update {
                 process: &mut process,
                 sheet: &mut sheet,
+                sheet_params: &parameters,
                 simulation: &simulation,
                 dirty: &mut dirty,
             }
             .run(seconds(120.0)));
-            assert_float_eq!(sheet.stones.positions()[0].x, tee.x, abs <= 0.5);
-            assert_float_eq!(sheet.stones.positions()[0].y, tee.y, abs <= 0.5);
+            assert_float_eq!(sheet.positions()[0].x, tee.x, abs <= 0.5);
+            assert_float_eq!(sheet.positions()[0].y, tee.y, abs <= 0.5);
         }
     }
 

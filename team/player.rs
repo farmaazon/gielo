@@ -1,23 +1,21 @@
-use crate::{
-    sheet,
-    sheet::{stone, team::TEAMS_COUNT, Hack},
-    turn,
-    unit::{
-        angle::degree, degrees, feet_per_second, radians, velocity::foot_per_second, Angle, Length,
-        Velocity,
-    },
+use gielo_unit::{
+    angle::degree, degrees, feet_per_second, radians, velocity::foot_per_second, Angle, Length,
+    Velocity,
 };
+
+use crate::{stone, TEAMS_COUNT};
+use gielo_sheet as sheet;
+use gielo_sheet::Hack;
 use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
-use slint::SharedString;
 
 pub const PER_TEAM_COUNT: usize = 4;
 pub const STONES_PER_PLAYER: usize = stone::COUNT_PER_TEAM / PER_TEAM_COUNT;
 
 pub type Id = usize;
 
-pub fn who_is_delivering(turn: turn::Index) -> Id {
-    turn / TEAMS_COUNT / STONES_PER_PLAYER
+pub fn who_is_delivering(delivered_stones: usize) -> Id {
+    delivered_stones / TEAMS_COUNT / STONES_PER_PLAYER
 }
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
@@ -38,28 +36,25 @@ impl Skills {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Player {
-    pub name: SharedString,
-    pub used_hack: Hack,
-    pub skills: Skills,
-}
-
-impl Player {
+impl Skills {
     pub fn rand_angle_error(&self) -> Angle {
-        let angle_dist =
-            rand_distr::Normal::new(0.0, self.skills.angle_std_dev.get::<degree>()).unwrap();
+        let angle_dist = rand_distr::Normal::new(0.0, self.angle_std_dev.get::<degree>()).unwrap();
         degrees(angle_dist.sample(&mut rand::thread_rng()))
     }
 
     pub fn rand_velocity_error(&self) -> Velocity {
         let velocity_dist =
-            rand_distr::Normal::new(0.0, self.skills.velocity_std_dev.get::<foot_per_second>())
-                .unwrap();
+            rand_distr::Normal::new(0.0, self.velocity_std_dev.get::<foot_per_second>()).unwrap();
         feet_per_second(velocity_dist.sample(&mut rand::thread_rng()))
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Player<NameT> {
+    pub name: NameT,
+    pub used_hack: Hack,
+    pub skills: Skills,
+}
 #[cfg(test)]
 mod tests {
     use super::*;

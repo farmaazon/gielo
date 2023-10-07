@@ -1,7 +1,4 @@
-use crate::{
-    game,
-    game::unit::{AvailableEnergy, Length, Time},
-};
+use crate::game::unit::{AvailableEnergy, Length, Time};
 use ::serde::{Deserialize, Serialize};
 use anyhow::Result;
 use slint::SharedString;
@@ -25,8 +22,13 @@ pub struct Ice {
     pub static_friction: AvailableEnergy,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct Rules {
+    pub free_guard_rule_stones: usize,
+    pub no_tick_rule_stones: usize,
+}
+
 use crate::save_load::is_file_not_found;
-pub use game::Rules;
 
 #[derive(Deserialize, Serialize)]
 pub struct Player {

@@ -1,8 +1,10 @@
-mod sheet;
-
 pub mod parameters;
 pub mod stone;
-pub mod team;
-pub use gielo_unit as unit;
 pub use parameters::Parameters;
-pub use sheet::*;
+
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum Hack {
+    #[default]
+    Left,
+    Right,
+}

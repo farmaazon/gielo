@@ -70,15 +70,14 @@ impl SaveLoad {
     }
 
     fn save_filename(&self, game: &Game, datetime: chrono::DateTime<chrono::Local>) -> String {
+        let turn = game.next_turn_index();
+        let score = game.score_in_turn(turn);
         format!(
-            "{teams}, {situation}, {score}, {datetime}.sav",
-            teams = format_args!("{} - {}", game.teams.a.name, game.teams.b.name),
-            situation = match (game.current_end_number(), game.current_turn_number()) {
-                (Some(end), Some(turn)) => format!("end {end} stone {turn}"),
-                (Some(end), None) => format!("end {end} finished"),
-                (None, _) => "finished".to_owned(),
-            },
-            score = format_args!("{}-{}", game.score.a, game.score.b),
+            "{teams}, end {end} stone {stone}, {score}, {datetime}.sav",
+            teams = format_args!("{} - {}", game.setup().teams.a.name, game.setup().teams.b.name),
+            end = turn.end(),
+            stone = turn.stone(),
+            score = format_args!("{}-{}", score.a, score.b),
             datetime = datetime.format("%F %T"),
         )
     }
@@ -165,32 +164,40 @@ impl Default for SaveLoad {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{
-        sheet::team::{PerTeam, Team},
-        TeamInfo,
+    use crate::{
+        game,
+        game::{
+            team,
+            team::{PerTeam, Team},
+        },
     };
 
     #[test]
     fn serialize_and_deserialize() {
-        let game = Game::new_with_default_params(
-            PerTeam {
-                a: TeamInfo { name: "Test Team A".into(), ..Default::default() },
-                b: TeamInfo { name: "Test Team B".into(), ..Default::default() },
+        let setup = game::Setup {
+            teams: PerTeam {
+                a: team::Info { name: "Test Team A".into(), ..Default::default() },
+                b: team::Info { name: "Test Team B".into(), ..Default::default() },
             },
-            Team::B,
-        );
+            starting_situation: game::situation::Situation {
+                hammer: Team::B,
+                ..game::situation::Situation::default()
+            },
+            ..game::Setup::default()
+        };
+        let game = Game::new(setup);
         let version = semver::Version::new(1, 12, 1);
         let mut buf: Vec<u8> = vec![];
         SaveLoad::serialize_game(&mut buf, &version, &game).expect("Failed to serialize game");
         let loaded = SaveLoad::deserialize_game(&mut buf.as_slice(), &version)
             .expect("Failed to deserialize game");
-        assert_eq!(loaded.teams.a.name, "Test Team A");
-        assert_eq!(loaded.teams.b.name, "Test Team B");
+        assert_eq!(loaded.setup().teams.a.name, "Test Team A");
+        assert_eq!(loaded.setup().teams.b.name, "Test Team B");
     }
 
     #[test]
     fn deserialize_version_mismatch() {
-        let game = Game::new_with_default_params(Default::default(), Team::A);
+        let game = Game::new(game::Setup::default());
         let saved_version = semver::Version::new(1, 12, 1);
         let loaded_version = semver::Version::new(2, 0, 0);
         let mut buf: Vec<u8> = vec![];
@@ -201,7 +208,7 @@ mod tests {
 
     #[test]
     fn deserialize_format_mismatch() {
-        let game = Game::new_with_default_params(Default::default(), Team::A);
+        let game = Game::new(game::Setup::default());
         let version = semver::Version::new(1, 12, 1);
         let mut buf: Vec<u8> = vec![];
         SaveLoad::serialize_game(&mut buf, &version, &game).expect("Failed to serialize game");

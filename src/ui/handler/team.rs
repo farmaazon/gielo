@@ -1,9 +1,13 @@
-use crate::{game, game::Game, ui};
-use gielo_game::{
-    dirty::Dirty,
-    sheet::team::{teams, PerTeam},
+use crate::{
+    game,
+    game::{
+        team::{teams, PerTeam},
+        RunningGame,
+    },
+    ui,
 };
-use slint::Model;
+use gielo_game::dirty::Dirty;
+use slint::{Model, SharedString};
 use std::{cmp, rc::Rc};
 
 pub struct Handler {
@@ -13,10 +17,10 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub fn new(game: &Game, game_model: &ui::GameModel<'_>) -> Self {
+    pub fn new(game: &RunningGame, game_model: &ui::GameModel<'_>) -> Self {
         let score = teams().map(|_| Rc::new(slint::VecModel::default()));
         let players =
-            game.teams.as_ref().map(|team| Rc::new(Self::players_ui_model(&team.players)));
+            game.setup().teams.as_ref().map(|team| Rc::new(Self::players_ui_model(&team.players)));
         let model = Rc::new(slint::VecModel::default());
         for team in teams() {
             let team_score = score[team].clone();
@@ -27,35 +31,37 @@ impl Handler {
         Self { score, model, players }
     }
 
-    pub fn synchronize(&self, dirty: &Dirty, game: &Game) {
+    pub fn synchronize(&self, dirty: &Dirty, game: &RunningGame) {
         self.synchronize_score(dirty, game);
         self.synchronize_teams(dirty, game);
     }
 
-    pub fn synchronize_score(&self, dirty: &Dirty, game: &Game) {
-        let known_ends = self.score.a.row_count();
-        match dirty.finished_ends_count.cmp(&0) {
-            cmp::Ordering::Greater => {
-                for new_end in game.finished_ends.iter().skip(known_ends) {
-                    let new_end_score = new_end.score;
-                    for (score, new_end_score) in self.score.as_ref().zip(new_end_score) {
-                        score.push(new_end_score as i32)
+    pub fn synchronize_score(&self, dirty: &Dirty, game: &RunningGame) {
+        if dirty.score {
+            let known_scores = self.score.a.row_count();
+            let new_scores = game.end_scores();
+            match new_scores.len().cmp(&known_scores) {
+                cmp::Ordering::Greater => {
+                    for (_, new_end) in new_scores.skip(known_scores) {
+                        for (score, new_end_score) in self.score.as_ref().zip(*new_end) {
+                            score.push(new_end_score as i32)
+                        }
                     }
                 }
-            }
-            cmp::Ordering::Less => {
-                for score in self.score.as_ref() {
-                    while score.row_count() > game.finished_ends.len() {
-                        score.remove(game.finished_ends.len());
+                cmp::Ordering::Less => {
+                    for score in self.score.as_ref() {
+                        while score.row_count() > new_scores.len() {
+                            score.remove(new_scores.len());
+                        }
                     }
                 }
+                cmp::Ordering::Equal => {}
             }
-            cmp::Ordering::Equal => {}
         }
     }
 
-    pub fn synchronize_teams(&self, dirty: &Dirty, game: &Game) {
-        if dirty.phase || dirty.score {
+    pub fn synchronize_teams(&self, dirty: &Dirty, game: &RunningGame) {
+        if dirty.turn || dirty.score {
             let items = self.model.row_count();
             for (index, team) in (0..items).zip(teams()) {
                 let team_score = self.score[team].clone();
@@ -67,25 +73,22 @@ impl Handler {
     }
 
     fn team_ui_model(
-        game: &Game,
-        team: game::sheet::team::Team,
+        game: &RunningGame,
+        team: game::team::Team,
         score: Rc<slint::VecModel<i32>>,
         players: Rc<slint::VecModel<ui::Player>>,
     ) -> ui::PlayingTeam {
-        let info = &game.teams[team];
+        let info = &game.setup().teams[team];
         ui::PlayingTeam {
             info: ui::Team { name: info.name.clone(), color: info.color, players: players.into() },
-            stones_left: game
-                .current_end()
-                .map_or(game::sheet::stone::COUNT_PER_TEAM, |e| e.stones_left(team))
-                as i32,
+            stones_left: game.current().stones_left(team) as i32,
             end_score: score.into(),
-            score: game.score[team] as i32,
-            first_hammer: game.first_hammer() == team,
+            score: game.current().score[team] as i32,
+            first_hammer: game.setup().starting_situation.hammer == team,
         }
     }
 
-    fn player_ui_model(player: &game::player::Player) -> ui::Player {
+    fn player_ui_model(player: &game::team::player::Player<SharedString>) -> ui::Player {
         ui::Player {
             left_handed: player.used_hack == game::sheet::Hack::Right,
             name: player.name.clone(),
@@ -93,7 +96,9 @@ impl Handler {
         }
     }
 
-    fn players_ui_model(players: &[game::player::Player]) -> slint::VecModel<ui::Player> {
+    fn players_ui_model(
+        players: &[game::team::player::Player<SharedString>],
+    ) -> slint::VecModel<ui::Player> {
         let players: Vec<_> = players.iter().map(Self::player_ui_model).collect();
         slint::VecModel::from(players)
     }

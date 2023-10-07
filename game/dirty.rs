@@ -2,10 +2,10 @@ use crate::sheet::stone;
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct Dirty {
-    pub finished_ends_count: isize,
     pub stones: stone::Flag,
     pub score: bool,
-    pub phase: bool,
+    pub turn: bool,
+    pub turn_phase: bool,
     pub preview: bool,
 }
 

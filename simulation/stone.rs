@@ -1,16 +1,14 @@
-use crate::{
-    motion, sheet,
-    sheet::stone::Rotation,
-    unit,
-    unit::{
-        float_eq, seconds,
-        time::second,
-        vector::{EuclideanNorm, Vector2},
-        ConstZero, Time,
-    },
-    Simulation,
-};
+use crate::{motion, Simulation};
 use decorum::NotNan;
+use gielo_sheet as sheet;
+use gielo_sheet::stone::Rotation;
+use gielo_unit as unit;
+use gielo_unit::{
+    float_eq, seconds,
+    time::second,
+    vector::{EuclideanNorm, Vector2},
+    ConstZero, Time,
+};
 
 pub type Id = sheet::stone::Id;
 pub type Velocity = Vector2<unit::Velocity>;
@@ -196,12 +194,10 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        simulation,
-        unit::{
-            assert_float_eq, feet, feet_per_second, feet_per_second_squared,
-            feet_squared_per_second_squared, inches, milliseconds,
-        },
+    use crate::simulation;
+    use gielo_unit::{
+        assert_float_eq, feet, feet_per_second, feet_per_second_squared,
+        feet_squared_per_second_squared, inches, milliseconds,
     };
 
     #[test]
