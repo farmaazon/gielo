@@ -17,34 +17,37 @@ gielo-unit = { path = "unit" }
 anyhow = "1.0"
 chrono = "0.4"
 decorum = "0.3"
-derive_more = "0.99"
 directories = "5.0"
 float_eq = "1.0"
 rand = "0.8"
 rand_distr = "0.4"
 roots = { git = "https://github.com/farmaazon/roots-rs.git", rev = "5e66f152f0c97608142ed02386ba78e0c15973f5" }
-simple_logger = "4.0"
-itertools = "0.11"
+simple_logger = "5.0"
+itertools = "0.13"
 semver = { version = "1.0", features = ["serde"] }
 bincode2 = "2.0"
 serde_yaml = "0.9"
-slint-build = { git = "https://github.com/farmaazon/slint.git" }
+slint-build = "1.8"
 
 [workspace.dependencies.log]
 version = "0.4"
 features = ["max_level_info", "release_max_level_warn"]
+
+[workspace.dependencies.derive_more]
+version = "1.0"
+features = ["add", "add_assign", "not", "sum", "deref", "deref_mut"]
 
 [workspace.dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
 [workspace.dependencies.slint]
-git = "https://github.com/farmaazon/slint.git"
-default_features = false
+version = "1.8"
+default-features = false
 features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-skia", "serde"]
 
 [workspace.dependencies.uom]
-version = "0.35"
+version = "0.36"
 default-features = false
 features = ["f64", "si", "std", "use_serde"]
 
