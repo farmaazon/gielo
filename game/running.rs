@@ -191,7 +191,7 @@ impl<NameT, ColorT> RunningGame<NameT, ColorT> {
                 simulation: &self.simulation,
                 dirty: &mut dirty.stones,
             };
-            let finished = update.run(time);
+            let finished = update.run(Some(time));
             finished.then(|| std::mem::take(info))
         } else {
             None

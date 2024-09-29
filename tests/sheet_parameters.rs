@@ -49,7 +49,7 @@ fn tee_shot_parameters() {
                 simulation: &simulation,
                 dirty: &mut dirty,
             }
-            .run(seconds(120.0)));
+            .run(Some(seconds(120.0))));
             assert_float_eq!(sheet.positions()[0].x, tee.x, abs <= 0.5);
             assert_float_eq!(sheet.positions()[0].y, tee.y, abs <= 0.5);
         }

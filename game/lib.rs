@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod dirty;
 pub mod game;
+#[cfg(feature = "slint")]
+pub mod heatmap;
 pub mod running;
 pub mod score;
 pub mod setup;

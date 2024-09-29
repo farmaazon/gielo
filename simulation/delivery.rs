@@ -208,15 +208,17 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
     }
 
     /// Returns true when finished.
-    pub fn run(&mut self, time: Time) -> bool {
+    pub fn run(&mut self, time: Option<Time>) -> bool {
         let mut limit = std::iter::repeat(()).take(EVENT_LIMIT_IN_SINGLE_RUN);
-        while let Some(event) = self.next_event(|event| event.time > time) {
+        while let Some(event) = self.next_event(|event| time.map_or(false, |t| event.time > t)) {
             if limit.next().is_none() {
                 panic!("Event limit exceeded!");
             }
             self.apply_event(event);
         }
-        self.process.current_time = time;
+        if let Some(t) = time {
+            self.process.current_time = t;
+        }
         self.update_positions_in_sheet();
         self.process.next_event_cached.is_none()
     }
@@ -306,7 +308,7 @@ mod tests {
                 simulation: &self.simulation,
                 dirty: &mut self.dirty,
             };
-            assert_eq!(update.run(until), expected_result);
+            assert_eq!(update.run(Some(until)), expected_result);
         }
     }
 
@@ -524,7 +526,7 @@ mod tests {
             simulation: &simulation,
             dirty: &mut dirty,
         };
-        assert!(update.run(seconds(100.0)));
+        assert!(update.run(Some(seconds(100.0))));
 
         assert_float_eq!(stones.positions()[delivered_stone].x, delivered_stone_target.x);
         assert_float_eq!(stones.positions()[delivered_stone].y, delivered_stone_target.y);
@@ -563,7 +565,7 @@ mod tests {
             dirty: &mut dirty,
         };
 
-        assert!(update.run(seconds(100.0)));
+        assert!(update.run(Some(seconds(100.0))));
         // Should not enter infinite loop.
     }
 }
