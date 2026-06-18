@@ -31,7 +31,7 @@ slint-build = "1.8"
 
 [workspace.dependencies.log]
 version = "0.4"
-features = ["max_level_info", "release_max_level_warn"]
+features = ["max_level_debug", "release_max_level_warn"]
 
 [workspace.dependencies.derive_more]
 version = "1.0"
@@ -73,3 +73,10 @@ serde.workspace = true
 serde_yaml.workspace = true
 simple_logger.workspace = true
 slint.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.8" }
+
+[[bench]]
+name = "simulation"
+harness = false

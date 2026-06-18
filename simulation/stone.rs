@@ -37,15 +37,6 @@ impl MovingStone {
         }
     }
 
-    pub fn new_delivered(s0: Position, v0: Velocity) -> Self {
-        Self {
-            t0: Time::ZERO,
-            t1: seconds(unit::BaseType::INFINITY),
-            motion: motion::UniformlyAccelerated { s0, v0, a: Acceleration::ZERO },
-            rotation: Rotation::None,
-        }
-    }
-
     pub fn is_moving(&self) -> bool {
         self.motion.v0 != Velocity::ZERO
     }
@@ -76,9 +67,28 @@ impl MovingStone {
 pub struct NextStoneEvent<'a, 'b> {
     pub stone: &'a MovingStone,
     pub sheet_params: &'b sheet::Parameters,
+    area_of_effect_min: Vector2<unit::Length>,
+    area_of_effect_max: Vector2<unit::Length>,
 }
 
 impl<'a, 'b> NextStoneEvent<'a, 'b> {
+    pub fn new(stone: &'a MovingStone, sheet_params: &'b sheet::Parameters) -> Self {
+        let s0 = stone.position(stone.t0);
+        let s1 = stone.position(stone.t1);
+        Self {
+            stone,
+            sheet_params,
+            area_of_effect_min: Vector2 {
+                x: s0.x.min(s1.x) - sheet_params.stone_radius,
+                y: s0.y.min(s1.y) - sheet_params.stone_radius,
+            },
+            area_of_effect_max: Vector2 {
+                x: s0.x.max(s1.x) + sheet_params.stone_radius,
+                y: s0.y.max(s1.y) + sheet_params.stone_radius,
+            },
+        }
+    }
+
     pub fn when_stop(&self) -> Option<Time> {
         self.stone.is_moving().then(|| {
             let v = self.stone.motion.v0.norm();
@@ -92,7 +102,13 @@ impl<'a, 'b> NextStoneEvent<'a, 'b> {
             .into_iter()
             .filter_map(|(bound, x_sign)| {
                 let out_x = bound - x_sign * self.sheet_params.stone_radius;
-                self.stone.motion.when_at_x(out_x).map(|t| t + self.stone.t0)
+                let inside_area =
+                    out_x >= self.area_of_effect_min.x && out_x <= self.area_of_effect_max.x;
+                if inside_area {
+                    self.stone.motion.when_at_x(out_x).map(|t| t + self.stone.t0)
+                } else {
+                    None
+                }
             })
             .min_by_key(|t| NotNan::from_inner(t.get::<second>()))
     }
@@ -100,13 +116,36 @@ impl<'a, 'b> NextStoneEvent<'a, 'b> {
     pub fn when_outside_y(&self) -> Option<Time> {
         let sheet_params = &self.sheet_params;
         let out_y = sheet_params.geometry.playing_end.back_line_y + sheet_params.stone_radius;
-        self.stone.motion.when_at_y(out_y).map(|t| t + self.stone.t0)
+        let inside_area = out_y >= self.area_of_effect_min.y && out_y <= self.area_of_effect_max.y;
+        if inside_area {
+            self.stone.motion.when_at_y(out_y).map(|t| t + self.stone.t0)
+        } else {
+            None
+        }
     }
 
     pub fn when_collision(&self, rhs: &MovingStone) -> Option<Time> {
-        let t0 = self.stone.t0.max(rhs.t0);
-        let motion = self.stone.motion_at_t(t0) - rhs.motion_at_t(t0);
-        motion.when_hits_circle(self.sheet_params.stone_radius * 2.0).map(|t| t + t0)
+        let rhs_s0 = rhs.position(rhs.t0);
+        let rhs_s1 = rhs.position(rhs.t1);
+        let rhs_aoe_min = Vector2 {
+            x: rhs_s0.x.min(rhs_s1.x) - self.sheet_params.stone_radius,
+            y: rhs_s0.y.min(rhs_s1.y) - self.sheet_params.stone_radius,
+        };
+        let rhs_aoe_max = Vector2 {
+            x: rhs_s0.x.max(rhs_s1.x) + self.sheet_params.stone_radius,
+            y: rhs_s0.y.max(rhs_s1.y) + self.sheet_params.stone_radius,
+        };
+        let area_overlap = (self.area_of_effect_min.x.max(rhs_aoe_min.x)
+            <= self.area_of_effect_max.x.min(rhs_aoe_max.x))
+            && (self.area_of_effect_min.y.max(rhs_aoe_min.y)
+                <= self.area_of_effect_max.y.min(rhs_aoe_max.y));
+        if area_overlap {
+            let t0 = self.stone.t0.max(rhs.t0);
+            let motion = self.stone.motion_at_t(t0) - rhs.motion_at_t(t0);
+            motion.when_hits_circle(self.sheet_params.stone_radius * 2.0).map(|t| t + t0)
+        } else {
+            None
+        }
     }
 }
 
@@ -184,7 +223,7 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
             debug_assert!(!self.stone.motion.a.x.is_nan());
             debug_assert!(!self.stone.motion.a.y.is_nan());
             self.stone.t1 = match self.stone.rotation {
-                Rotation::None => seconds(unit::BaseType::INFINITY),
+                Rotation::None => self.stone.t0 + v/self.sheet_params.friction,
                 _ => self.stone.t0 + self.simulation.new_time_quantum_for_stone(v),
             }
         }
@@ -246,7 +285,7 @@ mod tests {
             },
             rotation: Rotation::CounterClockwise,
         };
-        let next_event = NextStoneEvent { stone: &stone, sheet_params: &sheet };
+        let next_event = NextStoneEvent::new(&stone, &sheet);
         assert_float_eq!(next_event.when_outside_x().unwrap(), seconds(11.0), abs <= 0.1);
     }
 
@@ -267,7 +306,7 @@ mod tests {
 
             rotation: Rotation::CounterClockwise,
         };
-        let next_event = NextStoneEvent { stone: &stone, sheet_params: &sheet };
+        let next_event = NextStoneEvent::new(&stone, &sheet);
         assert_float_eq!(next_event.when_outside_y().unwrap(), seconds(21.0), abs <= 0.1);
     }
 
@@ -333,7 +372,7 @@ mod tests {
             },
             rotation: Rotation::Clockwise,
         };
-        let when_stopped = NextStoneEvent { stone: &stone, sheet_params: &sheet }
+        let when_stopped = NextStoneEvent::new(&stone, &sheet)
             .when_stop()
             .expect("Stone won't stop");
         assert_float_eq!(when_stopped, seconds(2.5));
@@ -369,7 +408,7 @@ mod tests {
         };
         let mut stationary = MovingStone::new_stationary(Vector2 { x: feet(1.8), y: feet(101.6) });
 
-        let next_event = NextStoneEvent { stone: &moving, sheet_params: &sheet };
+        let next_event =  NextStoneEvent::new(&moving, &sheet);
         let collision_time = next_event.when_collision(&stationary).expect("Stone will miss");
         assert_float_eq!(collision_time, seconds(4.0));
 
@@ -424,8 +463,8 @@ mod tests {
             },
             rotation: Rotation::None,
         };
-        let left_next_event = NextStoneEvent { stone: &left_stone, sheet_params: &sheet };
-        let right_next_event = NextStoneEvent { stone: &right_stone, sheet_params: &sheet };
+        let left_next_event = NextStoneEvent::new(&left_stone, &sheet);
+        let right_next_event = NextStoneEvent::new(&right_stone, &sheet);
         let collision_time = left_next_event.when_collision(&right_stone).expect("Stone will miss");
         let another_time = right_next_event.when_collision(&left_stone).expect("Stone will miss");
         assert_float_eq!(collision_time, seconds(5.0));

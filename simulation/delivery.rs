@@ -45,7 +45,7 @@ pub mod event {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct StartingConditions {
     pub stone: stone::Id,
     pub angle: Angle,
@@ -77,6 +77,7 @@ impl Process {
         let delivering_dist = sheet_params.geometry.delivery_dist();
         let release_time = delivering_dist / velocity;
         stones[stone].motion.v0 = Vector2 { x: velocity * angle.sin(), y: velocity * angle.cos() };
+        stones[stone].t1 = release_time;
         Self {
             stones,
             delivered_stone: stone,
@@ -142,10 +143,7 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
     }
 
     fn stone_events(&self, id: stone::Id) -> impl Iterator<Item = Event> + '_ {
-        let next_event = stone::NextStoneEvent {
-            stone: &self.process.stones[id],
-            sheet_params: &self.sheet_params,
-        };
+        let next_event = stone::NextStoneEvent::new( &self.process.stones[id], &self.sheet_params);
         let t1 = next_event.stone.t1;
         let next_quantum = t1.is_finite().then_some(Event {
             kind: event::Kind::NextTimeQuantum,
@@ -161,7 +159,7 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
             let rhs = &self.process.stones[with];
             Event::from_times(event::Kind::Collision { with }, id, next_event.when_collision(rhs))
         });
-        next_quantum.into_iter().chain(outside_x).chain(outside_y).chain(stopped).chain(collisions)
+        stopped.chain(outside_x).chain(outside_y).chain(collisions).chain(next_quantum)
     }
 
     pub fn apply_event(&mut self, event: Event) {
