@@ -1,14 +1,14 @@
 use crate::{
+    Delivery, MarkedDelivery, ViolatedRule,
     dirty::Dirty,
     game,
     game::{Game, Turn, TurnIndex},
-    score::{count_score, Score},
+    score::{Score, count_score},
     setup::Setup,
     sheet,
     situation::Situation,
-    Delivery, MarkedDelivery, ViolatedRule,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use gielo_sheet::{stone, stone::Stones};
 use gielo_simulation as simulation;
 use gielo_simulation::delivery::Process;
@@ -127,23 +127,15 @@ impl<NameT, ColorT> RunningGame<NameT, ColorT> {
     }
 
     pub fn violation(&self) -> Option<ViolatedRule> {
-        if let Phase::Violation { rule, .. } = &self.phase {
-            Some(*rule)
-        } else {
-            None
-        }
+        if let Phase::Violation { rule, .. } = &self.phase { Some(*rule) } else { None }
     }
 
     pub fn end_finished(&self) -> Option<Score> {
-        if let Phase::EndFinished { score } = self.phase {
-            Some(score)
-        } else {
-            None
-        }
+        if let Phase::EndFinished { score } = self.phase { Some(score) } else { None }
     }
 
     pub fn game_finished(&self) -> bool {
-        matches!(self.phase, Phase::GameFinished { .. })
+        matches!(self.phase, Phase::GameFinished)
     }
 
     pub fn start_delivery(&mut self, dirty: &mut Dirty, plan: Delivery) -> Result<()> {
@@ -296,7 +288,7 @@ impl<NameT, ColorT> RunningGame<NameT, ColorT> {
             self.current.stones.restore(&mut dirty.stones, restored_stones)
         }
         if self.current.turn.stone() + 1 >= stone::COUNT {
-            let score = count_score(&self.current.stones, &self.sheet_params());
+            let score = count_score(&self.current.stones, self.sheet_params());
             self.current.add_to_score(dirty, score);
             self.game.store_end_score(self.current.turn.end(), score);
             self.phase = Phase::EndFinished { score };
@@ -320,12 +312,12 @@ impl<NameT, ColorT> RunningGame<NameT, ColorT> {
             rotation: plan.rotation,
         };
         let mut process =
-            Process::new(process_params, &mut stones_copy, &self.sheet_params(), &mut dirty);
+            Process::new(process_params, &mut stones_copy, self.sheet_params(), &mut dirty);
         let mut result = vec![stones_copy.positions()[self.current.stone()]];
         let mut update = simulation::delivery::Update {
             process: &mut process,
             sheet: &mut stones_copy,
-            sheet_params: &self.sheet_params(),
+            sheet_params: self.sheet_params(),
             simulation: &self.simulation,
             dirty: &mut dirty,
         };

@@ -1,17 +1,16 @@
 use crate::{
     game,
     game::{
-        unit,
+        RunningGame, unit,
         unit::{
             acceleration::foot_per_second_squared, feet, length::foot, seconds, vector::Vector2,
         },
-        RunningGame,
     },
     profiles::Profiles,
     ui,
     ui::{SheetEndGeometry, SheetGeometry, StoneModel},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use slint::{Model, ModelRc, VecModel};
 use std::{any::Any, cell::RefCell, rc::Rc};
@@ -202,7 +201,7 @@ pub fn call(ui: &ui::Shot, sheet: &game::sheet::Parameters) -> game::MarkedDeliv
 }
 
 pub fn update_shot_preview(ui: &ui::Shot, game: &RunningGame) {
-    let call = call(ui, &game.sheet_params());
+    let call = call(ui, game.sheet_params());
     let preview = game.expected_path(game.resolve_marked(call));
     let commands = format!(
         "{}",

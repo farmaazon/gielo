@@ -1,5 +1,5 @@
 use crate::{game::Game, profiles, profiles::Profiles};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use itertools::Itertools;
 use slint::SharedString;
 use std::{fs, io, path::PathBuf, time::SystemTime};
@@ -8,7 +8,7 @@ const TAG_LENGTH: usize = 8;
 const TAG: [u8; TAG_LENGTH] = [0xd6, 0xe1, 0x59, 0xdb, 0xa4, 0xd2, 0xf5, 0xd4];
 
 pub fn is_file_not_found(err: &anyhow::Error) -> bool {
-    err.downcast_ref::<io::Error>().map_or(false, |io_err| io_err.kind() == io::ErrorKind::NotFound)
+    err.downcast_ref::<io::Error>().is_some_and(|io_err| io_err.kind() == io::ErrorKind::NotFound)
 }
 pub struct SaveEntry {
     pub name: SharedString,

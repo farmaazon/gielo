@@ -4,8 +4,8 @@ extern crate uom;
 pub use ::float_eq as base_float_eq;
 pub use std::f64 as base_type;
 pub use uom::{
-    si::{acceleration, angle, length, time, velocity},
     ConstZero,
+    si::{acceleration, angle, length, time, velocity},
 };
 
 pub mod vector;

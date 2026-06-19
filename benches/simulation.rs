@@ -1,19 +1,17 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use gielo_game::{
     sheet::{
-        self,
+        self, Hack,
         stone::{self, Position, Rotation, Stones},
-        Hack,
     },
     simulation::{
-        self,
+        self, Simulation,
         delivery::{Process, StartingConditions, Update},
-        Simulation,
     },
     team::{self, stone::Flag},
     unit::{
-        feet, feet_per_second, feet_per_second_squared, feet_squared_per_second_squared, inches,
-        milliseconds, radians, seconds, vector::Vector2, Angle, Velocity,
+        Angle, Velocity, feet, feet_per_second, feet_per_second_squared,
+        feet_squared_per_second_squared, inches, milliseconds, radians, seconds, vector::Vector2,
     },
 };
 use std::{f64::consts::PI, hint::black_box};
@@ -137,7 +135,7 @@ fn simulation_benchmarks(c: &mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default()
-        .sample_size(500)             
+        .sample_size(500)
         .measurement_time(std::time::Duration::from_secs(15))
         .warm_up_time(std::time::Duration::from_secs(8));
     targets = simulation_benchmarks

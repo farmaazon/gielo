@@ -1,6 +1,6 @@
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 use gielo_unit as unit;
-use gielo_unit::{vector::Vector2, ConstZero};
+use gielo_unit::{ConstZero, vector::Vector2};
 use serde::{Deserialize, Serialize};
 
 use crate::Parameters;
@@ -36,11 +36,7 @@ impl Flag {
     }
 
     pub fn all_before(id: Id) -> Self {
-        if id >= COUNT {
-            Self::ALL
-        } else {
-            Self((1 << id) - 1)
-        }
+        if id >= COUNT { Self::ALL } else { Self((1 << id) - 1) }
     }
 
     pub fn range(range: impl std::ops::RangeBounds<Id>) -> Self {

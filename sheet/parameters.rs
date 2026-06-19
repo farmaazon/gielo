@@ -1,5 +1,6 @@
-use crate::{stone, Hack};
+use crate::{Hack, stone};
 use gielo_unit::{
+    Acceleration, Angle, AvailableEnergy, Length, Time, Velocity,
     acceleration::foot_per_second_squared,
     base_type::consts::PI,
     feet, feet_per_second_squared, feet_squared_per_second_squared, float_eq, inches,
@@ -7,7 +8,6 @@ use gielo_unit::{
     seconds,
     vector::{EuclideanNorm, Vector2},
     velocity::foot_per_second,
-    Acceleration, Angle, AvailableEnergy, Length, Time, Velocity,
 };
 use serde::{Deserialize, Serialize};
 

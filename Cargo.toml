@@ -3,7 +3,7 @@ members = ["game", "sheet", "simulation", "slint", "team", "unit"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Adam Obuchowicz <farmaazon@gmail.com>"]
 license = "MIT"
 

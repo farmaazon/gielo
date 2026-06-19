@@ -2,7 +2,7 @@ use crate::{sheet, team};
 use decorum::NotNan;
 use gielo_sheet::stone::Stones;
 use gielo_team::{PerTeam, Team};
-use gielo_unit::{float_eq, length::foot, BaseType};
+use gielo_unit::{BaseType, float_eq, length::foot};
 use itertools::Itertools;
 
 pub type Score = PerTeam<u8>;

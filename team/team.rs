@@ -1,4 +1,4 @@
-use crate::{player, player::Player, PerTeam};
+use crate::{PerTeam, player, player::Player};
 use serde::{Deserialize, Serialize};
 
 pub const TEAMS_COUNT: usize = 2;

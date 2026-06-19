@@ -1,4 +1,4 @@
-use crate::{Team, TEAMS_COUNT};
+use crate::{TEAMS_COUNT, Team};
 use derive_more::{Add, AddAssign, Sum};
 use serde::{Deserialize, Serialize};
 use std::ops::{Index, IndexMut};

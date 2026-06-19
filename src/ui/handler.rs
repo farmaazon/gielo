@@ -2,8 +2,8 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{game::RunningGame, profiles::Profiles, save_load::SaveLoad, ui, Snapshot};
-use anyhow::{anyhow, Result};
+use crate::{Snapshot, game::RunningGame, profiles::Profiles, save_load::SaveLoad, ui};
+use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
