@@ -1,12 +1,7 @@
-use crate::Delivery;
-use crate::sheet;
-use crate::simulation;
-use crate::unit;
+use crate::{Delivery, sheet, simulation, unit};
 use gielo_sheet::stone::{self, Stones};
-use gielo_simulation::Simulation;
-use gielo_simulation::delivery::Process;
-use gielo_team::PerTeam;
-use gielo_team::Player;
+use gielo_simulation::{Simulation, delivery::Process};
+use gielo_team::{PerTeam, Player};
 
 pub struct HeatmapFactory {
     pixels_per_foot: unit::BaseType,
