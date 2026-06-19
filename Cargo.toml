@@ -5,6 +5,7 @@ members = ["game", "sheet", "simulation", "slint", "team", "unit"]
 version = "0.1.0"
 edition = "2021"
 authors = ["Adam Obuchowicz <farmaazon@gmail.com>"]
+license = "MIT"
 
 [workspace.dependencies]
 gielo-game = { path = "game" }
@@ -65,6 +66,8 @@ name = "gielo"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license.workspace = true
+description = "Simple Curling Simulator"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
