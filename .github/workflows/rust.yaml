@@ -13,6 +13,7 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v4
     - name: Install nightly
       run: rustup install nightly
     - name: Install rustfmt
@@ -33,5 +34,15 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+      - name: Install fontconfig
+        run: sudo apt-get install fontconfig libfontconfig1-dev
       - name: test
         run: cargo test --verbose
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install wasmpack
+        run: cargo install wasm-pack
+      - name: Build
+        run: wasm-pack build --verbose --target web
