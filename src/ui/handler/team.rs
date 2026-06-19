@@ -1,8 +1,8 @@
 use crate::{
     game,
     game::{
-        team::{teams, PerTeam},
         RunningGame,
+        team::{PerTeam, teams},
     },
     ui,
 };

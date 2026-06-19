@@ -1,4 +1,4 @@
-use crate::{score::Score, setup::Setup, situation::Situation, Delivery, ViolatedRule};
+use crate::{Delivery, ViolatedRule, score::Score, setup::Setup, situation::Situation};
 use gielo_sheet::{stone, stone::Stones};
 use gielo_team::Team;
 use serde::{Deserialize, Serialize};
@@ -97,10 +97,11 @@ impl<NameT, ColorT> Game<NameT, ColorT> {
             Some(self.setup.starting_situation.stones.clone())
         } else if index.stone() == 0 {
             Some(Stones::new())
-        } else if let Some(previous_turn) = index.previous().and_then(|prev| self.turn(prev)) {
-            Some(previous_turn.outcome().clone())
         } else {
-            None
+            index
+                .previous()
+                .and_then(|prev| self.turn(prev))
+                .map(|previous_turn| previous_turn.outcome().clone())
         }
     }
 
@@ -139,11 +140,7 @@ impl<NameT, ColorT> Game<NameT, ColorT> {
 
     pub fn store_turn(&mut self, index: TurnIndex, turn: Turn) {
         let offset = self.turn_offset(index);
-        if offset == self.turns.len() {
-            self.turns.push(turn)
-        } else {
-            self.turns[offset] = turn
-        }
+        if offset == self.turns.len() { self.turns.push(turn) } else { self.turns[offset] = turn }
     }
 
     pub fn store_end_score(&mut self, end: usize, score: Score) {

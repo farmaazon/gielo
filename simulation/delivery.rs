@@ -1,13 +1,13 @@
-use crate::{stone, Simulation};
+use crate::{Simulation, stone};
 use decorum::NotNan;
 use derive_more::{Deref, DerefMut};
 use gielo_sheet as sheet;
 use gielo_sheet::stone::Rotation;
-use gielo_unit::{float_eq, vector::Vector2, Angle, Time, Velocity, BaseType};
+use gielo_unit::{Angle, BaseType, Time, Velocity, float_eq, vector::Vector2};
 use itertools::Itertools;
 use sheet::stone::Stones;
 use std::cmp;
-use uom::{si::time::second, ConstZero};
+use uom::{ConstZero, si::time::second};
 
 pub use crate::delivery::event::Event;
 use crate::stone::MovingStone;
@@ -112,15 +112,15 @@ pub struct Update<'a, 'b, 'c, 'd, 'e> {
 
 impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
     pub fn next_event(&mut self, mut until_predicate: impl FnMut(&Event) -> bool) -> Option<Event> {
-        let not_cached_event =
-            self.process.next_event_cached.as_ref().map_or(false, &mut until_predicate);
-        if not_cached_event {
+        let not_yet_cached_event =
+            self.process.next_event_cached.as_ref().is_some_and(&mut until_predicate);
+        if not_yet_cached_event {
             None
         } else if let Some(event) = self.process.next_event_cached.take() {
             Some(event)
         } else {
             let next_event = self.compute_next_event();
-            let to_cache = next_event.as_ref().map_or(false, until_predicate);
+            let to_cache = next_event.as_ref().is_some_and(until_predicate);
             if to_cache {
                 self.process.next_event_cached = next_event;
                 None
@@ -134,16 +134,13 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
         let key = |event: &Event| NotNan::<BaseType>::assert(event.time.get::<second>());
         let events = self.sheet.in_play().iter_ids().flat_map(|stone| self.stone_events(stone));
         events
-            .map(|e| {
-                log::debug!("Considering event {e:?}");
-                e
-            })
+            .inspect(|e| log::debug!("Considering event {e:?}"))
             .filter(|event| event.time >= self.process.current_time)
             .min_by_key(key)
     }
 
     fn stone_events(&self, id: stone::Id) -> impl Iterator<Item = Event> + '_ {
-        let next_event = stone::NextStoneEvent::new( &self.process.stones[id], &self.sheet_params);
+        let next_event = stone::NextStoneEvent::new(&self.process.stones[id], self.sheet_params);
         let t1 = next_event.stone.t1;
         let next_quantum = t1.is_finite().then_some(Event {
             kind: event::Kind::NextTimeQuantum,
@@ -169,7 +166,7 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
         let (stones_before, rest) = self.process.stones.split_at_mut(stone_id);
         let (stone, stones_after) = rest.split_first_mut().unwrap();
         let mut stone_update =
-            stone::Update { stone, simulation: self.simulation, sheet_params: &self.sheet_params };
+            stone::Update { stone, simulation: self.simulation, sheet_params: self.sheet_params };
         match kind {
             event::Kind::Release => stone_update.release(time, self.process.rotation),
             event::Kind::StoneOut => {
@@ -207,8 +204,8 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
 
     /// Returns true when finished.
     pub fn run(&mut self, time: Option<Time>) -> bool {
-        let mut limit = std::iter::repeat(()).take(EVENT_LIMIT_IN_SINGLE_RUN);
-        while let Some(event) = self.next_event(|event| time.map_or(false, |t| event.time > t)) {
+        let mut limit = std::iter::repeat_n((), EVENT_LIMIT_IN_SINGLE_RUN);
+        while let Some(event) = self.next_event(|event| time.is_some_and(|t| event.time > t)) {
             if limit.next().is_none() {
                 panic!("Event limit exceeded!");
             }
@@ -250,12 +247,13 @@ mod tests {
     use super::*;
     use crate::simulation;
     use gielo_sheet::{
-        stone::{Flag, Position},
         Hack,
+        stone::{Flag, Position},
     };
     use gielo_unit::{
-        assert_float_eq, base_type::consts::PI, feet, feet_per_second, feet_per_second_squared,
-        feet_squared_per_second_squared, inches, radians, seconds, vector::EuclideanNorm, Length,
+        Length, assert_float_eq, base_type::consts::PI, feet, feet_per_second,
+        feet_per_second_squared, feet_squared_per_second_squared, inches, radians, seconds,
+        vector::EuclideanNorm,
     };
 
     struct DeliveryTest {

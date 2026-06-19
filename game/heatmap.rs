@@ -1,12 +1,7 @@
-use crate::sheet;
-use crate::simulation;
-use crate::unit;
-use crate::Delivery;
+use crate::{Delivery, sheet, simulation, unit};
 use gielo_sheet::stone::{self, Stones};
-use gielo_simulation::delivery::Process;
-use gielo_simulation::Simulation;
-use gielo_team::PerTeam;
-use gielo_team::Player;
+use gielo_simulation::{Simulation, delivery::Process};
+use gielo_team::{PerTeam, Player};
 
 pub struct HeatmapFactory {
     pixels_per_foot: unit::BaseType,
@@ -168,16 +163,16 @@ pub fn heatmap_of_delivery_chances<'a, 'b, 'c, Name>(
             rotation: actual.rotation,
         };
         let mut dirty = stone::Flag::default();
-        let mut process = Process::new(process_params, &mut stones_copy, &sheet, &mut dirty);
+        let mut process = Process::new(process_params, &mut stones_copy, sheet, &mut dirty);
         let mut update = simulation::delivery::Update {
             process: &mut process,
             sheet: &mut stones_copy,
-            sheet_params: &sheet,
+            sheet_params: sheet,
             simulation,
             dirty: &mut dirty,
         };
         update.run(None);
         heatmap.apply_result(stones_copy);
     }
-    return heatmap;
+    heatmap
 }

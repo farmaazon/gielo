@@ -1,19 +1,19 @@
 use crate::{
     game,
     game::{
+        RunningGame,
         dirty::Dirty,
         unit::{feet, seconds, time::second},
-        RunningGame,
     },
     save_load::{SaveEntry, SaveLoad},
     ui,
     ui::{
-        handler::{make_callback, stone, team, Snapshot},
+        handler::{Snapshot, make_callback, stone, team},
         model::{call, set_ui_sheet_parameters, update_shot_preview},
     },
 };
 use anyhow::Result;
-use gielo_game::{unit, ViolatedRule};
+use gielo_game::{ViolatedRule, unit};
 use slint::ComponentHandle;
 use std::{
     cell::{Cell, RefCell},
@@ -109,7 +109,7 @@ impl Handler {
                 let timer = slint::Timer::default();
                 timer.start(
                     slint::TimerMode::Repeated,
-                    Duration::from_secs(1)/SIMULATION_FPS_CAP,
+                    Duration::from_secs(1) / SIMULATION_FPS_CAP,
                     make_callback!(self.update()),
                 );
                 *self.update_timer.borrow_mut() = Some(timer);
@@ -147,7 +147,7 @@ impl Handler {
         let shot = self.ui.global::<ui::Shot>();
         {
             let mut game = self.game.borrow_mut();
-            let call = call(&shot, &game.sheet_params());
+            let call = call(&shot, game.sheet_params());
             game.start_delivery_marked(&mut dirty, call)?;
             self.delivery_start.set(web_time::Instant::now());
         }
@@ -188,6 +188,6 @@ impl Handler {
 
     pub fn save<'a>(&self, save_load: &'a mut SaveLoad) -> Result<&'a SaveEntry> {
         let game = self.game.borrow();
-        save_load.save_game(&game.game())
+        save_load.save_game(game.game())
     }
 }

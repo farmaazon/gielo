@@ -92,9 +92,9 @@ impl Profiles {
         Ok(())
     }
 
-    fn names_iterator<'a, Ts: 'a, T: 'a>(list: Ts) -> impl Iterator<Item = SharedString> + 'a
+    fn names_iterator<'a, Ts, T: 'a>(list: Ts) -> impl Iterator<Item = SharedString> + 'a
     where
-        Ts: IntoIterator<Item = &'a Profile<T>>,
+        Ts: IntoIterator<Item = &'a Profile<T>> + 'a,
         Ts::IntoIter: 'a,
     {
         list.into_iter().map(|Profile { name, .. }| name.clone())

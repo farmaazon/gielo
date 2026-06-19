@@ -1,9 +1,9 @@
 use gielo_sheet as sheet;
 use gielo_unit as unit;
-use gielo_unit::{milliseconds, seconds, Time, Velocity};
+use gielo_unit::{Time, Velocity, milliseconds, seconds};
 use serde::{Deserialize, Serialize};
 use uom::{
-    si::{Quantity, ISQ},
+    si::{ISQ, Quantity},
     typenum::{N1, P2, Z0},
 };
 

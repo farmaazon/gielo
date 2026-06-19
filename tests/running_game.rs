@@ -1,4 +1,5 @@
 use gielo_game::{
+    Delivery, MarkedDelivery, Setup, ViolatedRule,
     dirty::Dirty,
     game::TurnIndex,
     running::RunningGame,
@@ -6,15 +7,13 @@ use gielo_game::{
     setup::Rules,
     sheet,
     sheet::{
-        stone,
+        Hack, stone,
         stone::{Rotation, Stones},
-        Hack,
     },
     situation::Situation,
     team,
     team::Team,
     unit::{feet, feet_per_second, seconds, vector::Vector2},
-    Delivery, MarkedDelivery, Setup, ViolatedRule,
 };
 
 #[test]

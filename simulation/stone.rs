@@ -1,13 +1,12 @@
-use crate::{motion, Simulation};
+use crate::{Simulation, motion};
 use decorum::NotNan;
 use gielo_sheet as sheet;
 use gielo_sheet::stone::Rotation;
 use gielo_unit as unit;
 use gielo_unit::{
-    float_eq, seconds,
+    ConstZero, Time, float_eq, seconds,
     time::second,
     vector::{EuclideanNorm, Vector2},
-    ConstZero, Time,
 };
 
 pub type Id = sheet::stone::Id;
@@ -223,7 +222,7 @@ impl<'a, 'b, 'c> Update<'a, 'b, 'c> {
             debug_assert!(!self.stone.motion.a.x.is_nan());
             debug_assert!(!self.stone.motion.a.y.is_nan());
             self.stone.t1 = match self.stone.rotation {
-                Rotation::None => self.stone.t0 + v/self.sheet_params.friction,
+                Rotation::None => self.stone.t0 + v / self.sheet_params.friction,
                 _ => self.stone.t0 + self.simulation.new_time_quantum_for_stone(v),
             }
         }
@@ -372,9 +371,8 @@ mod tests {
             },
             rotation: Rotation::Clockwise,
         };
-        let when_stopped = NextStoneEvent::new(&stone, &sheet)
-            .when_stop()
-            .expect("Stone won't stop");
+        let when_stopped =
+            NextStoneEvent::new(&stone, &sheet).when_stop().expect("Stone won't stop");
         assert_float_eq!(when_stopped, seconds(2.5));
 
         let mut update =
@@ -408,7 +406,7 @@ mod tests {
         };
         let mut stationary = MovingStone::new_stationary(Vector2 { x: feet(1.8), y: feet(101.6) });
 
-        let next_event =  NextStoneEvent::new(&moving, &sheet);
+        let next_event = NextStoneEvent::new(&moving, &sheet);
         let collision_time = next_event.when_collision(&stationary).expect("Stone will miss");
         assert_float_eq!(collision_time, seconds(4.0));
 

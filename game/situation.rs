@@ -1,7 +1,7 @@
 use crate::{dirty::Dirty, game::TurnIndex, score::Score};
 use gielo_sheet::{stone, stone::Stones};
 use gielo_team as team;
-use gielo_team::{player, Team, TEAMS_COUNT};
+use gielo_team::{TEAMS_COUNT, Team, player};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -37,7 +37,7 @@ impl Situation {
     pub fn stones_left(&self, team: Team) -> usize {
         let stone = self.turn.stone();
         let hammer_team_stones_delivered = stone / TEAMS_COUNT;
-        let stones_delivered = if team == self.hammer || stone % 2 == 0 {
+        let stones_delivered = if team == self.hammer || stone.is_multiple_of(2) {
             hammer_team_stones_delivered
         } else {
             hammer_team_stones_delivered + 1

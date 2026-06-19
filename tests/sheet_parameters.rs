@@ -1,12 +1,12 @@
 use gielo_game::{
     sheet,
     sheet::{
-        stone::{Flag, Rotation, Stones},
         Hack,
+        stone::{Flag, Rotation, Stones},
     },
     simulation,
     simulation::Simulation,
-    unit::{assert_float_eq, feet, seconds, vector::Vector2, ConstZero, Length},
+    unit::{ConstZero, Length, assert_float_eq, feet, seconds, vector::Vector2},
 };
 
 #[test]
@@ -42,14 +42,16 @@ fn tee_shot_parameters() {
             };
             let mut process =
                 simulation::delivery::Process::new(start, &mut sheet, &parameters, &mut dirty);
-            assert!(simulation::delivery::Update {
-                process: &mut process,
-                sheet: &mut sheet,
-                sheet_params: &parameters,
-                simulation: &simulation,
-                dirty: &mut dirty,
-            }
-            .run(Some(seconds(120.0))));
+            assert!(
+                simulation::delivery::Update {
+                    process: &mut process,
+                    sheet: &mut sheet,
+                    sheet_params: &parameters,
+                    simulation: &simulation,
+                    dirty: &mut dirty,
+                }
+                .run(Some(seconds(120.0)))
+            );
             assert_float_eq!(sheet.positions()[0].x, tee.x, abs <= 0.5);
             assert_float_eq!(sheet.positions()[0].y, tee.y, abs <= 0.5);
         }

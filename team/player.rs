@@ -1,9 +1,9 @@
 use gielo_unit::{
-    angle::degree, degrees, feet_per_second, radians, velocity::foot_per_second, Angle, Length,
-    Velocity,
+    Angle, Length, Velocity, angle::degree, degrees, feet_per_second, radians,
+    velocity::foot_per_second,
 };
 
-use crate::{stone, TEAMS_COUNT};
+use crate::{TEAMS_COUNT, stone};
 use gielo_sheet as sheet;
 use gielo_sheet::Hack;
 use rand_distr::Distribution;

@@ -156,7 +156,7 @@ impl EuclideanNorm for Vector2<Length> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_float_eq, feet_per_second, BaseType};
+    use crate::{BaseType, assert_float_eq, feet_per_second};
 
     #[test]
     fn operations() {

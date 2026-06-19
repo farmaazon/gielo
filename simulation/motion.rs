@@ -2,15 +2,15 @@ use crate::stone::{Acceleration, Position, Velocity};
 use derive_more::{Add, Sub};
 use gielo_unit as unit;
 use gielo_unit::{
+    Time,
     acceleration::foot_per_second_squared,
     feet_squared_per_second_squared,
     length::foot,
     seconds,
     vector::{EuclideanNorm, Vector2},
     velocity::foot_per_second,
-    Time,
 };
-use roots::{find_roots_linear, find_roots_quadratic, Roots};
+use roots::{Roots, find_roots_linear, find_roots_quadratic};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Add, Sub, PartialEq, Deserialize, Serialize)]

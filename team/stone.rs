@@ -1,5 +1,5 @@
 use crate::{PerTeam, Team};
-pub use gielo_sheet::stone::{Flag, Id, COUNT};
+pub use gielo_sheet::stone::{COUNT, Flag, Id};
 
 pub const COUNT_PER_TEAM: usize = 8;
 pub const TEAM_IDS: PerTeam<std::ops::Range<Id>> =
@@ -13,9 +13,5 @@ pub const QUEUE_BY_HAMMER: PerTeam<[Id; COUNT]> = PerTeam {
 };
 
 pub fn team(id: Id) -> Team {
-    if STONES.a.contains(id) {
-        Team::A
-    } else {
-        Team::B
-    }
+    if STONES.a.contains(id) { Team::A } else { Team::B }
 }
