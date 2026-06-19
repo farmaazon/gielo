@@ -2,7 +2,7 @@ use crate::{sheet, team};
 use decorum::NotNan;
 use gielo_sheet::stone::Stones;
 use gielo_team::{PerTeam, Team};
-use gielo_unit::{float_eq, length::foot};
+use gielo_unit::{float_eq, length::foot, BaseType};
 use itertools::Itertools;
 
 pub type Score = PerTeam<u8>;
@@ -14,7 +14,7 @@ pub fn count_score(stones: &Stones, sheet_params: &sheet::Parameters) -> Score {
         stones
             .iter_flag(team_stones & stones.in_play())
             .filter_map(|(_, s)| sheet_params.dist_from_tee_in_house(s))
-            .sorted_by_key(|dist| NotNan::from_inner(dist.get::<foot>()))
+            .sorted_by_key(|dist| NotNan::<BaseType>::assert(dist.get::<foot>()))
             .collect_vec()
     });
     let nearest_stone = stones_distances.as_ref().map(|s| s.first().cloned());

@@ -110,7 +110,7 @@ impl<'a, 'b> NextStoneEvent<'a, 'b> {
                     None
                 }
             })
-            .min_by_key(|t| NotNan::from_inner(t.get::<second>()))
+            .min_by_key(|t| NotNan::<unit::BaseType>::assert(t.get::<second>()))
     }
 
     pub fn when_outside_y(&self) -> Option<Time> {

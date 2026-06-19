@@ -39,13 +39,13 @@ impl Skills {
 impl Skills {
     pub fn rand_angle_error(&self) -> Angle {
         let angle_dist = rand_distr::Normal::new(0.0, self.angle_std_dev.get::<degree>()).unwrap();
-        degrees(angle_dist.sample(&mut rand::thread_rng()))
+        degrees(angle_dist.sample(&mut rand::rng()))
     }
 
     pub fn rand_velocity_error(&self) -> Velocity {
         let velocity_dist =
             rand_distr::Normal::new(0.0, self.velocity_std_dev.get::<foot_per_second>()).unwrap();
-        feet_per_second(velocity_dist.sample(&mut rand::thread_rng()))
+        feet_per_second(velocity_dist.sample(&mut rand::rng()))
     }
 }
 

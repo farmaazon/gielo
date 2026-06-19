@@ -3,7 +3,7 @@ use decorum::NotNan;
 use derive_more::{Deref, DerefMut};
 use gielo_sheet as sheet;
 use gielo_sheet::stone::Rotation;
-use gielo_unit::{float_eq, vector::Vector2, Angle, Time, Velocity};
+use gielo_unit::{float_eq, vector::Vector2, Angle, Time, Velocity, BaseType};
 use itertools::Itertools;
 use sheet::stone::Stones;
 use std::cmp;
@@ -131,7 +131,7 @@ impl<'a, 'b, 'c, 'd, 'e> Update<'a, 'b, 'c, 'd, 'e> {
     }
 
     fn compute_next_event(&self) -> Option<Event> {
-        let key = |event: &Event| NotNan::from(event.time.get::<second>());
+        let key = |event: &Event| NotNan::<BaseType>::assert(event.time.get::<second>());
         let events = self.sheet.in_play().iter_ids().flat_map(|stone| self.stone_events(stone));
         events
             .map(|e| {

@@ -15,39 +15,48 @@ gielo-team = { path = "team" }
 gielo-unit = { path = "unit" }
 
 anyhow = "1.0"
+bincode2 = "2.0"
 chrono = "0.4"
-decorum = "0.3"
-directories = "5.0"
+criterion = { version = "0.8" }
+decorum = "0.4"
+directories = "6.0"
 float_eq = "1.0"
-rand = "0.8"
-rand_distr = "0.4"
+rand = "0.10"
+rand_distr = "0.6"
 roots = { git = "https://github.com/farmaazon/roots-rs.git", rev = "5e66f152f0c97608142ed02386ba78e0c15973f5" }
 simple_logger = "5.0"
-itertools = "0.13"
+itertools = "0.15"
 semver = { version = "1.0", features = ["serde"] }
-bincode2 = "2.0"
 serde_yaml = "0.9"
-slint-build = "1.8"
+slint-build = { git = "https://github.com/farmaazon/slint.git", rev = "6e06193f5918d5679d6499fa5a152af2bc06880c" }
+wasm-bindgen = { version = "0.2" }
+wasm-logger = "0.2.0"
+web-time = "1.1"
 
 [workspace.dependencies.log]
 version = "0.4"
-features = ["max_level_debug", "release_max_level_warn"]
+features = ["max_level_info", "release_max_level_warn"]
 
 [workspace.dependencies.derive_more]
-version = "1.0"
+version = "2.1"
 features = ["add", "add_assign", "not", "sum", "deref", "deref_mut"]
+
+[dependencies.getrandom]
+version = "0.4"
+features = ["wasm_js"]
 
 [workspace.dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
 [workspace.dependencies.slint]
-version = "1.8"
-default-features = false
-features = ["compat-1-0", "std", "log", "backend-winit", "renderer-winit-skia", "serde"]
+# version = "1.16"
+git = "https://github.com/farmaazon/slint.git"
+rev = "6e06193f5918d5679d6499fa5a152af2bc06880c"
+features = ["compat-1-0", "std", "log", "serde"]
 
 [workspace.dependencies.uom]
-version = "0.36"
+version = "0.38"
 default-features = false
 features = ["f64", "si", "std", "use_serde"]
 
@@ -56,6 +65,9 @@ name = "gielo"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 gielo-game = { workspace = true, features = ["slint"] }
@@ -71,11 +83,18 @@ itertools.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
-simple_logger.workspace = true
 slint.workspace = true
+web-time.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+simple_logger.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-logger.workspace = true
+wasm-bindgen.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.8" }
+criterion.workspace = true
 
 [[bench]]
 name = "simulation"

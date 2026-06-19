@@ -18,9 +18,10 @@ use slint::ComponentHandle;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    time,
     time::Duration,
 };
+
+const SIMULATION_FPS_CAP: u32 = 120;
 
 pub struct Handler {
     ui: ui::Main,
@@ -28,7 +29,7 @@ pub struct Handler {
     team_handler: team::Handler,
     game: Rc<RefCell<RunningGame>>,
     snapshot: Rc<Snapshot>,
-    delivery_start: Cell<time::Instant>,
+    delivery_start: Cell<web_time::Instant>,
     update_timer: RefCell<Option<slint::Timer>>,
 }
 
@@ -50,7 +51,7 @@ impl Handler {
             game,
             stone_handler,
             team_handler,
-            delivery_start: Cell::new(time::Instant::now()),
+            delivery_start: Cell::new(web_time::Instant::now()),
             update_timer: RefCell::new(None),
             snapshot,
         });
@@ -108,7 +109,7 @@ impl Handler {
                 let timer = slint::Timer::default();
                 timer.start(
                     slint::TimerMode::Repeated,
-                    Duration::from_millis(10),
+                    Duration::from_secs(1)/SIMULATION_FPS_CAP,
                     make_callback!(self.update()),
                 );
                 *self.update_timer.borrow_mut() = Some(timer);
@@ -134,7 +135,7 @@ impl Handler {
 
     pub fn update(self: &Rc<Self>) -> Result<()> {
         let mut dirty = Dirty::new();
-        let delivery_duration = time::Instant::now() - self.delivery_start.get();
+        let delivery_duration = web_time::Instant::now() - self.delivery_start.get();
         let delivery_time = seconds(delivery_duration.as_secs_f32() * self.ui.get_speed());
         self.game.borrow_mut().update(&mut dirty, delivery_time);
         self.synchronize(dirty);
@@ -148,7 +149,7 @@ impl Handler {
             let mut game = self.game.borrow_mut();
             let call = call(&shot, &game.sheet_params());
             game.start_delivery_marked(&mut dirty, call)?;
-            self.delivery_start.set(time::Instant::now());
+            self.delivery_start.set(web_time::Instant::now());
         }
         self.synchronize(dirty);
         self.make_snapshot();
