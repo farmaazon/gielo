@@ -235,7 +235,7 @@ export component Game inherits Rectangle {
                 ScoreBoard {}
             }
 
-            Button {
+            if SaveLoad.enabled: Button {
                 text: "Save";
 
                 clicked => { SaveLoad.save(); }

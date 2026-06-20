@@ -3,6 +3,7 @@ import { ListView } from "std-widgets.slint";
 
 export global SaveLoad {
     in-out property<[string]> saves;
+    in property <bool> enabled: false;
 
     callback reload-saves();
     callback save();
@@ -16,7 +17,11 @@ export component LoadPanel inherits HorizontalLayout {
     property <int> current-index: -1;
     callback game-loaded;
 
-    Rectangle {
+    if !SaveLoad.enabled: Text {
+        text: "Saving and loading not available in this version";
+    }
+    
+    if SaveLoad.enabled: Rectangle {
         width: 400px;
         background: white;
         border-width: 1px;

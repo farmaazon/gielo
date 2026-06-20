@@ -1,4 +1,4 @@
-import { Button, CheckBox, ComboBox, LineEdit, ListView, SpinBox, Slider } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, LineEdit, ListView, SpinBox, Slider, AboutSlint } from "std-widgets.slint";
 import { Error } from "./Error.slint";
 import { Functions } from "./Functions.slint";
 import { GameModel, NewGameParameters, Player, PlayerSkills, Team } from "./GameModel.slint";
@@ -66,6 +66,7 @@ component TeamLineOut inherits Rectangle {
                 player-profile := ComboBox {
                     model: Profiles.player-skills;
                     current-value: Profiles.custom-player-skills-label(player.skills);
+                    current-index: -1;
 
                     selected(profile) => {
                         team.players[player-index].skills = Profiles.load-player-skills(self.current-index);
@@ -75,7 +76,7 @@ component TeamLineOut inherits Rectangle {
 
                     callback refresh-label();
                     refresh-label => {
-                        self.current-index = 0;
+                        self.current-index = -1;
                         self.current-value = Profiles.custom-player-skills-label(team.players[player-index].skills);
                     }
                 }
@@ -138,7 +139,7 @@ export component NewGame inherits Rectangle {
             spacing: 20px;
 
             for team[index] in parameters.teams: TeamLineOut {
-                width: 400px;
+                width: 480px;
                 horizontal-stretch: 0;
                 team: team;
 
@@ -199,8 +200,6 @@ export component NewGame inherits Rectangle {
                     }
                 }
 
-                Rectangle {}
-
                 Button {
                     text: "Start!";
 
@@ -209,6 +208,15 @@ export component NewGame inherits Rectangle {
                         if (Error.last-rs-call-succeeded) {
                             root.game-started();
                         }
+                    }
+                }
+
+                Rectangle {}
+
+                HorizontalLayout {
+                    alignment: center;
+                    AboutSlint {
+                        width: 280px;
                     }
                 }
             }

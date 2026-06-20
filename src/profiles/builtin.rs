@@ -18,7 +18,7 @@ pub fn create() -> Profiles {
         ],
         ice_profile: list![
             "Standard": Ice {
-                tee_shot_hog_to_hog: seconds(14.5),
+                tee_shot_hog_to_hog: seconds(14.0),
                 curling: feet(5.0),
                 sheet_width: feet(15.0) + inches(7.0),
                 stones_circumference: inches(36.0),

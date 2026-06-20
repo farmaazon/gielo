@@ -2,7 +2,13 @@ pub mod game;
 pub mod stone;
 pub mod team;
 
-use crate::{Snapshot, game::RunningGame, profiles::Profiles, save_load::SaveLoad, ui};
+use crate::{
+    Snapshot,
+    game::RunningGame,
+    profiles::{self, Profiles},
+    save_load::SaveLoad,
+    ui,
+};
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -61,13 +67,21 @@ impl Handler {
         let sheet_ui = ui.global::<ui::SheetModel>();
         let save_load_ui = ui.global::<ui::SaveLoad>();
         set_ui_sheet_parameters(&sheet_ui, &crate::game::sheet::Parameters::default());
-        let profiles = save_load.load_profiles();
+        let profiles = if cfg!(target_family = "wasm") {
+            profiles::builtin::create()
+        } else {
+            save_load.load_profiles()
+        };
         initialize_profiles(&profiles_ui, &profiles);
         let game_handler = game.map(|game| {
             game::Handler::initialize(ui.clone_strong(), game.clone(), snapshot.clone())
         });
         let saves_model = Rc::new(VecModel::from(Self::saves_vec(&save_load)));
-        save_load_ui.set_saves(saves_model.clone().into());
+        if !cfg!(target_family = "wasm") {
+            save_load_ui.set_enabled(true);
+            save_load_ui.set_saves(saves_model.clone().into());
+        }
+        
         let weak_ui = ui.as_weak();
         let blinking = slint::Timer::default();
         blinking.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {

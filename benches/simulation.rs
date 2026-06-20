@@ -127,17 +127,17 @@ fn crazy_eight() -> DeliveryBench {
 }
 
 fn simulation_benchmarks(c: &mut Criterion) {
-    c.bench_function("inaccurate_tee_shot", |b| inaccurate_tee_shot().run(b));
-    c.bench_function("take_out_through_frozen_stone", |b| take_out_through_frozen_stone().run(b));
-    c.bench_function("crazy_eight", |b| crazy_eight().run(b));
+    c.bench_function("simulation - inaccurate_tee_shot", |b| inaccurate_tee_shot().run(b));
+    c.bench_function("simulation - take_out_through_frozen_stone", |b| take_out_through_frozen_stone().run(b));
+    c.bench_function("simulation - crazy_eight", |b| crazy_eight().run(b));
 }
 
 criterion_group!(
-    name = benches;
+    name = simulation;
     config = Criterion::default()
         .sample_size(500)
         .measurement_time(std::time::Duration::from_secs(15))
         .warm_up_time(std::time::Duration::from_secs(8));
     targets = simulation_benchmarks
 );
-criterion_main!(benches);
+criterion_main!(simulation);
