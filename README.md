@@ -1,24 +1,38 @@
-# Simple Curling Simlator
+# Simple Curling Simulator
 
-A simulation of curling game, for training giving right calls - the execution (including sweeping) is outside control of players.
-Be sure to consider all possible outcomes! Written in Rust for 
+A simulation of the game of curling, for practising the right calls - execution (including
+sweeping) is outside the players' control, so be sure to consider all possible outcomes!
+Written in Rust with [Slint](https://slint.dev); the browser version below is the same code
+compiled to WebAssembly.
 
-You may play [browser version](https://farmaazon.github.io/gielo/): set-up all player names and their accuracy (average error of weight and angle), and press Start.
-Click at sheet to put marker and see where is most probable position of the stone (do not adjust marker for sweeping - it is is assumed to be "included" in delivering player's accuracy). Right-click for quick switching rotation. The weight is expressed in hog-to-hog time - you may check "automatic" to set weight to the level of the marker.
+![animation](docs/hit.gif) 
 
-## Building desktop version
+You can play the [browser version](https://farmaazon.github.io/gielo/): set up the player names
+and their accuracy (average error of weight and angle), then press Start. Click on the sheet
+to place a marker and see the stone's most probable resting position (don't adjust the marker for
+sweeping - it's assumed to be "included" in the delivering player's accuracy). Right-click to
+quickly switch rotation. Weight is expressed as hog-to-hog time - check "automatic" to set
+the weight to reach the marker.
+
+## Building the desktop version
 
 ```
 $ cargo run --release
 ```
-Tested mostly on Linux, but should work on all platforms supported by Slint. 
+Tested mostly on Linux, but should work on all platforms supported by Slint.
 
 ## Simulation details
+  
+To keep the simulation fast for analysis (e.g. quickly generating "heatmaps" of possible
+outcomes), it is advanced not step-by-step but event-to-event: from a starting situation we
+compute when the next event happens - a collision, a stone leaving play, or a stone coming to
+rest - and after each event recompute the velocity and acceleration vectors.
+  
+The "curling" of a stone's trajectory is modelled as a constant* force applied perpendicular to
+its motion. Because this acceleration vector rotates over time, computing it exactly is too
+complex; instead it is updated once per time quantum. The quantum length is adaptive — it ends
+when the approximation drifts too far from the true vector, so it's longer at high velocities.
 
-To make simulation fast for analysis (e.g. for quick creating "heatmaps" of possible outcomes), it is tracked not step-by-step, but from-event-to-event - having one starting
-situation, we compute when next event happens, which may be collision, escape or stopping of the stones - after event new vectors of velocity and accelleration are computed.
-
-The "curling" aspect of stone trajectory is simulated by constant* force applied perpendicularly to the movement. As this accelleration rotates over time, it too hard math
-to keep it accurate - instead, it is updated after each time quantum (the length of such quantum is adaptive - it ends when the accuracy vector becomes too off the actual one, so it's longer for high velocities).
-
-*Which is not how actual curling stones behave, which tend to curl more when their rotation slows down. Something to be improved in the future.
+*Not quite how real curling stones behave — they tend to curl more as their rotation slows down.
+Something to improve in the future.
+  
