@@ -128,7 +128,9 @@ fn crazy_eight() -> DeliveryBench {
 
 fn simulation_benchmarks(c: &mut Criterion) {
     c.bench_function("simulation - inaccurate_tee_shot", |b| inaccurate_tee_shot().run(b));
-    c.bench_function("simulation - take_out_through_frozen_stone", |b| take_out_through_frozen_stone().run(b));
+    c.bench_function("simulation - take_out_through_frozen_stone", |b| {
+        take_out_through_frozen_stone().run(b)
+    });
     c.bench_function("simulation - crazy_eight", |b| crazy_eight().run(b));
 }
 

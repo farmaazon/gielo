@@ -60,7 +60,11 @@ pub struct Handler {
 
 impl Handler {
     pub fn initialize(ui: ui::Main, game: Option<RunningGame>, snapshot: Rc<Snapshot>) -> Rc<Self> {
-        let save_load = SaveLoad::new();
+        let save_load = if cfg!(target_family = "wasm") {
+            SaveLoad::new_empty()
+        } else {
+            SaveLoad::new_loaded()
+        };
         ui.set_default_game_parameters(Self::default_new_game_parameters());
         let game_model = ui.global::<ui::GameModel>();
         let profiles_ui = ui.global::<ui::Profiles>();
@@ -77,11 +81,9 @@ impl Handler {
             game::Handler::initialize(ui.clone_strong(), game.clone(), snapshot.clone())
         });
         let saves_model = Rc::new(VecModel::from(Self::saves_vec(&save_load)));
-        if !cfg!(target_family = "wasm") {
-            save_load_ui.set_enabled(true);
-            save_load_ui.set_saves(saves_model.clone().into());
-        }
-        
+        save_load_ui.set_saves(saves_model.clone().into());
+        save_load_ui.set_enabled(!cfg!(target_family = "wasm"));
+
         let weak_ui = ui.as_weak();
         let blinking = slint::Timer::default();
         blinking.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {

@@ -47,12 +47,16 @@ pub struct SaveLoad {
 }
 
 impl SaveLoad {
-    pub fn new() -> Self {
-        let mut this = Self {
+    pub fn new_empty() -> Self {
+        Self {
             current_version: semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
             project_dirs: directories::ProjectDirs::from("pl", "Capricornus", "Gielo"),
             known_saves: vec![],
-        };
+        }
+    }
+
+    pub fn new_loaded() -> Self {
+        let mut this = Self::new_empty();
         match this.reload_saves_list() {
             Err(err) if !is_file_not_found(&err) => {
                 log::error!("Failed to load initial saves list: {err}")
@@ -157,7 +161,7 @@ impl SaveLoad {
 
 impl Default for SaveLoad {
     fn default() -> Self {
-        Self::new()
+        Self::new_empty()
     }
 }
 
